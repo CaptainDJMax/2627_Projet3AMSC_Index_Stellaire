@@ -63,7 +63,7 @@ Voici la liste des exigences du projet, accompagnées des choix matériels recom
 
 ---
 <div align="center">
-  <img src=".IMG/Schéma_V1.png" alt="Schéma dde la V1" width="700">
+  <img src=".IMG/Schéma_V1.jpg" alt="Schéma de la V1" width="700">
 </div>
 
 
