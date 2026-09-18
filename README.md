@@ -62,8 +62,10 @@ Voici la liste des exigences du projet, accompagnées des choix matériels recom
 - **Difficulté :** L'intégration logicielle. Il faut implémenter un correcteur PID (Proportionnel, Intégral, Dérivé) dans le code pour que le microcontrôleur compare des milliers de fois par seconde la position théorique calculée avec la position réelle lue par l'encodeur, et qu'il corrige le mouvement sans créer d'oscillations.
 
 ---
+<div align="center">
+  <img src=".IMG/Schéma_V1.png" alt="Schéma dde la V1" width="700">
+</div>
 
-![Schéma de la V1](IMG/Schéma_V1.png "Schéma dde la V1")
 
 
 ## 🛠️ Stack Électronique de Base (Résumé)
