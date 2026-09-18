@@ -63,6 +63,9 @@ Voici la liste des exigences du projet, accompagnées des choix matériels recom
 
 ---
 
+![Schéma de la V1](IMG/Schéma_V1.png "Schéma dde la V1")
+
+
 ## 🛠️ Stack Électronique de Base (Résumé)
 * **Cerveau :** ESP32
 * **Temps & Espace :** GPS u-blox, IMU BNO085, RTC DS3231
