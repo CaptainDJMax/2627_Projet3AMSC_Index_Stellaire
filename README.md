@@ -1,7 +1,7 @@
 # Projet : Index Stellaire
 
 ## 🌌 Description du Projet
-AstroPointer est un bras mécanique autonome et esthétique, conçu pour pointer en temps réel vers un objet céleste défini via une application mobile ou web. Qu'il s'agisse d'une planète, d'une étoile, de la Station Spatiale Internationale (ISS) ou d'une galaxie, le bras suit l'objet en continu. 
+L'Index Stellaire est un bras mécanique autonome et esthétique, conçu pour pointer en temps réel vers un objet céleste défini via une application mobile ou web. Qu'il s'agisse d'une planète, d'une étoile, de la Station Spatiale Internationale (ISS) ou d'une galaxie, le bras suit l'objet en continu. 
 
 S'il est sous l'horizon, le bras pointera vers le sol. Conçu avec des matériaux nobles, c'est autant un outil de vulgarisation scientifique qu'un objet d'art cinétique d'intérieur.
 
