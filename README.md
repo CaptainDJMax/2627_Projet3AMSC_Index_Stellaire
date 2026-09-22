@@ -1,75 +1,72 @@
-# Projet : Index Stellaire
+## Project Description
+The "Stellar Index" is an autonomous and aesthetic mechanical arm, designed to point in real time at a specific celestial object selected via a mobile or web app. Whether it's a planet, a star, the International Space Station (ISS), or a galaxy, the arm tracks the object continuously.
 
-## 🌌 Description du Projet
-L'Index Stellaire est un bras mécanique autonome et esthétique, conçu pour pointer en temps réel vers un objet céleste défini via une application mobile ou web. Qu'il s'agisse d'une planète, d'une étoile, de la Station Spatiale Internationale (ISS) ou d'une galaxie, le bras suit l'objet en continu. 
-
-S'il est sous l'horizon, le bras pointera vers le sol. Conçu avec des matériaux nobles, c'est autant un outil de vulgarisation scientifique qu'un objet d'art cinétique d'intérieur.
+If the object goes below the horizon, the arm will point toward the ground. Designed with premium materials, it serves as both an educational science tool and an indoor kinetic art piece.
 
 ---
 
-## 📋 Cahier des Charges & Défis Techniques
+## Specifications & Technical Challenges
 
-Voici la liste des exigences du projet, accompagnées des choix matériels recommandés et des défis techniques à anticiper.
+Here is the list of project requirements, along with recommended hardware choices and the technical challenges to anticipate.
 
-### 1. Suivi (Tracking) d'un astre à 360° en continu
-**Description :** Le bras doit pouvoir cibler un objet céleste de manière dynamique et compenser la rotation de la Terre en temps réel, sans limite de rotation.
-- **Matériel :** Un moteur de base pour l'axe Azimut (horizontal), un moteur pour l'axe Élévation (vertical), et un **collecteur tournant (slip ring)** placé au centre de l'axe de rotation.
-- **Difficulté :** La rotation infinie sur l'axe vertical demande d'intégrer ce slip ring pour faire passer les câbles (alimentation et données) du socle vers le bras sans qu'ils ne s'entortillent et se rompent.
+### 1. Continuous 360° Celestial Tracking
+**Description:** The arm must dynamically target a celestial object and compensate for Earth's rotation in real time, with no limits on its rotation.
+- **Hardware:** A base motor for the Azimuth (horizontal) axis, a motor for the Elevation (vertical) axis, and a **slip ring** placed in the center of the rotation axis.
+- **Difficulty:** Infinite rotation on the vertical axis requires a slip ring to pass the power and data cables from the base to the arm so they don't twist and snap.
 
-### 2. Calibrage automatique via IMU et GNSS/GPS
-**Description :** L'utilisateur pose l'objet, l'allume, et le système détermine son emplacement, l'heure exacte et son orientation spatiale (Nord, assiette) sans intervention.
-- **Matériel :** Un module GPS (ex: u-blox NEO-M8N pour une fixation rapide) et une centrale inertielle 9 axes (IMU) avec processeur de fusion de données intégré (ex: BNO085 ou BNO055).
-- **Difficulté :** Le magnétomètre de l'IMU (boussole) est extrêmement sensible aux métaux ferreux et aux champs magnétiques des moteurs. Il faudra placer l'IMU le plus loin possible des moteurs (au bout du bras) et prévoir un algorithme de calibration pour compenser le métal environnant (fer doux/fer dur).
+### 2. Automatic Calibration via IMU and GNSS/GPS
+**Description:** The user sets the object down, turns it on, and the system automatically determines its location, exact time, and spatial orientation (North, level) without manual input.
+- **Hardware:** A GPS module (e.g., u-blox NEO-M8N for a quick lock) and a 9-axis Inertial Measurement Unit (IMU) with a built-in data fusion processor (e.g., BNO085 or BNO055).
+- **Difficulty:** The IMU's magnetometer (compass) is extremely sensitive to ferrous metals and magnetic fields from the motors. The IMU must be placed as far away from the motors as possible (at the end of the arm), and a calibration algorithm is needed to compensate for the surrounding metal.
 
-### 3. Facilité de transport (Pliable)
-**Description :** Le bras doit se plier pour rentrer dans un boîtier de transport dédié.
-- **Matériel :** Articulations sur roulements à billes de précision et **encodeurs magnétiques absolus** (ex: AS5600) sur chaque axe critique.
-- **Difficulté :** Si le bras se plie alors qu'il est éteint, le système doit savoir exactement dans quelle posture il se trouve à l'allumage. Les encodeurs absolus sont obligatoires ici, car ils gardent en mémoire la position physique exacte, contrairement aux encodeurs relatifs.
+### 3. Easy to Transport (Foldable)
+**Description:** The arm must fold down to fit into a custom carrying case.
+- **Hardware:** Precision ball-bearing joints and **absolute magnetic encoders** (e.g., AS5600) on each critical axis.
+- **Difficulty:** If the arm is folded while turned off, the system must know exactly what position it is in when turned back on. Absolute encoders are mandatory here because they remember the exact physical position, unlike standard relative encoders.
 
-### 4. Design Élégant et Matériaux Nobles (Laiton)
-**Description :** Finition haut de gamme pour s'intégrer comme un objet de décoration intérieur.
-- **Matériel :** Laiton massif pour le socle, tubes en aluminium anodisé (aspect laiton) ou en fibre de carbone recouverts de laiton pour les parties mobiles. Visserie invisible.
-- **Difficulté :** Le laiton est très dense et lourd. Un bras entièrement en laiton massif exigera des moteurs très puissants, donc volumineux, bruyants et gourmands en énergie. Il faut impérativement tricher sur les parties mobiles en utilisant des matériaux légers plaqués.
+### 4. Elegant Design and Premium Materials (Brass)
+**Description:** A high-end finish so it blends in as premium home decor.
+- **Hardware:** Solid brass for the base, and anodized aluminum tubes (brass look) or brass-plated carbon fiber for the moving parts. Hidden screws.
+- **Difficulty:** Brass is very dense and heavy. An arm made entirely of solid brass would require very powerful motors, which are bulky, noisy, and drain power quickly. You have to "cheat" on the moving parts by using lightweight materials that just look like brass.
 
-### 5. Silencieux
-**Description :** Les mouvements du bras doivent être imperceptibles auditivement.
-- **Matériel :** Pilotes de moteurs (drivers) ultra-silencieux (ex: Trinamic TMC2209 avec technologie StealthChop) pour moteurs pas-à-pas, ou contrôleurs FOC (SimpleFOC) pour moteurs Brushless. Amortisseurs de vibrations (silentblocs) entre les moteurs et le châssis.
-- **Difficulté :** Isoler acoustiquement la transmission mécanique (engrenages ou courroies). Les courroies synchrones en néoprène sont généralement beaucoup plus silencieuses que les engrenages métalliques.
+### 5. Silent Operation
+**Description:** The arm's movements must be virtually inaudible.
+- **Hardware:** Ultra-silent motor drivers (e.g., Trinamic TMC2209 with StealthChop technology) for stepper motors, or FOC controllers (SimpleFOC) for brushless motors. Vibration dampers between the motors and the frame.
+- **Difficulty:** Acoustically isolating the mechanical transmission (gears or belts). Neoprene timing belts are generally much quieter than metal gears.
 
-### 6. Alimentation : Batterie et Secteur (10h d'autonomie)
-**Description :** Fonctionnement mixte, avec une batterie customisée intégrée.
-- **Matériel :** Pack de cellules Lithium-Ion (ex: cellules 18650 ou 21700 haute capacité), carte BMS (Battery Management System) pour la sécurité de charge/décharge, et un circuit de bascule automatique batterie/secteur.
-- **Difficulté :** Le dimensionnement de la batterie. Les moteurs en position de maintien consomment de l'énergie en permanence pour contrer la gravité. Il faudra équilibrer mécaniquement le bras (ajouter des contrepoids discrets) pour que les moteurs forcent le moins possible.
+### 6. Power Supply: Battery and Mains (10-hour battery life)
+**Description:** Dual operation, featuring a custom built-in battery.
+- **Hardware:** A Lithium-Ion cell pack (e.g., high-capacity 18650 or 21700 cells), a BMS (Battery Management System) board for safe charging/discharging, and a circuit that automatically switches between battery and wall power.
+- **Difficulty:** Sizing the battery. When motors hold a position, they constantly drain energy to fight gravity. The arm must be physically balanced (by adding discreet counterweights) so the motors have to do as little work as possible.
 
-### 7. Interface et Contrôle
-**Description :** Bouton ON/OFF physique premium. L'interface principale est une application connectée via API.
-- **Matériel :** Microcontrôleur **ESP32** (qui intègre nativement le WiFi et le Bluetooth BLE), et un interrupteur à levier ou un bouton poussoir capacitif en métal intégré au design du socle.
-- **Difficulté :** Développer le backend logiciel sur l'ESP32 pour qu'il puisse héberger une API locale (serveur Web embarqué) ou se connecter au WiFi de la maison de manière transparente via le Bluetooth du téléphone.
+### 7. Interface and Control
+**Description:** A premium physical ON/OFF switch. The main control interface is a connected app via an API.
+- **Hardware:** An **ESP32** microcontroller (which natively includes WiFi and Bluetooth BLE), and a metal toggle switch or capacitive push button integrated into the base design.
+- **Difficulty:** Writing the software backend on the ESP32 so it can host a local API (an embedded web server) or seamlessly connect to the home WiFi using the user's phone Bluetooth.
 
-### 8. Fonctionnement hors-ligne prolongé (72h)
-**Description :** Le bras doit pouvoir suivre une cible pendant 72 heures sans connexion réseau.
-- **Matériel :** Module **RTC (Real-Time Clock)** de très haute précision compensé en température (ex: DS3231) avec sa propre pile bouton de sauvegarde (CR2032).
-- **Difficulté :** La dérive temporelle. Sans internet (NTP) pour resynchroniser l'horloge, un microcontrôleur standard perd plusieurs secondes par jour. En astronomie, une erreur de quelques secondes fausse complètement le pointage, d'où l'obligation absolue d'un module RTC dédié.
+### 8. Extended Offline Operation (72 hours)
+**Description:** The arm must be able to track a target for 72 hours without an internet connection.
+- **Hardware:** A high-precision, temperature-compensated **RTC (Real-Time Clock)** module (e.g., DS3231) with its own backup coin battery (CR2032).
+- **Difficulty:** Time drift. Without the internet to resync the clock, a standard microcontroller loses several seconds a day. In astronomy, being off by just a few seconds completely ruins the pointing accuracy, making a dedicated RTC module absolutely necessary.
 
-### 9. Embouts Interchangeables
-**Description :** La terminaison du bras accueille un "doigt mécanique", un pointeur laser, etc.
-- **Matériel :** Connecteur à fixation rapide (aimants en néodyme avec détrompeur ou système à baïonnette), et connecteurs **Pogo Pins** (broches à ressort) pour transmettre le courant électrique au module laser.
-- **Difficulté :** Transmettre le courant à l'embout laser sans fil apparent et s'assurer que l'embout se centre toujours parfaitement sur l'axe optique/mécanique à chaque changement.
+### 9. Interchangeable Tips
+**Description:** The end of the arm can hold different attachments, like a "mechanical finger" or a laser pointer.
+- **Hardware:** A quick-release connector (neodymium magnets with an alignment slot or a bayonet mount), and **Pogo Pins** (spring-loaded contacts) to send electricity to the laser module.
+- **Difficulty:** Sending power to the laser tip without any visible wires, and making sure the tip always centers perfectly on the axis every time it gets swapped out.
 
-### 10. Boucle d'asservissement 
-**Description :** Le système corrige lui-même ses erreurs de position (heurt, perte de pas).
-- **Matériel :** Encodeurs rotatifs haute résolution (ex: AS5048A avec 14 bits de résolution) fixés directement sur l'axe des moteurs.
-- **Difficulté :** L'intégration logicielle. Il faut implémenter un correcteur PID (Proportionnel, Intégral, Dérivé) dans le code pour que le microcontrôleur compare des milliers de fois par seconde la position théorique calculée avec la position réelle lue par l'encodeur, et qu'il corrige le mouvement sans créer d'oscillations.
+### 10. Closed-Loop Control
+**Description:** The system automatically corrects its own position errors (like if it gets bumped or misses a step).
+- **Hardware:** High-resolution rotary encoders (e.g., AS5048A with 14-bit resolution) attached directly to the motor shafts.
+- **Difficulty:** Software integration. You need to write a PID (Proportional, Integral, Derivative) controller into the code. This allows the microcontroller to compare where the arm *should* be with where the encoder says it *actually* is thousands of times per second, correcting the movement smoothly without making the arm shake.
 
 ---
 <div align="center">
   <img src="./IMG/Schéma_V1.jpg" alt="Schéma de la V1" width="700">
 </div>
 
+## Basic Electronic Stack (Summary)
+* **Brain:** ESP32
+* **Time & Space:** u-blox GPS, BNO085 IMU, DS3231 RTC
+* **Movement:** Motors + Trinamic TMC2209 Drivers + Slip Ring
+* **Position Sensors:** Absolute magnetic encoders (AS5600 / AS5048A)
 
-
-## 🛠️ Stack Électronique de Base (Résumé)
-* **Cerveau :** ESP32
-* **Temps & Espace :** GPS u-blox, IMU BNO085, RTC DS3231
-* **Mouvement :** Moteurs + Drivers Trinamic TMC2209 + Slip Ring
-* **Capteurs position :** Encodeurs magnétiques absolus (AS5600 / AS5048A)
