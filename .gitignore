@@ -1,0 +1,12 @@
+# Environnement virtuel
+venv/
+
+# Secrets (clés, mots de passe)
+.env
+
+# Python
+__pycache__/
+*.pyc
+
+# Base de données locale Django
+db.sqlite3
