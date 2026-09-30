@@ -1,0 +1,391 @@
+# Tutoriel - Index Stellaire, de A à Z
+
+Ce document reconstruit, de zéro et dans l'ordre logique, l'application **Index
+Stellaire** : le logiciel (Django, installable en PWA) qui pilote et accompagne
+le bras robotique pointeur d'astres du même nom. Carte du ciel interactive,
+suivi en continu d'objets célestes, événements à l'œil nu, fiches d'objets, et
+communication avec l'appareil physique (ESP32 + STM32) via une API HTTP(S).
+
+Chaque partie présente l'état **final** du code au moment où elle est écrite,
+avec le **pourquoi** de chaque décision de conception, pas seulement le
+**comment**. L'objectif : qu'une personne qui n'a jamais vu le projet puisse le
+reconstruire entièrement, en comprenant à chaque étape pourquoi les choses
+sont faites ainsi et pas autrement.
+
+Ce document est construit **au fur et à mesure**, partie par partie, en
+testant à chaque étape. Il suit le **cahier des charges** de l'application
+(`CahierDesCharges_IndexStellaire.md`) : en cas de doute, c'est lui qui fait
+foi.
+
+## Décisions qui cadrent ce tutoriel
+
+Ces choix sont tirés du cahier des charges et ne sont pas rediscutés en
+chemin :
+
+- **Application web responsive, installable en PWA** (icône sur l'écran
+  d'accueil, plein écran), interface en français, thème nocturne.
+- **Contrôle principal via le serveur en HTTP(S)** : l'appareil interroge le
+  serveur à intervalle régulier pour récupérer sa consigne et remonter son
+  statut. Ça fonctionne sur tous les téléphones, iPhone compris.
+- **BLE = mode local secondaire**, Android/Chrome uniquement (pas de Web
+  Bluetooth sur iOS ni Firefox). Il n'est pas sur le chemin principal.
+- **Configuration Wi-Fi de l'ESP32** via un point d'accès temporaire créé par
+  l'appareil et une page servie par lui (pas de Bluetooth requis).
+- **Mono-utilisateur au départ** ; les autres personnes accèdent via un code
+  de session. Pas de comptes multiples au MVP.
+- **Calculs astronomiques côté serveur avec Skyfield** ; carte du ciel avec
+  **d3-celestial**.
+- **Déploiement en deux temps** : mode 1 (téléphone, ESP32 et Raspberry Pi sur
+  le même Wi-Fi, chez soi), mode 2 (serveur accessible à distance via un
+  tunnel, plus tard).
+- **Laser d'intérieur uniquement** (pas de verrouillage anti-Soleil
+  nécessaire).
+- **Autonomie de l'appareil : 48 h** sans l'application (valeur du cahier des
+  charges).
+- **On développe d'abord contre un appareil simulé**, puis on branche le
+  vrai matériel à la fin.
+- **Contenu des fiches et événements** : sources recherchées et vérifiées à
+  chaque ajout (sources fiables, images libres de droits).
+
+## Sommaire (provisoire, sera ajusté en avançant)
+
+- [Partie 0 - Mise en place du projet](#partie-0---mise-en-place-du-projet)
+- [Partie 1 - Modèles de données du ciel](#partie-1---modèles-de-données-du-ciel)
+- Partie 2 - Calcul astro avec Skyfield
+- Partie 3 - Carte du ciel interactive (d3-celestial)
+- Partie 4 - Modèles de l'appareil et API (polling HTTP)
+- Partie 5 - Accès mono-utilisateur et code de session
+- Partie 6 - Pointage, suivi en continu et cas de l'ISS
+- Partie 7 - Événements à l'œil nu
+- Partie 8 - Recherche et planification
+- Partie 9 - Journal d'observation
+- Partie 10 - Fiches d'objets et contenu vérifié
+- Partie 11 - Configuration Wi-Fi de l'appareil
+- Partie 12 - PWA et notifications push
+- Partie 13 - Connexion au matériel réel
+- Partie 14 - Ce qu'il reste à faire (accès distant, durcissement)
+
+L'ordre des parties 2 à 14 sera recalé sur l'ordre de développement
+recommandé par le cahier des charges.
+
+---
+
+## Partie 0 - Mise en place du projet
+
+### 0.1 Pourquoi Django, et comment démarrer
+
+On part d'un projet vide. Le choix structurant de départ : **un seul projet
+(`index_stellaire`) avec deux apps dès le début, `ciel` et `appareil`**.
+
+Une "app" Django n'est pas une application séparée. C'est un module/dossier de
+code à l'intérieur d'un seul et même projet : une seule base de données, un
+seul serveur, une seule URL pour l'utilisateur final. La séparation ne sert
+qu'à garder le code lisible :
+
+- **`ciel`** porte le contenu et les calculs astronomiques : catalogues,
+  constellations, fiches d'objets (nom, description, images), positions via
+  Skyfield, événements.
+- **`appareil`** porte la communication avec l'appareil : enregistrement du
+  ou des appareils, code de session, file de commandes (les consignes à
+  exécuter), télémétrie (statut remonté par l'appareil).
+
+Ces deux logiques n'ont presque rien en commun (l'une est du contenu et du
+calcul, l'autre du protocole de communication). Les séparer dès le départ
+évite un unique `models.py` qui mélange "position de Jupiter" et "consigne
+envoyée à l'ESP32".
+
+**1. Créer l'environnement virtuel**
+
+Place-toi dans le dossier de ton repo, puis crée un environnement virtuel. Un
+venv, c'est une bulle Python propre à ce projet : les librairies que tu
+installes dedans ne polluent pas le reste de ta machine et restent à la bonne
+version.
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+Quand c'est activé, tu vois `(venv)` au début de ta ligne de terminal. Tout ce
+qu'on installe maintenant reste dans cette bulle.
+
+**2. Installer Django et créer le projet**
+
+```bash
+pip install django
+django-admin startproject index_stellaire .
+python manage.py startapp ciel
+python manage.py startapp appareil
+```
+
+La première ligne installe Django. La deuxième crée le projet ; le point à la
+fin veut dire "ici, dans le dossier courant", ça évite un dossier en trop.
+Les deux suivantes créent les deux apps définies plus haut.
+
+**Règle fixée dès le départ et jamais transgressée** : on ne touche jamais à
+`manage.py`, c'est un fichier généré, standard, qui n'a aucune raison de
+changer.
+
+**3. Déclarer les apps auprès de Django**
+
+Ouvre `index_stellaire/settings.py`. Remplace la liste `INSTALLED_APPS` :
+
+```python
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+]
+```
+
+par :
+
+```python
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'ciel',
+    'appareil',
+]
+```
+
+`startapp` a bien créé les dossiers `ciel/` et `appareil/` sur le disque, mais
+Django ne le sait pas encore : sans cette ligne, il **ignore complètement**
+l'application. Aucune de ses vues ni de ses modèles n'est prise en compte, et
+ça ne produit **aucune erreur visible** pour te prévenir de l'oubli.
+
+**4. Langue et fuseau horaire**
+
+Toujours dans `settings.py`, remplace :
+
+```python
+LANGUAGE_CODE = 'en-us'
+
+TIME_ZONE = 'UTC'
+
+USE_I18N = True
+
+USE_TZ = True
+```
+
+par :
+
+```python
+LANGUAGE_CODE = "fr-fr"
+
+TIME_ZONE = "Europe/Paris"
+
+USE_I18N = True
+
+USE_TZ = True
+```
+
+`USE_TZ` reste à `True` (déjà la valeur par défaut) : Django stocke alors
+toutes les dates en UTC en base, et ne les convertit à l'heure de Paris qu'à
+l'affichage. C'est cette combinaison (`USE_TZ = True` + `TIME_ZONE =
+"Europe/Paris"`) qui évite les décalages liés au passage heure d'été/heure
+d'hiver.
+
+Ce point est **particulièrement sensible sur ce projet** : le calcul de
+pointage d'un astre dépend directement de l'heure exacte (Partie 2). Une
+confusion UTC/heure locale quelque part dans le code donnerait un pointage
+faux de plusieurs degrés sans qu'aucune erreur ne s'affiche. À garder en tête
+chaque fois qu'une heure entre en jeu.
+
+**5. Initialiser la base et vérifier que ça marche**
+
+```bash
+python manage.py migrate
+python manage.py runserver
+```
+
+`migrate` crée le fichier `db.sqlite3` et y installe les tables dont Django a
+besoin pour fonctionner (comptes, sessions...). On n'a encore rien créé
+nous-mêmes, c'est juste le socle technique.
+
+Le terminal affiche `Starting development server at http://127.0.0.1:8000/`.
+Ouvre cette adresse dans un navigateur : tu dois voir la page Django par
+défaut (fusée, "The install worked successfully"), normal puisqu'on n'a
+encore créé aucune page à nous. `Ctrl+C` arrête le serveur.
+
+### 0.2 À savoir dès maintenant : tester depuis un téléphone
+
+Comme l'application est pensée pour le téléphone, tu voudras vite la voir sur
+un vrai écran. Par défaut `runserver` n'écoute que sur ta machine
+(`127.0.0.1`). Pour l'ouvrir au réseau Wi-Fi local (mode 1 du cahier des
+charges) :
+
+```bash
+python manage.py runserver 0.0.0.0:8000
+```
+
+Il faut aussi autoriser l'adresse dans `settings.py` (valeur acceptable
+uniquement en développement, à restreindre avant toute exposition réelle) :
+
+```python
+ALLOWED_HOSTS = ["*"]
+```
+
+Depuis le téléphone, sur le même Wi-Fi, va sur `http://<ip-de-ta-machine>:8000`.
+
+Une limite à connaître : en HTTP simple sur une adresse réseau, le navigateur
+du téléphone **n'autorise pas le service worker**, donc pas d'installation en
+PWA ni de notifications push. Ça ne gêne pas pour développer l'interface ; ce
+point sera traité en Partie 12, avec le HTTPS.
+
+---
+
+## Partie 1 - Modèles de données du ciel
+
+On commence par le modèle le plus simple à tester sans dépendre du matériel :
+le contenu descriptif des objets célestes, dans l'app `ciel`. Ça permet de
+remplir la base avec quelques objets (une étoile, une planète) et de vérifier
+qu'ils s'affichent dans l'admin Django, avant même d'avoir touché à Skyfield
+ou à l'ESP32.
+
+### 1.1 `ObjetCeleste`
+
+```python
+# ciel/models.py
+from django.db import models
+
+
+class ObjetCeleste(models.Model):
+    class Categorie(models.TextChoices):
+        ETOILE = "etoile", "Étoile"
+        PLANETE = "planete", "Planète"
+        AMAS = "amas", "Amas"
+        SATELLITE = "satellite", "Satellite"
+
+    nom = models.CharField(max_length=100)
+    categorie = models.CharField(max_length=20, choices=Categorie.choices)
+    description = models.TextField(blank=True)
+    image = models.ImageField(upload_to="objets_celestes/", blank=True, null=True)
+
+    def __str__(self):
+        return self.nom
+```
+
+Deux choix de conception :
+
+- **Pas de RA/Dec stockés en base.** Pour une étoile, la position est quasi
+  fixe à l'échelle humaine, mais on préfère calculer toutes les positions via
+  Skyfield à partir d'un identifiant reconnu (nom, catalogue) plutôt que de
+  stocker des coordonnées à maintenir à la main. Ça viendra en Partie 2. Ce
+  modèle ne porte que le **contenu descriptif**.
+- **`categorie` en `TextChoices`** plutôt qu'en texte libre : ça évite les
+  fautes de frappe ("etoile" / "Etoile" / "star") qui casseraient
+  discrètement les filtres plus tard (les filtres d'affichage par type
+  d'objet, F36 du cahier des charges), et Django génère un menu déroulant
+  dans l'admin.
+
+Un amas (Hyades, Pléiades) a sa place ici : même s'il est visuellement étendu,
+pour le bras c'est une position unique à cibler, comme une étoile.
+
+### 1.2 `Constellation`
+
+Une constellation n'est pas un point unique du ciel : c'est un ensemble de
+points reliés par des lignes. C'est une autre nature d'objet, donc un modèle à
+part, qui **regroupe** des étoiles.
+
+```python
+class Constellation(models.Model):
+    nom = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    image = models.ImageField(upload_to="constellations/", blank=True, null=True)
+    etoiles = models.ManyToManyField(
+        ObjetCeleste,
+        limit_choices_to={"categorie": ObjetCeleste.Categorie.ETOILE},
+        related_name="constellations",
+        blank=True,
+    )
+
+    def __str__(self):
+        return self.nom
+```
+
+- **`ManyToManyField`** : les figures tracées entre étoiles peuvent partager
+  une étoile entre deux constellations voisines. La relation plusieurs-à-
+  plusieurs évite de figer une seule appartenance par étoile.
+- **`limit_choices_to`** restreint le choix aux objets de catégorie "étoile"
+  dans l'admin, pour ne pas associer par erreur une planète ou un satellite.
+- **`blank=True`** permet de créer une constellation avant d'y rattacher ses
+  étoiles.
+
+Ce qu'on laisse volontairement de côté : le **tracé** des lignes entre les
+étoiles. Il servira à l'affichage de la carte et sera traité en Partie 3.
+
+### 1.3 Images : Pillow et fichiers média
+
+`ImageField` a besoin de la librairie Pillow. Sans elle, `makemigrations`
+s'arrête avec une erreur.
+
+```bash
+pip install pillow
+```
+
+Django doit aussi savoir où ranger et comment servir les images envoyées.
+Dans `settings.py` :
+
+```python
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+```
+
+Et dans `index_stellaire/urls.py`, pour servir ces fichiers en développement :
+
+```python
+from django.conf import settings
+from django.conf.urls.static import static
+from django.contrib import admin
+from django.urls import path
+
+urlpatterns = [
+    path("admin/", admin.site.urls),
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+```
+
+### 1.4 Admin et premier test
+
+```python
+# ciel/admin.py
+from django.contrib import admin
+from .models import ObjetCeleste, Constellation
+
+admin.site.register(ObjetCeleste)
+admin.site.register(Constellation)
+```
+
+```bash
+python manage.py makemigrations ciel
+python manage.py migrate
+python manage.py createsuperuser
+python manage.py runserver
+```
+
+Va sur `http://127.0.0.1:8000/admin/`, connecte-toi, et crée quelques
+`ObjetCeleste` (par exemple "Aldébaran", étoile, et "Hyades", amas), puis une
+`Constellation` ("Taureau") à laquelle tu rattaches les étoiles créées.
+
+**Ce qui doit marcher** : les objets apparaissent avec leur nom dans les
+listes de l'admin, la catégorie est un menu déroulant, et le champ `etoiles`
+d'une constellation ne propose que des étoiles.
+
+**Contenu des fiches** : les descriptions et images que tu saisis ici doivent
+venir de sources vérifiées et d'images libres de droits (décision du cahier
+des charges). Ce sera formalisé en Partie 10.
+
+---
+
+### Statut
+
+Parties 0 et 1 posées. Prochaine étape : **Partie 2 - Calcul astro avec
+Skyfield** (positions d'un objet à un instant donné), ou l'ordre du cahier des
+charges si tu me le transmets.
