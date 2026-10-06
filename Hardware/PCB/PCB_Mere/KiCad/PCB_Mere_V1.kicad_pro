@@ -644,17 +644,25 @@
     "top_level_sheets": [
       {
         "filename": "PCB_Mere_V1.kicad_sch",
-        "name": "Racine",
+        "name": "STM32H723ZGTx",
         "uuid": "d2ac468b-9b53-4c3c-b006-996db3620a48"
       }
     ],
-    "used_designators": "R1,#PWR1-10,C1-21,U1-2",
+    "used_designators": "",
     "variants": []
   },
   "sheets": [
     [
       "d2ac468b-9b53-4c3c-b006-996db3620a48",
-      "Racine"
+      "STM32H723ZGTx"
+    ],
+    [
+      "46fcd7a3-97be-4e38-b68a-1e4eb53a4357",
+      "Composant_Mère"
+    ],
+    [
+      "569e18aa-d4d1-4fb0-ba3f-03140bc271cb",
+      "Connecteurs -> PCB"
     ]
   ],
   "text_variables": {},
