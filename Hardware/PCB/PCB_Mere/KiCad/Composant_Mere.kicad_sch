@@ -6305,7 +6305,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "footprint:MountingHole_3.2mm_M3"
+		(property "Footprint" "MountingHole:MountingHole_3.2mm_M3_DIN965_Pad_TopBottom"
 			(at 147.32 265.43 0)
 			(hide yes)
 			(show_name no)
@@ -6590,85 +6590,6 @@
 			(project "PCB_Mere_V1"
 				(path "/d2ac468b-9b53-4c3c-b006-996db3620a48/46fcd7a3-97be-4e38-b68a-1e4eb53a4357"
 					(reference "U2")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "power:GND")
-		(at 148.59 200.66 0)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(fields_autoplaced yes)
-		(uuid "277f7c1b-8ff4-4a74-b9d6-c0ab30af2873")
-		(property "Reference" "#PWR017"
-			(at 148.59 207.01 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "GND"
-			(at 151.13 201.9299 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" ""
-			(at 148.59 200.66 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 148.59 200.66 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 148.59 200.66 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "4812165a-032d-49c4-ab78-09197dda6c88")
-		)
-		(instances
-			(project "PCB_Mere_V1"
-				(path "/d2ac468b-9b53-4c3c-b006-996db3620a48/46fcd7a3-97be-4e38-b68a-1e4eb53a4357"
-					(reference "#PWR017")
 					(unit 1)
 				)
 			)
@@ -8734,7 +8655,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "footprint:MountingHole_3.2mm_M3"
+		(property "Footprint" "MountingHole:MountingHole_3.2mm_M3_DIN965_Pad_TopBottom"
 			(at 170.18 265.43 0)
 			(hide yes)
 			(show_name no)
@@ -9933,7 +9854,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "footprint:MountingHole_3.2mm_M3"
+		(property "Footprint" "MountingHole:MountingHole_3.2mm_M3_DIN965_Pad_TopBottom"
 			(at 195.58 265.43 0)
 			(hide yes)
 			(show_name no)
