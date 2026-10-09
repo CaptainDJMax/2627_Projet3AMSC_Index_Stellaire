@@ -3633,7 +3633,7 @@
 		(dnp no)
 		(uuid "0cd880fb-5900-44b1-af28-a44c9364d3cc")
 		(property "Reference" "C32"
-			(at 243.84 47.752 90)
+			(at 242.57 30.226 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -3643,7 +3643,7 @@
 			)
 		)
 		(property "Value" "100n"
-			(at 243.84 53.594 90)
+			(at 241.046 33.02 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -3652,7 +3652,7 @@
 				)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Capacitor_SMD:C_0201_0603Metric"
 			(at 243.84 33.02 0)
 			(hide yes)
 			(show_name no)
@@ -3676,6 +3676,17 @@
 		)
 		(property "Description" "Unpolarized capacitor, small symbol"
 			(at 243.84 33.02 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC Part" "C49062"
+			(at 243.84 33.02 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -5251,7 +5262,7 @@
 		(dnp no)
 		(uuid "cd55aee2-9cde-4b7b-8d78-4e891efffd86")
 		(property "Reference" "C31"
-			(at 243.84 38.862 90)
+			(at 246.634 24.13 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -5261,7 +5272,7 @@
 			)
 		)
 		(property "Value" "100n"
-			(at 243.84 44.704 90)
+			(at 241.046 24.638 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -5270,7 +5281,7 @@
 				)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Capacitor_SMD:C_0201_0603Metric"
 			(at 243.84 24.13 0)
 			(hide yes)
 			(show_name no)
@@ -5294,6 +5305,17 @@
 		)
 		(property "Description" "Unpolarized capacitor, small symbol"
 			(at 243.84 24.13 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC Part" "C49062"
+			(at 243.84 24.13 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -5350,7 +5372,7 @@
 				)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Capacitor_SMD:C_0201_0603Metric"
 			(at 48.26 88.9 0)
 			(hide yes)
 			(show_name no)
@@ -5373,6 +5395,17 @@
 			)
 		)
 		(property "Description" "Unpolarized capacitor, small symbol"
+			(at 48.26 88.9 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC Part" "C49062"
 			(at 48.26 88.9 0)
 			(hide yes)
 			(show_name no)
@@ -5429,7 +5462,7 @@
 				)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Capacitor_SMD:C_0201_0603Metric"
 			(at 168.91 105.41 0)
 			(hide yes)
 			(show_name no)
@@ -5452,6 +5485,17 @@
 			)
 		)
 		(property "Description" "Unpolarized capacitor, small symbol"
+			(at 168.91 105.41 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC Part" "C49062"
 			(at 168.91 105.41 0)
 			(hide yes)
 			(show_name no)
@@ -5509,7 +5553,7 @@
 				)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Capacitor_SMD:C_0201_0603Metric"
 			(at 38.1 153.67 0)
 			(hide yes)
 			(show_name no)
@@ -5532,6 +5576,17 @@
 			)
 		)
 		(property "Description" "Unpolarized capacitor, small symbol"
+			(at 38.1 153.67 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC Part" "C49062"
 			(at 38.1 153.67 0)
 			(hide yes)
 			(show_name no)
