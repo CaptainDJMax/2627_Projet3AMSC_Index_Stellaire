@@ -659,17 +659,30 @@
     "top_level_sheets": [
       {
         "filename": "PCB_Pere_V1.kicad_sch",
-        "name": "Racine",
+        "name": "Interfaces",
         "uuid": "211fd2c7-a689-4f6d-9a31-462e9bb4f921"
+      },
+      {
+        "filename": "driver_azimutal.kicad_sch",
+        "name": "Driver Azimutal",
+        "uuid": "2b0bd0a3-07c9-4bcc-8c8e-ea7911de0954"
       }
     ],
-    "used_designators": "U1-2",
+    "used_designators": "LED1,R1-2,C1-7,H1-2,X1-2,#PWR1-9,U1-5",
     "variants": []
   },
   "sheets": [
     [
       "211fd2c7-a689-4f6d-9a31-462e9bb4f921",
-      "Racine"
+      "Interfaces"
+    ],
+    [
+      "2b0bd0a3-07c9-4bcc-8c8e-ea7911de0954",
+      "Driver Azimutal"
+    ],
+    [
+      "5cac0941-4f05-4165-95ac-14eb56d19aa7",
+      "Driver Azimutal"
     ]
   ],
   "text_variables": {},
