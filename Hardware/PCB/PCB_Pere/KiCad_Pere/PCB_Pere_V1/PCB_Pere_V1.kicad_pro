@@ -668,7 +668,7 @@
         "uuid": "2b0bd0a3-07c9-4bcc-8c8e-ea7911de0954"
       }
     ],
-    "used_designators": "LED1,R1-2,C1-7,H1-2,X1-2,#PWR1-9,U1-5",
+    "used_designators": "L1-2,CN3,LED1-2,R1-10,C1-24,H1-2,X1-3,#PWR1-39,U1-5",
     "variants": []
   },
   "sheets": [
@@ -681,8 +681,8 @@
       "Driver Azimutal"
     ],
     [
-      "5cac0941-4f05-4165-95ac-14eb56d19aa7",
-      "Driver Azimutal"
+      "21cf896d-7a30-44e5-bcbd-d613b4b8eb6f",
+      "Driver Azimutal1"
     ]
   ],
   "text_variables": {},
