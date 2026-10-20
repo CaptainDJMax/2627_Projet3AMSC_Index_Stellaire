@@ -6328,7 +6328,7 @@
 				)
 			)
 		)
-		(property "Value" "1u"
+		(property "Value" "1µ"
 			(at 90.17 216.154 90)
 			(show_name no)
 			(do_not_autoplace no)
@@ -10610,7 +10610,7 @@
 				(justify right)
 			)
 		)
-		(property "Footprint" "Capacitor_SMD:C_0402_1005Metric"
+		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
 			(at 289.56 49.53 0)
 			(hide yes)
 			(show_name no)
