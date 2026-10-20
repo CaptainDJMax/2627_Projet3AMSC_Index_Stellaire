@@ -9152,7 +9152,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "0,1µ"
+		(property "Value" "100n"
 			(at 61.468 136.144 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9878,7 +9878,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "abcb314f-91b1-4470-af4d-5415a60d3d39")
-		(property "Reference" "SW2"
+		(property "Reference" "BOOT_BTN-2"
 			(at 175.26 66.0399 90)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9889,7 +9889,7 @@
 				(justify right)
 			)
 		)
-		(property "Value" "BOOT_BTN"
+		(property "Value" "switch"
 			(at 175.26 68.5799 90)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9981,7 +9981,7 @@
 		(instances
 			(project "PCB_Mere_V1"
 				(path "/d2ac468b-9b53-4c3c-b006-996db3620a48"
-					(reference "SW2")
+					(reference "BOOT_BTN-2")
 					(unit 1)
 				)
 			)
@@ -10448,7 +10448,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "b83085a7-951b-4bf9-9238-32e640383a53")
-		(property "Reference" "SW1"
+		(property "Reference" "NRST_BTN-1"
 			(at 39.37 123.19 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -10458,7 +10458,7 @@
 				)
 			)
 		)
-		(property "Value" "NRST_BTN"
+		(property "Value" "switch"
 			(at 39.37 125.73 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -10549,7 +10549,7 @@
 		(instances
 			(project "PCB_Mere_V1"
 				(path "/d2ac468b-9b53-4c3c-b006-996db3620a48"
-					(reference "SW1")
+					(reference "NRST_BTN-1")
 					(unit 1)
 				)
 			)
