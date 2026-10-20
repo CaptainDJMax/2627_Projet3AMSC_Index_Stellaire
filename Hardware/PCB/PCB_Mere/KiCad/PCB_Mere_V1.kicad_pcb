@@ -6932,7 +6932,7 @@
 		(layer "F.Cu")
 		(uuid "50e2c503-e1cd-432b-9a03-d19fafc72c65")
 		(at 201.48 102.9 180)
-		(property "Reference" "NRST_BTN-1"
+		(property "Reference" "SW1"
 			(at -4.5 -0.1 0)
 			(layer "F.SilkS")
 			(uuid "982cf724-886b-4024-a81b-787056bd7f1e")
@@ -6943,7 +6943,7 @@
 				)
 			)
 		)
-		(property "Value" "switch"
+		(property "Value" "~"
 			(at 0 4.74 0)
 			(layer "F.Fab")
 			(uuid "0ac6b7ed-aeaa-44ba-9c0f-bb05baa03e19")
@@ -7271,7 +7271,7 @@
 			(at -1.9 -0.74 270)
 			(size 1.05 1.15)
 			(layers "F.Cu" "F.Mask" "F.Paste")
-			(net "unconnected-(NRST_BTN-1-Pad1)")
+			(net "unconnected-(SW1-Pad1)")
 			(pinfunction "1_1")
 			(pintype "unspecified+no_connect")
 			(uuid "3814b980-7353-4f63-85ed-ca9ec5fbd057")
@@ -7298,7 +7298,7 @@
 			(at 1.9 0.74 270)
 			(size 1.05 1.15)
 			(layers "F.Cu" "F.Mask" "F.Paste")
-			(net "unconnected-(NRST_BTN-1-Pad2')")
+			(net "unconnected-(SW1-Pad2')")
 			(pinfunction "2'_2'")
 			(pintype "unspecified+no_connect")
 			(uuid "6be36c42-35a9-479b-a6f4-27626451da45")
@@ -9102,7 +9102,7 @@
 				)
 			)
 		)
-		(property "LCSC Part" "C102683"
+		(property "LCSC Part" "C11702"
 			(at 0 0 0)
 			(unlocked yes)
 			(layer "F.Fab")
@@ -17115,7 +17115,7 @@
 		(layer "F.Cu")
 		(uuid "e0e5d360-9943-42eb-8f66-83f5a3859742")
 		(at 201.5 107.3)
-		(property "Reference" "BOOT_BTN-2"
+		(property "Reference" "SW2"
 			(at 4.7 -0.8 0)
 			(layer "F.SilkS")
 			(uuid "5cb330c5-9781-49e1-af91-2597eefd3f26")
@@ -17126,7 +17126,7 @@
 				)
 			)
 		)
-		(property "Value" "switch"
+		(property "Value" "~"
 			(at 0 4.74 0)
 			(layer "F.Fab")
 			(uuid "d159b730-1775-47fb-b335-f5dafc946375")
@@ -17463,7 +17463,7 @@
 			(at 1.9 -0.74 90)
 			(size 1.05 1.15)
 			(layers "F.Cu" "F.Mask" "F.Paste")
-			(net "unconnected-(BOOT_BTN-2-Pad1')")
+			(net "unconnected-(SW2-Pad1')")
 			(pinfunction "1'_1'")
 			(pintype "unspecified+no_connect")
 			(uuid "5943db9c-1a38-4d43-bb42-6fbe4f5af84b")
@@ -17472,7 +17472,7 @@
 			(at -1.9 0.74 90)
 			(size 1.05 1.15)
 			(layers "F.Cu" "F.Mask" "F.Paste")
-			(net "unconnected-(BOOT_BTN-2-Pad2)")
+			(net "unconnected-(SW2-Pad2)")
 			(pinfunction "2_2")
 			(pintype "unspecified+no_connect")
 			(uuid "9f832488-4012-4457-a907-3e0621a75fd9")
@@ -18870,7 +18870,7 @@
 				)
 			)
 		)
-		(property "LCSC Part" "C102683"
+		(property "LCSC Part" "C11702"
 			(at 0 0 0)
 			(unlocked yes)
 			(layer "F.Fab")
