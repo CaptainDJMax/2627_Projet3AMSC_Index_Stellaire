@@ -69,7 +69,13 @@
           "thermal_relief_spoke_width": 0.5
         }
       },
-      "diff_pair_dimensions": [],
+      "diff_pair_dimensions": [
+        {
+          "gap": 0.0,
+          "via_gap": 0.0,
+          "width": 0.0
+        }
+      ],
       "drc_exclusions": [],
       "meta": {
         "version": 2
@@ -203,7 +209,9 @@
           "td_width_to_size_filter_ratio": 0.9
         }
       ],
-      "track_widths": [],
+      "track_widths": [
+        0.0
+      ],
       "tuning_pattern_settings": {
         "diff_pair_defaults": {
           "corner_radius_percentage": 80,
@@ -230,7 +238,12 @@
           "spacing": 0.6
         }
       },
-      "via_dimensions": [],
+      "via_dimensions": [
+        {
+          "diameter": 0.0,
+          "drill": 0.0
+        }
+      ],
       "zones_allow_external_fillets": false
     },
     "ipc2581": {
@@ -466,7 +479,7 @@
       "no_connect_dangling": "warning",
       "pin_not_connected": "error",
       "pin_not_driven": "error",
-      "pin_to_pin": "warning",
+      "pin_to_pin": "error",
       "power_pin_not_driven": "error",
       "same_local_global_label": "warning",
       "similar_label_and_power": "warning",
@@ -513,6 +526,17 @@
         "via_diameter": 0.6,
         "via_drill": 0.3,
         "wire_width": 6
+      },
+      {
+        "clearance": 1.0,
+        "name": "Big Ampère",
+        "pcb_color": "rgba(0, 0, 0, 0.000)",
+        "priority": 0,
+        "schematic_color": "rgba(0, 0, 0, 0.000)",
+        "track_width": 1.4,
+        "tuning_profile": "",
+        "via_diameter": 0.6,
+        "via_drill": 0.4
       }
     ],
     "meta": {
@@ -661,14 +685,9 @@
         "filename": "PCB_Pere_V1.kicad_sch",
         "name": "Interfaces",
         "uuid": "211fd2c7-a689-4f6d-9a31-462e9bb4f921"
-      },
-      {
-        "filename": "driver_azimutal.kicad_sch",
-        "name": "Driver Azimutal",
-        "uuid": "2b0bd0a3-07c9-4bcc-8c8e-ea7911de0954"
       }
     ],
-    "used_designators": "L1-2,CN3,LED1-2,R1-10,C1-24,H1-2,X1-3,#PWR1-39,U1-5",
+    "used_designators": "#FLG1-4,L1-2,CN1,CN3-4,TP1-7,LED1-3,R1-21,C1-46,H1-2,X1-3,#PWR1-67,U1-7",
     "variants": []
   },
   "sheets": [
@@ -677,8 +696,8 @@
       "Interfaces"
     ],
     [
-      "2b0bd0a3-07c9-4bcc-8c8e-ea7911de0954",
-      "Driver Azimutal"
+      "796a6307-aead-4e43-bc9d-cf0ee06f72a8",
+      "Driver Elevation"
     ],
     [
       "21cf896d-7a30-44e5-bcbd-d613b4b8eb6f",
