@@ -9,7 +9,7 @@
 	(fp_text user %R (at 0 0) (layer F.Fab)
 		(effects (font (size 1 1) (thickness 0.15)))
 	)
-	(property "LCSC Part" "C2168313")
+	(property "LCSC Part" "C342604")
 	(fp_line (start 3.11 -1.96) (end 1.63 -1.96) (layer F.SilkS) (width 0.15))
 	(fp_line (start 1.63 1.96) (end 3.11 1.96) (layer F.SilkS) (width 0.15))
 	(fp_line (start 3.26 1.80) (end 3.26 -1.80) (layer F.SilkS) (width 0.15))

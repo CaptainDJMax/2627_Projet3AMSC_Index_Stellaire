@@ -1285,14 +1285,14 @@
 			)
 			(embedded_fonts no)
 		)
-		(symbol "EasyEDA:C4532X7R1C336M250KC"
+		(symbol "EasyEDA:C4532X7R1C336MT000N"
 			(exclude_from_sim no)
 			(in_bom yes)
 			(on_board yes)
 			(in_pos_files yes)
 			(duplicate_pin_numbers_are_jumpers no)
 			(property "Reference" "C"
-				(at 0 5.08 0)
+				(at 0 10.16 0)
 				(show_name no)
 				(do_not_autoplace no)
 				(effects
@@ -1301,8 +1301,8 @@
 					)
 				)
 			)
-			(property "Value" "C4532X7R1C336M250KC"
-				(at 0 -5.08 0)
+			(property "Value" "C4532X7R1C336MT000N"
+				(at 0 -10.16 0)
 				(show_name no)
 				(do_not_autoplace no)
 				(effects
@@ -1312,7 +1312,7 @@
 				)
 			)
 			(property "Footprint" "EasyEDA:C1812"
-				(at 0 -7.62 0)
+				(at 0 -12.7 0)
 				(show_name no)
 				(do_not_autoplace no)
 				(hide yes)
@@ -1322,8 +1322,8 @@
 					)
 				)
 			)
-			(property "Datasheet" "https://www.lcsc.com/datasheet/C2168313.pdf"
-				(at 0 -10.16 0)
+			(property "Datasheet" "https://lcsc.com/product-detail/Others_TDK-C4532X7R1C336MT000N_C342604.html"
+				(at 0 -15.24 0)
 				(show_name no)
 				(do_not_autoplace no)
 				(hide yes)
@@ -1345,29 +1345,29 @@
 				)
 			)
 			(property "Manufacturer" "TDK"
-				(at 0 -12.7 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(hide yes)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "MPN" "C4532X7R1C336M250KC"
-				(at 0 -15.24 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(hide yes)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "LCSC Part" "C2168313"
 				(at 0 -17.78 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "MPN" "C4532X7R1C336MT000N"
+				(at 0 -20.32 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "LCSC Part" "C342604"
+				(at 0 -22.86 0)
 				(show_name no)
 				(do_not_autoplace no)
 				(hide yes)
@@ -1388,10 +1388,10 @@
 					)
 				)
 			)
-			(symbol "C4532X7R1C336M250KC_0_1"
+			(symbol "C4532X7R1C336MT000N_0_1"
 				(polyline
 					(pts
-						(xy -0.51 0) (xy -2.54 0)
+						(xy -2.03 0.51) (xy 2.03 0.51)
 					)
 					(stroke
 						(width 0)
@@ -1403,7 +1403,7 @@
 				)
 				(polyline
 					(pts
-						(xy -0.51 -2.03) (xy -0.51 2.03)
+						(xy 0 2.54) (xy 0 0.51)
 					)
 					(stroke
 						(width 0)
@@ -1415,7 +1415,7 @@
 				)
 				(polyline
 					(pts
-						(xy 0.51 2.03) (xy 0.51 -2.03)
+						(xy 0 -0.51) (xy 0 -2.54)
 					)
 					(stroke
 						(width 0)
@@ -1427,7 +1427,7 @@
 				)
 				(polyline
 					(pts
-						(xy 2.54 0) (xy 0.51 0)
+						(xy 2.03 -0.51) (xy -2.03 -0.51)
 					)
 					(stroke
 						(width 0)
@@ -1438,7 +1438,7 @@
 					)
 				)
 				(pin unspecified line
-					(at -5.08 0 0)
+					(at 0 -5.08 90)
 					(length 2.54)
 					(name "1"
 						(effects
@@ -1456,7 +1456,7 @@
 					)
 				)
 				(pin unspecified line
-					(at 5.08 0 180)
+					(at 0 5.08 270)
 					(length 2.54)
 					(name "2"
 						(effects
@@ -4542,6 +4542,12 @@
 		(uuid "05ef7164-3b12-4447-a5b3-02831993be31")
 	)
 	(junction
+		(at 110.49 162.56)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "0899ff6c-7a46-4353-9b77-f2e332cdb055")
+	)
+	(junction
 		(at 107.95 114.3)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -4572,6 +4578,18 @@
 		(uuid "3c279991-50aa-4017-959f-2aab78861dfb")
 	)
 	(junction
+		(at 105.41 104.14)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "3ec1a1e8-222c-462c-b496-ad777da1954d")
+	)
+	(junction
+		(at 110.49 104.14)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "40d4dcd6-1f7d-448b-985f-d72fb987feb7")
+	)
+	(junction
 		(at 31.75 104.14)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -4582,6 +4600,12 @@
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "54d1076a-c49e-499d-b59d-13f8d51e96c4")
+	)
+	(junction
+		(at 105.41 162.56)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "55495066-bee2-4a4a-9a0e-d7d0fa65215f")
 	)
 	(junction
 		(at 242.57 41.91)
@@ -4606,12 +4630,6 @@
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "5c0a28bd-486b-4d05-a0c7-67b5b4573818")
-	)
-	(junction
-		(at 110.49 104.14)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "7052fd5a-9c42-47da-9cfd-a25446afd65a")
 	)
 	(junction
 		(at 107.95 162.56)
@@ -4660,12 +4678,6 @@
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "a3466eb1-2851-4753-ad68-3077c891aa85")
-	)
-	(junction
-		(at 105.41 104.14)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "a77a9ba3-d960-4cc5-92f1-18b68f7419f6")
 	)
 	(junction
 		(at 242.57 115.57)
@@ -4758,12 +4770,6 @@
 		(uuid "eb7e4925-6c54-4ef7-b1c9-88df98de531a")
 	)
 	(junction
-		(at 110.49 162.56)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "ece5de02-221d-4fdd-939d-b9ce5b346d65")
-	)
-	(junction
 		(at 91.44 104.14)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -4780,12 +4786,6 @@
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "fb3df178-c455-4e58-8200-2978dfeda2ff")
-	)
-	(junction
-		(at 105.41 162.56)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "ff4ad486-4c7a-4bb2-9087-7b1e653546d6")
 	)
 	(no_connect
 		(at 181.61 134.62)
@@ -4829,16 +4829,6 @@
 	)
 	(wire
 		(pts
-			(xy 86.36 104.14) (xy 105.41 104.14)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "024373c8-525c-4999-b112-5d1b205860d5")
-	)
-	(wire
-		(pts
 			(xy 107.95 172.72) (xy 105.41 172.72)
 		)
 		(stroke
@@ -4849,7 +4839,7 @@
 	)
 	(wire
 		(pts
-			(xy 228.6 36.83) (xy 247.65 36.83)
+			(xy 228.6 36.83) (xy 254 36.83)
 		)
 		(stroke
 			(width 0)
@@ -4929,7 +4919,7 @@
 	)
 	(wire
 		(pts
-			(xy 234.95 46.99) (xy 247.65 46.99)
+			(xy 234.95 46.99) (xy 254 46.99)
 		)
 		(stroke
 			(width 0)
@@ -5219,6 +5209,16 @@
 	)
 	(wire
 		(pts
+			(xy 105.41 162.56) (xy 107.95 162.56)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "7541202b-570b-48e8-abd3-1f0a5b71884b")
+	)
+	(wire
+		(pts
 			(xy 181.61 50.8) (xy 200.66 50.8)
 		)
 		(stroke
@@ -5259,16 +5259,6 @@
 	)
 	(wire
 		(pts
-			(xy 114.3 162.56) (xy 110.49 162.56)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "8f1d5674-a738-42c4-8950-0f66877c6d67")
-	)
-	(wire
-		(pts
 			(xy 181.61 53.34) (xy 200.66 53.34)
 		)
 		(stroke
@@ -5279,7 +5269,7 @@
 	)
 	(wire
 		(pts
-			(xy 228.6 110.49) (xy 247.65 110.49)
+			(xy 228.6 110.49) (xy 252.73 110.49)
 		)
 		(stroke
 			(width 0)
@@ -5289,7 +5279,7 @@
 	)
 	(wire
 		(pts
-			(xy 228.6 115.57) (xy 247.65 115.57)
+			(xy 228.6 115.57) (xy 252.73 115.57)
 		)
 		(stroke
 			(width 0)
@@ -5309,7 +5299,7 @@
 	)
 	(wire
 		(pts
-			(xy 234.95 120.65) (xy 247.65 120.65)
+			(xy 234.95 120.65) (xy 252.73 120.65)
 		)
 		(stroke
 			(width 0)
@@ -5329,7 +5319,17 @@
 	)
 	(wire
 		(pts
-			(xy 234.95 105.41) (xy 247.65 105.41)
+			(xy 110.49 104.14) (xy 114.3 104.14)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "9b2889fc-f1ac-4f3b-9879-cc77e1c98a75")
+	)
+	(wire
+		(pts
+			(xy 234.95 105.41) (xy 252.73 105.41)
 		)
 		(stroke
 			(width 0)
@@ -5379,6 +5379,16 @@
 	)
 	(wire
 		(pts
+			(xy 105.41 104.14) (xy 107.95 104.14)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "aaa48b11-57c2-4b28-ae20-a40392815d31")
+	)
+	(wire
+		(pts
 			(xy 85.09 162.56) (xy 86.36 162.56)
 		)
 		(stroke
@@ -5419,7 +5429,7 @@
 	)
 	(wire
 		(pts
-			(xy 114.3 104.14) (xy 110.49 104.14)
+			(xy 107.95 104.14) (xy 110.49 104.14)
 		)
 		(stroke
 			(width 0)
@@ -5466,16 +5476,6 @@
 			(type default)
 		)
 		(uuid "bb4b95ae-c75c-421c-8043-561b5dbaf026")
-	)
-	(wire
-		(pts
-			(xy 105.41 162.56) (xy 107.95 162.56)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "bcac57df-d337-4cf3-beea-ffccb5756a95")
 	)
 	(wire
 		(pts
@@ -5589,7 +5589,7 @@
 	)
 	(wire
 		(pts
-			(xy 228.6 41.91) (xy 247.65 41.91)
+			(xy 228.6 41.91) (xy 254 41.91)
 		)
 		(stroke
 			(width 0)
@@ -5629,7 +5629,7 @@
 	)
 	(wire
 		(pts
-			(xy 105.41 104.14) (xy 107.95 104.14)
+			(xy 86.36 104.14) (xy 105.41 104.14)
 		)
 		(stroke
 			(width 0)
@@ -5719,6 +5719,16 @@
 	)
 	(wire
 		(pts
+			(xy 110.49 162.56) (xy 114.3 162.56)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "e410d51f-c05d-4f03-a76c-067ed19fdf2a")
+	)
+	(wire
+		(pts
 			(xy 45.72 160.02) (xy 44.45 160.02)
 		)
 		(stroke
@@ -5749,7 +5759,7 @@
 	)
 	(wire
 		(pts
-			(xy 234.95 31.75) (xy 247.65 31.75)
+			(xy 234.95 31.75) (xy 254 31.75)
 		)
 		(stroke
 			(width 0)
@@ -5769,16 +5779,6 @@
 	)
 	(wire
 		(pts
-			(xy 107.95 104.14) (xy 110.49 104.14)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "fb0a2954-0059-4db2-8b01-37bcdecfe5d6")
-	)
-	(wire
-		(pts
 			(xy 69.85 66.04) (xy 76.2 66.04)
 		)
 		(stroke
@@ -5786,6 +5786,36 @@
 			(type default)
 		)
 		(uuid "fd1f3459-76b1-49d7-911b-c21b3ad24621")
+	)
+	(label "AZ_OA1"
+		(at 247.65 46.99 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "133d7259-d39a-47e8-a0d3-7a67a58ccab3")
+	)
+	(label "AZ_OB2"
+		(at 247.65 31.75 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "20e6d3f5-1bd2-4d25-a436-f179f8390338")
+	)
+	(label "AZ_OA2"
+		(at 247.65 41.91 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "2b2894b7-49ab-429c-b606-fbc04c6dcbb5")
 	)
 	(label "FB_5V"
 		(at 81.28 114.3 180)
@@ -5807,6 +5837,16 @@
 		)
 		(uuid "3fa23d65-4dc5-4a56-a3ca-2b958b4a932b")
 	)
+	(label "EL_OB2"
+		(at 246.38 105.41 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "50f51ac0-9fad-4456-ae49-2e014739e1b2")
+	)
 	(label "STBY_Elevation"
 		(at 200.66 55.88 180)
 		(effects
@@ -5816,6 +5856,16 @@
 			(justify right bottom)
 		)
 		(uuid "52d58aed-e8a6-44fa-a536-032931b5c88a")
+	)
+	(label "EL_OB1"
+		(at 246.38 110.49 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "89871a4e-0f11-44fe-b38e-5e522989a25a")
 	)
 	(label "STBY_Elevation"
 		(at 181.61 132.08 0)
@@ -5827,6 +5877,26 @@
 		)
 		(uuid "904da068-41f5-47d3-803d-3ebc8bd70641")
 	)
+	(label "AZ_OB1"
+		(at 247.65 36.83 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "a215d28b-e6c1-4b33-b3d6-35292eb2f247")
+	)
+	(label "EL_OA2"
+		(at 246.38 115.57 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "cd93ab90-ed7b-4862-87bd-d28b66cb0af7")
+	)
 	(label "FB_3V3"
 		(at 44.45 160.02 180)
 		(effects
@@ -5836,6 +5906,16 @@
 			(justify right bottom)
 		)
 		(uuid "d368e522-0bfb-4be5-af65-bd013a56645d")
+	)
+	(label "EL_OA1"
+		(at 246.38 120.65 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "dc4f05af-cc1c-4d20-9b16-4ba5434994cc")
 	)
 	(label "FB_5V"
 		(at 45.72 101.6 180)
@@ -6084,7 +6164,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "TestPoint:TestPoint_Pad_D2.5mm"
+		(property "Footprint" "TestPoint:TestPoint_Pad_D1.5mm"
 			(at 228.6 69.85 0)
 			(hide yes)
 			(show_name no)
@@ -6323,8 +6403,8 @@
 		)
 	)
 	(symbol
-		(lib_id "EasyEDA:C4532X7R1C336M250KC")
-		(at 110.49 109.22 90)
+		(lib_id "EasyEDA:C4532X7R1C336MT000N")
+		(at 105.41 109.22 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -6332,31 +6412,32 @@
 		(on_board yes)
 		(in_pos_files yes)
 		(dnp no)
-		(uuid "1eb61669-d48c-4bdf-ad0c-e8dce951268d")
-		(property "Reference" "C18"
-			(at 112.776 107.95 90)
+		(fields_autoplaced yes)
+		(uuid "214c8a9b-68b7-4304-9afd-71f26f8e7ca8")
+		(property "Reference" "C14"
+			(at 109.22 107.9499 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
-				(justify right)
+				(justify left)
 			)
 		)
-		(property "Value" "33uF"
-			(at 112.776 110.49 90)
+		(property "Value" "C4532X7R1C336MT000N"
+			(at 109.22 110.4899 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
-				(justify right)
+				(justify left)
 			)
 		)
 		(property "Footprint" "EasyEDA:C1812"
-			(at 118.11 109.22 0)
+			(at 105.41 121.92 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6366,8 +6447,8 @@
 				)
 			)
 		)
-		(property "Datasheet" "https://www.lcsc.com/datasheet/C2168313.pdf"
-			(at 120.65 109.22 0)
+		(property "Datasheet" "https://lcsc.com/product-detail/Others_TDK-C4532X7R1C336MT000N_C342604.html"
+			(at 105.41 124.46 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6378,7 +6459,7 @@
 			)
 		)
 		(property "Description" ""
-			(at 110.49 109.22 0)
+			(at 105.41 109.22 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6389,7 +6470,7 @@
 			)
 		)
 		(property "Manufacturer" "TDK"
-			(at 123.19 109.22 0)
+			(at 105.41 127 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6399,8 +6480,8 @@
 				)
 			)
 		)
-		(property "MPN" "C4532X7R1C336M250KC"
-			(at 125.73 109.22 0)
+		(property "MPN" "C4532X7R1C336MT000N"
+			(at 105.41 129.54 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6410,8 +6491,8 @@
 				)
 			)
 		)
-		(property "LCSC Part" "C2168313"
-			(at 128.27 109.22 0)
+		(property "LCSC Part" "C342604"
+			(at 105.41 132.08 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6420,131 +6501,17 @@
 					(size 1.27 1.27)
 				)
 			)
-		)
-		(pin "2"
-			(uuid "fc7b69b5-6cc1-4867-8cb0-0891797e7ef6")
 		)
 		(pin "1"
-			(uuid "f112ec64-b6ff-48f2-bb1a-0d79a3113508")
+			(uuid "7d74a79a-7be1-40bc-9d36-9482ddbbac17")
+		)
+		(pin "2"
+			(uuid "10ba4988-36ed-4952-a8df-c0953fb88ff0")
 		)
 		(instances
 			(project "PCB_Pere_V1"
 				(path "/211fd2c7-a689-4f6d-9a31-462e9bb4f921"
-					(reference "C18")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "EasyEDA:C4532X7R1C336M250KC")
-		(at 105.41 167.64 90)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(uuid "20dfc054-0894-4938-a23c-1c59f738cf0d")
-		(property "Reference" "C13"
-			(at 98.806 166.624 90)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-		)
-		(property "Value" "33uF"
-			(at 98.552 168.656 90)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-		)
-		(property "Footprint" "EasyEDA:C1812"
-			(at 113.03 167.64 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" "https://www.lcsc.com/datasheet/C2168313.pdf"
-			(at 115.57 167.64 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" ""
-			(at 105.41 167.64 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Manufacturer" "TDK"
-			(at 118.11 167.64 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "MPN" "C4532X7R1C336M250KC"
-			(at 120.65 167.64 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "LCSC Part" "C2168313"
-			(at 123.19 167.64 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "2"
-			(uuid "3efada41-b845-44f3-9c73-68006994dd54")
-		)
-		(pin "1"
-			(uuid "db009f38-9aaf-4f47-a59d-589cc3f1a0db")
-		)
-		(instances
-			(project "PCB_Pere_V1"
-				(path "/211fd2c7-a689-4f6d-9a31-462e9bb4f921"
-					(reference "C13")
+					(reference "C14")
 					(unit 1)
 				)
 			)
@@ -7457,7 +7424,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "TestPoint:TestPoint_Pad_D2.5mm"
+		(property "Footprint" "TestPoint:TestPoint_Pad_D1.5mm"
 			(at 228.6 73.66 0)
 			(hide yes)
 			(show_name no)
@@ -7842,7 +7809,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "TestPoint:TestPoint_Pad_D2.5mm"
+		(property "Footprint" "TestPoint:TestPoint_Pad_D1.5mm"
 			(at 228.6 143.51 0)
 			(hide yes)
 			(show_name no)
@@ -7889,7 +7856,7 @@
 	)
 	(symbol
 		(lib_id "EasyEDA:B4B-PH-K-S")
-		(at 254 39.37 180)
+		(at 260.35 39.37 180)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -7900,7 +7867,7 @@
 		(fields_autoplaced yes)
 		(uuid "404fa102-c640-478d-97ef-fe9372cc8f83")
 		(property "Reference" "CN4"
-			(at 261.62 38.0999 0)
+			(at 267.97 38.0999 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -7911,7 +7878,7 @@
 			)
 		)
 		(property "Value" "B4B-PH-K-S"
-			(at 261.62 40.6399 0)
+			(at 267.97 40.6399 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -7922,7 +7889,7 @@
 			)
 		)
 		(property "Footprint" "EasyEDA:CONN-TH_B4B-PH-K-S"
-			(at 254 24.13 0)
+			(at 260.35 24.13 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7933,7 +7900,7 @@
 			)
 		)
 		(property "Datasheet" "https://lcsc.com/product-detail/PH-Connectors_JST_B4B-PH-K-S-LF-SN_B4B-PH-K-S-LF-SN_C131334.html"
-			(at 254 21.59 0)
+			(at 260.35 21.59 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7944,7 +7911,7 @@
 			)
 		)
 		(property "Description" ""
-			(at 254 39.37 0)
+			(at 260.35 39.37 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7955,7 +7922,7 @@
 			)
 		)
 		(property "Manufacturer" "JST"
-			(at 254 19.05 0)
+			(at 260.35 19.05 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7966,7 +7933,7 @@
 			)
 		)
 		(property "MPN" "B4B-PH-K-S(LF)(SN)"
-			(at 254 16.51 0)
+			(at 260.35 16.51 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7977,7 +7944,7 @@
 			)
 		)
 		(property "LCSC Part" "C131334"
-			(at 254 13.97 0)
+			(at 260.35 13.97 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -8554,120 +8521,6 @@
 		)
 	)
 	(symbol
-		(lib_id "EasyEDA:C4532X7R1C336M250KC")
-		(at 105.41 109.22 90)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(uuid "576daac0-fc95-4433-8e1e-f063aa8a9595")
-		(property "Reference" "C17"
-			(at 99.314 107.95 90)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-		)
-		(property "Value" "33uF"
-			(at 99.06 110.236 90)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-		)
-		(property "Footprint" "EasyEDA:C1812"
-			(at 113.03 109.22 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" "https://www.lcsc.com/datasheet/C2168313.pdf"
-			(at 115.57 109.22 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" ""
-			(at 105.41 109.22 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Manufacturer" "TDK"
-			(at 118.11 109.22 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "MPN" "C4532X7R1C336M250KC"
-			(at 120.65 109.22 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "LCSC Part" "C2168313"
-			(at 123.19 109.22 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "2"
-			(uuid "3733fdde-f6c7-41d4-b07a-598cc37bd277")
-		)
-		(pin "1"
-			(uuid "384228b6-c4d3-4f3b-a651-bbc733ed6dab")
-		)
-		(instances
-			(project "PCB_Pere_V1"
-				(path "/211fd2c7-a689-4f6d-9a31-462e9bb4f921"
-					(reference "C17")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
 		(lib_id "power:GND")
 		(at 107.95 172.72 0)
 		(unit 1)
@@ -8825,120 +8678,6 @@
 		)
 	)
 	(symbol
-		(lib_id "EasyEDA:C4532X7R1C336M250KC")
-		(at 110.49 167.64 90)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(uuid "64595919-27e2-4dcb-9cdc-1a0f22c55917")
-		(property "Reference" "C14"
-			(at 112.776 166.878 90)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-		)
-		(property "Value" "33uF"
-			(at 112.776 168.91 90)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-		)
-		(property "Footprint" "EasyEDA:C1812"
-			(at 118.11 167.64 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" "https://www.lcsc.com/datasheet/C2168313.pdf"
-			(at 120.65 167.64 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" ""
-			(at 110.49 167.64 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Manufacturer" "TDK"
-			(at 123.19 167.64 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "MPN" "C4532X7R1C336M250KC"
-			(at 125.73 167.64 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "LCSC Part" "C2168313"
-			(at 128.27 167.64 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "2"
-			(uuid "58e719c6-79ca-4f2e-a1c4-7360c929188f")
-		)
-		(pin "1"
-			(uuid "81a479a0-d692-4b9a-9335-0872c2679162")
-		)
-		(instances
-			(project "PCB_Pere_V1"
-				(path "/211fd2c7-a689-4f6d-9a31-462e9bb4f921"
-					(reference "C14")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
 		(lib_id "Connector:TestPoint")
 		(at 91.44 162.56 0)
 		(unit 1)
@@ -8972,7 +8711,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "TestPoint:TestPoint_Pad_D2.5mm"
+		(property "Footprint" "TestPoint:TestPoint_Pad_1.5x1.5mm"
 			(at 96.52 162.56 0)
 			(hide yes)
 			(show_name no)
@@ -9132,6 +8871,121 @@
 		)
 	)
 	(symbol
+		(lib_id "EasyEDA:C4532X7R1C336MT000N")
+		(at 110.49 167.64 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "71d5334f-2379-4ebe-9f2d-704c8322f8f7")
+		(property "Reference" "C13"
+			(at 114.3 166.3699 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "C4532X7R1C336MT000N"
+			(at 114.3 168.9099 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "EasyEDA:C1812"
+			(at 110.49 180.34 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" "https://lcsc.com/product-detail/Others_TDK-C4532X7R1C336MT000N_C342604.html"
+			(at 110.49 182.88 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" ""
+			(at 110.49 167.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "TDK"
+			(at 110.49 185.42 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "MPN" "C4532X7R1C336MT000N"
+			(at 110.49 187.96 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC Part" "C342604"
+			(at 110.49 190.5 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "de3fe733-53fb-4cf8-bd07-17b710b30068")
+		)
+		(pin "2"
+			(uuid "f568f833-00f3-4f83-8461-f49ab09c4052")
+		)
+		(instances
+			(project "PCB_Pere_V1"
+				(path "/211fd2c7-a689-4f6d-9a31-462e9bb4f921"
+					(reference "C13")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "Connector:TestPoint")
 		(at 83.82 45.72 270)
 		(unit 1)
@@ -9165,7 +9019,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "TestPoint:TestPoint_Pad_2.5x2.5mm"
+		(property "Footprint" "TestPoint:TestPoint_Pad_1.5x1.5mm"
 			(at 83.82 50.8 0)
 			(hide yes)
 			(show_name no)
@@ -9322,7 +9176,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "TestPoint:TestPoint_Pad_D2.5mm"
+		(property "Footprint" "TestPoint:TestPoint_Pad_D1.5mm"
 			(at 228.6 147.32 0)
 			(hide yes)
 			(show_name no)
@@ -10621,6 +10475,121 @@
 		)
 	)
 	(symbol
+		(lib_id "EasyEDA:C4532X7R1C336MT000N")
+		(at 105.41 167.64 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "a58beb83-ff1a-4b9a-aafc-f46bb62ffe01")
+		(property "Reference" "C1"
+			(at 109.22 166.3699 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "C4532X7R1C336MT000N"
+			(at 109.22 168.9099 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "EasyEDA:C1812"
+			(at 105.41 180.34 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" "https://lcsc.com/product-detail/Others_TDK-C4532X7R1C336MT000N_C342604.html"
+			(at 105.41 182.88 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" ""
+			(at 105.41 167.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "TDK"
+			(at 105.41 185.42 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "MPN" "C4532X7R1C336MT000N"
+			(at 105.41 187.96 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC Part" "C342604"
+			(at 105.41 190.5 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "8543996c-c797-47d0-b001-bfc39282d079")
+		)
+		(pin "2"
+			(uuid "937d24e7-8894-474e-afbd-0ec8f001ae03")
+		)
+		(instances
+			(project "PCB_Pere_V1"
+				(path "/211fd2c7-a689-4f6d-9a31-462e9bb4f921"
+					(reference "C1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "Connector:TestPoint")
 		(at 91.44 104.14 0)
 		(unit 1)
@@ -10654,7 +10623,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "TestPoint:TestPoint_Pad_2.5x2.5mm"
+		(property "Footprint" "TestPoint:TestPoint_Pad_1.5x1.5mm"
 			(at 96.52 104.14 0)
 			(hide yes)
 			(show_name no)
@@ -11313,7 +11282,7 @@
 	)
 	(symbol
 		(lib_id "EasyEDA:B4B-PH-K-S")
-		(at 254 113.03 180)
+		(at 259.08 113.03 180)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -11324,7 +11293,7 @@
 		(fields_autoplaced yes)
 		(uuid "bf2a007b-0a8a-4c91-bdab-e2cd959a8aca")
 		(property "Reference" "CN3"
-			(at 261.62 111.7599 0)
+			(at 266.7 111.7599 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -11335,7 +11304,7 @@
 			)
 		)
 		(property "Value" "B4B-PH-K-S"
-			(at 261.62 114.2999 0)
+			(at 266.7 114.2999 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -11346,7 +11315,7 @@
 			)
 		)
 		(property "Footprint" "EasyEDA:CONN-TH_B4B-PH-K-S"
-			(at 254 97.79 0)
+			(at 259.08 97.79 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -11357,7 +11326,7 @@
 			)
 		)
 		(property "Datasheet" "https://lcsc.com/product-detail/PH-Connectors_JST_B4B-PH-K-S-LF-SN_B4B-PH-K-S-LF-SN_C131334.html"
-			(at 254 95.25 0)
+			(at 259.08 95.25 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -11368,7 +11337,7 @@
 			)
 		)
 		(property "Description" ""
-			(at 254 113.03 0)
+			(at 259.08 113.03 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -11379,7 +11348,7 @@
 			)
 		)
 		(property "Manufacturer" "JST"
-			(at 254 92.71 0)
+			(at 259.08 92.71 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -11390,7 +11359,7 @@
 			)
 		)
 		(property "MPN" "B4B-PH-K-S(LF)(SN)"
-			(at 254 90.17 0)
+			(at 259.08 90.17 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -11401,7 +11370,7 @@
 			)
 		)
 		(property "LCSC Part" "C131334"
-			(at 254 87.63 0)
+			(at 259.08 87.63 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -12351,6 +12320,121 @@
 			(project "PCB_Pere_V1"
 				(path "/211fd2c7-a689-4f6d-9a31-462e9bb4f921"
 					(reference "C29")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "EasyEDA:C4532X7R1C336MT000N")
+		(at 110.49 109.22 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "e8f12c7d-23b8-4e1a-b3c7-f9c74e3a3fa5")
+		(property "Reference" "C17"
+			(at 114.3 107.9499 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "C4532X7R1C336MT000N"
+			(at 114.3 110.4899 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "EasyEDA:C1812"
+			(at 110.49 121.92 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" "https://lcsc.com/product-detail/Others_TDK-C4532X7R1C336MT000N_C342604.html"
+			(at 110.49 124.46 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" ""
+			(at 110.49 109.22 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "TDK"
+			(at 110.49 127 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "MPN" "C4532X7R1C336MT000N"
+			(at 110.49 129.54 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC Part" "C342604"
+			(at 110.49 132.08 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "ea43a800-3208-46e9-aab9-dbcf75813b88")
+		)
+		(pin "2"
+			(uuid "1379c3b8-493e-4beb-9e5f-f56277c1e675")
+		)
+		(instances
+			(project "PCB_Pere_V1"
+				(path "/211fd2c7-a689-4f6d-9a31-462e9bb4f921"
+					(reference "C17")
 					(unit 1)
 				)
 			)
