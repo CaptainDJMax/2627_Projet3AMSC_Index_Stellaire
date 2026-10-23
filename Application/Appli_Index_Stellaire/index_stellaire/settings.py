@@ -127,3 +127,14 @@ MAILERS = {
         'BACKEND': 'django.core.mail.backends.console.EmailBackend',
     },
 }
+
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
+# Lieu d'observation par défaut. Sera remplacé par la position réelle
+# (téléphone ou GNSS de l'appareil) quand on connectera le matériel.
+LIEU_PAR_DEFAUT = {
+    "latitude": 48.8566,
+    "longitude": 2.3522,
+    "altitude_m": 35,
+}

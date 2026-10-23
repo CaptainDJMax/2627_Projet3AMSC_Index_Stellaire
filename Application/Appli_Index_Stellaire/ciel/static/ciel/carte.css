@@ -1,0 +1,638 @@
+:root {
+  --fond: #05070d;
+  --texte: #e8ecf5;
+  --texte-doux: #9aa6c2;
+  --accent: #ffd479; /* doré : état « hors du direct » */
+  --verre: rgba(22, 28, 46, 0.55);
+  --verre-bord: rgba(255, 255, 255, 0.16);
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--fond);
+  color: var(--texte);
+  font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* La zone visible du ciel. Le canevas, plus grand, est centré dedans et rogné. */
+#carte {
+  position: absolute;
+  overflow: hidden;
+}
+
+#carte canvas {
+  touch-action: none; /* le glisser fait tourner la vue, il ne fait pas défiler la page */
+}
+
+/* --- Zoom : boutons + et − à droite, au-dessus de la barre (téléphone) ---------- */
+#zoom {
+  position: fixed;
+  right: 16px;
+  bottom: calc(100px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#zoom button {
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border-radius: 50%;
+  color: var(--texte);
+  font: inherit;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+#zoom button:active {
+  transform: scale(0.95);
+}
+
+/* Ordinateur : à gauche, au-dessus de la direction (la colonne de droite reste libre) */
+@media (min-width: 900px) {
+  #zoom {
+    right: auto;
+    left: 16px;
+    bottom: 96px;
+  }
+}
+
+/* Le formulaire interne de d3-celestial doit exister, mais on le cache :
+   on pilote la carte nous-mêmes. */
+#celestial-form {
+  display: none;
+}
+
+/* --- Effet « verre dépoli », commun aux boutons et panneaux ---------------- */
+.verre {
+  background: var(--verre);
+  border: 1px solid var(--verre-bord);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  color: var(--texte);
+}
+
+/* --- Pastille d'état de l'appareil, en haut -------------------------------- */
+#etat-appareil {
+  position: fixed;
+  top: calc(12px + env(safe-area-inset-top));
+  left: 12px; /* dans le coin : le disque du ciel est rond, les coins sont libres */
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(230px, calc(100vw - 150px));
+  box-sizing: border-box;
+  padding: 8px 14px;
+  border-radius: 16px;
+  font-size: 14px;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer; /* un toucher ouvre le panneau de l'appareil */
+}
+
+/* Téléphone en portrait : quand la fiche ou la recherche monte du bas, la pastille
+   se cache pour ne pas se superposer au panneau. */
+@media (orientation: portrait) {
+  body.panneau-ouvert #etat-appareil {
+    display: none;
+  }
+}
+
+#etat-point {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #6b7592; /* hors ligne */
+}
+
+#etat-point.ok {
+  background: #5dffb0;
+  box-shadow: 0 0 8px #5dffb0;
+}
+
+#etat-point.erreur {
+  background: #ff5a5a;
+}
+
+#etat-titre,
+#etat-detail {
+  display: block;
+}
+
+#etat-titre {
+  font-weight: 500;
+}
+
+#etat-detail {
+  margin-top: 1px;
+  color: var(--texte-doux);
+  font-size: 13px;
+}
+
+/* --- Barre de boutons ronds en bas de l'écran ------------------------------ */
+#barre {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  pointer-events: none; /* seuls les boutons captent les touches */
+}
+
+.rond {
+  pointer-events: auto;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  font: inherit;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.rond:active {
+  transform: scale(0.95);
+}
+
+/* Hors du direct (pause, accéléré, autre date) : le bouton passe en doré */
+.rond.decale {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* --- Panneau du temps ------------------------------------------------------- */
+#panneau-temps {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(92px + env(safe-area-inset-bottom));
+  width: min(340px, calc(100vw - 32px));
+  box-sizing: border-box;
+  padding: 16px;
+  border-radius: 22px;
+  text-align: center;
+}
+
+#panneau-heure {
+  font-size: 34px;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+}
+
+#panneau-date {
+  margin-bottom: 14px;
+  color: var(--texte-doux);
+  font-size: 14px;
+}
+
+#panneau-date::first-letter {
+  text-transform: uppercase; /* « lundi » → « Lundi », mais « octobre » reste en minuscule */
+}
+
+.groupe {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+#panneau-temps button {
+  flex: 1;
+  padding: 9px 0;
+  border: 1px solid var(--verre-bord);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--texte);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+#panneau-temps button[aria-pressed="true"] {
+  background: rgba(255, 212, 121, 0.18);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+#panneau-temps button.large {
+  width: 100%;
+  margin-top: 2px;
+}
+
+/* --- Fiche d'objet ---------------------------------------------------------- */
+#fiche {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(92px + env(safe-area-inset-bottom));
+  width: min(380px, calc(100vw - 32px));
+  max-height: min(52vh, 460px);
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 18px;
+  border-radius: 22px;
+}
+
+#fiche-fermer {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--texte);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+#fiche-image {
+  display: block;
+  width: 100%;
+  max-height: 150px;
+  margin-bottom: 12px;
+  border-radius: 14px;
+  object-fit: cover;
+}
+
+#fiche h2 {
+  margin: 0 36px 2px 0;
+  font-size: 22px;
+  font-weight: 500;
+}
+
+#fiche-sous-titre {
+  margin: 0 0 14px;
+  color: var(--texte-doux);
+  font-size: 14px;
+}
+
+#fiche-infos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+  margin: 0 0 10px;
+}
+
+#fiche-infos dt {
+  color: var(--texte-doux);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+#fiche-infos dd {
+  margin: 2px 0 0;
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}
+
+#fiche-note-horizon {
+  margin: 0 0 8px;
+  color: var(--texte-doux);
+  font-size: 13px;
+}
+
+#fiche-courbe {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 6px 0 12px;
+}
+
+#fiche-courbe .sous-horizon {
+  fill: rgba(255, 255, 255, 0.05);
+}
+
+#fiche-courbe .horizon {
+  stroke: rgba(255, 255, 255, 0.35);
+  stroke-dasharray: 3 3;
+}
+
+#fiche-courbe .courbe {
+  fill: none;
+  stroke: #7fb0ff;
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+#fiche-courbe .maintenant {
+  fill: #fff;
+  stroke: #05070d;
+  stroke-width: 1.5;
+}
+
+#fiche-description {
+  margin: 0 0 14px;
+  color: #cbd3e6;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+#fiche button.large {
+  width: 100%;
+  padding: 11px 0;
+  border: 1px solid var(--verre-bord);
+  border-radius: 14px;
+  background: rgba(255, 212, 121, 0.16);
+  color: var(--accent);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+/* Pointage en cours sur cet objet : le bouton sert à l'arrêter */
+#fiche button.large.arreter {
+  background: rgba(255, 90, 90, 0.16);
+  color: #ff9a9a;
+}
+
+#fiche button.large:disabled {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--texte-doux);
+  cursor: not-allowed;
+}
+
+#fiche-note-appareil {
+  margin: 8px 0 0;
+  color: var(--texte-doux);
+  font-size: 12px;
+  text-align: center;
+}
+
+/* --- Grand écran : la fiche devient un panneau à droite -------------------------
+   Sur téléphone, la fiche remonte depuis le bas et recouvre le ciel. Sur grand écran,
+   elle prend toute la hauteur à droite, et le disque garde toute la place à gauche. */
+@media (min-width: 900px) {
+  #fiche {
+    left: auto;
+    right: 16px;
+    top: 16px;
+    bottom: 16px;
+    width: 360px;
+    max-height: none;
+    transform: none;
+    border-radius: 22px;
+  }
+}
+
+/* --- Icônes de la barre et boutons actifs ----------------------------------- */
+.rond svg {
+  display: block;
+  margin: 0 auto;
+}
+
+#btn-calques[aria-expanded="true"],
+#btn-recherche[aria-expanded="true"],
+#btn-boussole[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* --- Calques et recherche : panneaux du bas (téléphone) --------------------- */
+.titre-panneau {
+  margin: 0 0 10px;
+  color: var(--texte-doux);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+#panneau-calques,
+#panneau-recherche {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(92px + env(safe-area-inset-bottom));
+  width: min(340px, calc(100vw - 32px));
+  box-sizing: border-box;
+  padding: 16px;
+  border-radius: 22px;
+}
+
+#panneau-calques button {
+  display: block;
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 11px 12px;
+  border: 1px solid var(--verre-bord);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--texte);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+#panneau-calques button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: rgba(255, 212, 121, 0.14);
+  color: var(--accent);
+}
+
+#panneau-recherche {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: min(60vh, 460px);
+}
+
+/* 16 px minimum : sur iPhone, un champ plus petit déclenche un zoom automatique */
+#recherche-champ {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 11px 14px;
+  border: 1px solid var(--verre-bord);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--texte);
+  font: inherit;
+  font-size: 16px;
+}
+
+#recherche-liste {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+#recherche-liste button {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 8px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--texte);
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  cursor: pointer;
+}
+
+#recherche-liste button:hover,
+#recherche-liste button:focus-visible {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+#recherche-liste .etat {
+  color: var(--texte-doux);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+#recherche-liste .vide {
+  padding: 8px;
+  color: var(--texte-doux);
+  font-size: 14px;
+}
+
+/* --- Direction regardée : petit bloc, en haut à droite (téléphone) ----------- */
+#boussole {
+  position: fixed;
+  top: calc(12px + env(safe-area-inset-top));
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  padding: 8px 12px;
+  border-radius: 16px;
+  color: var(--texte);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+#boussole-hauteur {
+  color: var(--texte-doux);
+  font-size: 13px;
+}
+
+/* --- Grand écran : la recherche prend la colonne de droite, comme la fiche ----- */
+@media (min-width: 900px) {
+  #panneau-recherche {
+    left: auto;
+    right: 16px;
+    top: 16px;
+    bottom: 16px;
+    width: 360px;
+    max-height: none;
+    transform: none;
+    border-radius: 22px;
+  }
+
+  /* La direction regardée passe en bas à gauche : la pastille d'état reste en haut à gauche */
+  #boussole {
+    top: auto;
+    right: auto;
+    bottom: calc(18px + env(safe-area-inset-bottom));
+    left: 16px;
+    align-items: flex-start;
+  }
+}
+
+/* --- Panneau de l'appareil (s'ouvre en touchant la pastille) ------------------- */
+#etat-appareil[aria-expanded="true"] {
+  border-color: var(--accent);
+}
+
+#panneau-appareil {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(92px + env(safe-area-inset-bottom));
+  width: min(340px, calc(100vw - 32px));
+  box-sizing: border-box;
+  padding: 16px;
+  border-radius: 22px;
+}
+
+#appareil-infos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 16px;
+  margin: 0 0 6px;
+}
+
+#appareil-infos dt {
+  color: var(--texte-doux);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+#appareil-infos dd {
+  margin: 2px 0 0;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+#app-note {
+  margin: 6px 0 0;
+  color: var(--texte-doux);
+  font-size: 13px;
+}
+
+#panneau-appareil button.large {
+  width: 100%;
+  margin-top: 10px;
+  padding: 11px 0;
+  border: 1px solid var(--verre-bord);
+  border-radius: 14px;
+  background: rgba(255, 212, 121, 0.16);
+  color: var(--accent);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+#panneau-appareil button.large.arreter {
+  background: rgba(255, 90, 90, 0.16);
+  color: #ff9a9a;
+}
+
+#panneau-appareil button.large:disabled {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--texte-doux);
+  cursor: not-allowed;
+}
+
+/* Téléphone : un panneau du bas ouvert recouvrirait les boutons de zoom, on les cache */
+@media (max-width: 899px) {
+  body.panneau-bas #zoom {
+    display: none;
+  }
+}
+
+/* --- Crédits des illustrations (panneau des calques) --------------------------- */
+.credits {
+  margin: 6px 2px 0;
+  color: var(--texte-doux);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.credits a {
+  color: inherit;
+}

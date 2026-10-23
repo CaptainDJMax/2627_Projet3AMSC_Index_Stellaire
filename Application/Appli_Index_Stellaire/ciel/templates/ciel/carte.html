@@ -1,0 +1,147 @@
+{% load static %}
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#05070d">
+  <link rel="icon" href="data:,"> <!-- pas d'icône pour l'instant : évite un 404 sur /favicon.ico -->
+  <title>Index Stellaire</title>
+  <link rel="stylesheet" href="{% static 'ciel/vendor/d3-celestial/celestial.css' %}">
+  <link rel="stylesheet" href="{% static 'ciel/carte.css' %}">
+</head>
+<body>
+  <div id="carte"
+       data-datapath="{% static 'ciel/vendor/d3-celestial/data/' %}"
+       data-url-objets="{% url 'ciel:objets' %}"
+       data-url-pointage="{% url 'appareil:etat' %}"
+       data-url-commande="{% url 'appareil:commande' %}"
+       data-url-arret="{% url 'appareil:arret' %}"
+       data-url-illustrations="{% static 'ciel/constellations/illustrations.json' %}"
+       data-dossier-illustrations="{% static 'ciel/constellations/illustrations/' %}"></div>
+  <div id="celestial-form"></div>
+
+  <!-- État de l'appareil (en haut de l'écran). Un toucher ouvre le panneau de l'appareil. -->
+  <button type="button" id="etat-appareil" class="verre" aria-expanded="false" aria-controls="panneau-appareil">
+    <span id="etat-point"></span>
+    <span aria-live="polite">
+      <strong id="etat-titre">Appareil</strong>
+      <span id="etat-detail" hidden></span>
+    </span>
+  </button>
+
+  <!-- Panneau de l'appareil : état détaillé et commandes -->
+  <div id="panneau-appareil" class="verre" hidden>
+    <p class="titre-panneau">Appareil</p>
+    <dl id="appareil-infos">
+      <div><dt>État</dt><dd id="app-etat">—</dd></div>
+      <div><dt>Mode</dt><dd id="app-mode">—</dd></div>
+      <div><dt>Batterie</dt><dd id="app-batterie">—</dd></div>
+      <div><dt>Dernier signal</dt><dd id="app-vu">—</dd></div>
+      <div><dt>Cible</dt><dd id="app-cible">—</dd></div>
+      <div><dt>Écart</dt><dd id="app-ecart">—</dd></div>
+    </dl>
+    <p id="app-note" hidden></p>
+    <button type="button" id="app-voir" class="large" hidden>Voir la cible</button>
+    <button type="button" id="app-arreter" class="large arreter" hidden>Arrêter le pointage</button>
+  </div>
+
+  <!-- Panneau du temps (s'ouvre au-dessus du bouton rond) -->
+  <div id="panneau-temps" class="verre" hidden>
+    <div id="panneau-heure"></div>
+    <div id="panneau-date"></div>
+    <div class="groupe" role="group" aria-label="Vitesse du temps">
+      <button type="button" data-vitesse="0" title="Pause">⏸</button>
+      <button type="button" data-vitesse="1">×1</button>
+      <button type="button" data-vitesse="60">×60</button>
+      <button type="button" data-vitesse="600">×600</button>
+      <button type="button" data-vitesse="3600">×3600</button>
+    </div>
+    <div class="groupe" role="group" aria-label="Sauter dans le temps">
+      <button type="button" data-saut="-86400000">−1 j</button>
+      <button type="button" data-saut="-3600000">−1 h</button>
+      <button type="button" data-saut="3600000">+1 h</button>
+      <button type="button" data-saut="86400000">+1 j</button>
+    </div>
+    <button type="button" id="btn-maintenant" class="large">Revenir à maintenant</button>
+  </div>
+
+  <!-- Recherche d'un astre (sur téléphone : au-dessus de la barre ; sur grand écran : à droite) -->
+  <div id="panneau-recherche" class="verre" hidden>
+    <input type="search" id="recherche-champ" placeholder="Rechercher un astre" autocomplete="off" aria-label="Rechercher un astre">
+    <ul id="recherche-liste"></ul>
+  </div>
+
+  <!-- Calques : ce qui apparaît sur la carte -->
+  <div id="panneau-calques" class="verre" hidden>
+    <p class="titre-panneau">Calques</p>
+    <button type="button" data-calque="constellations" aria-pressed="true">Constellations</button>
+    <button type="button" data-calque="illustrations" aria-pressed="true">Illustrations</button>
+    <button type="button" data-calque="voieLactee" aria-pressed="true">Voie lactée</button>
+    <button type="button" data-calque="etiquettesEtoiles" aria-pressed="true">Noms des étoiles</button>
+    <!-- Mention obligatoire (Licence Art Libre) -->
+    <p class="credits">Illustrations : Johan Meuris (Stellarium),
+      <a href="https://artlibre.org/licence/lal/" target="_blank" rel="noopener">Licence Art Libre</a></p>
+  </div>
+
+  <!-- Direction regardée. Un toucher recentre la vue sur le sud. -->
+  <button type="button" id="boussole" class="verre" hidden aria-label="Recentrer la vue">
+    <span id="boussole-direction"></span>
+    <span id="boussole-hauteur"></span>
+  </button>
+
+  <!-- Fiche d'objet (s'ouvre quand on touche un objet de la carte) -->
+  <aside id="fiche" class="verre" hidden aria-live="polite">
+    <button type="button" id="fiche-fermer" aria-label="Fermer la fiche">×</button>
+    <img id="fiche-image" alt="" hidden>
+    <h2 id="fiche-nom"></h2>
+    <p id="fiche-sous-titre"></p>
+    <dl id="fiche-infos">
+      <div><dt>Hauteur</dt><dd id="fiche-hauteur">—</dd></div>
+      <div><dt>Direction</dt><dd id="fiche-direction">—</dd></div>
+      <div><dt>Lever</dt><dd id="fiche-lever">—</dd></div>
+      <div><dt>Coucher</dt><dd id="fiche-coucher">—</dd></div>
+    </dl>
+    <p id="fiche-note-horizon" hidden></p>
+    <svg id="fiche-courbe" viewBox="0 0 300 64" role="img" aria-label="Hauteur de l'objet sur les 24 prochaines heures"></svg>
+    <p id="fiche-description"></p>
+    <button type="button" id="btn-pointer" class="large" disabled>Pointer</button>
+    <p id="fiche-note-appareil">Aucun appareil connecté.</p>
+  </aside>
+
+  <!-- Zoom : boutons + et − (le pincement reste possible) -->
+  <div id="zoom" role="group" aria-label="Zoom">
+    <button type="button" id="zoom-plus" class="verre" aria-label="Zoomer">+</button>
+    <button type="button" id="zoom-moins" class="verre" aria-label="Dézoomer">−</button>
+  </div>
+
+  <!-- Barre de boutons ronds (d'autres s'ajouteront : recherche, calques, boussole...) -->
+  <nav id="barre" aria-label="Commandes">
+    <button type="button" id="btn-calques" class="rond verre" aria-expanded="false" aria-controls="panneau-calques" aria-label="Calques">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="m3 13 9 5 9-5"/>
+      </svg>
+    </button>
+    <button type="button" id="btn-temps" class="rond verre" aria-expanded="false" aria-controls="panneau-temps">
+      <span id="heure">--:--</span>
+    </button>
+    <button type="button" id="btn-recherche" class="rond verre" aria-expanded="false" aria-controls="panneau-recherche" aria-label="Rechercher">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/>
+      </svg>
+    </button>
+    <button type="button" id="btn-boussole" class="rond verre" aria-pressed="false" aria-label="Afficher la direction regardée">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5 5-2Z"/>
+      </svg>
+    </button>
+  </nav>
+
+  {{ lieu|json_script:"donnees-lieu" }}
+
+  <script src="{% static 'ciel/vendor/d3-celestial/d3.min.js' %}"></script>
+  <script src="{% static 'ciel/vendor/d3-celestial/d3.geo.projection.min.js' %}"></script>
+  <script src="{% static 'ciel/vendor/d3-celestial/celestial.min.js' %}"></script>
+  <script src="{% static 'ciel/carte.js' %}"></script>
+</body>
+</html>

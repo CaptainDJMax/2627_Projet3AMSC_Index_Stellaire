@@ -250,7 +250,11 @@ remplir la base avec quelques objets (une étoile, une planète) et de vérifier
 qu'ils s'affichent dans l'admin Django, avant même d'avoir touché à Skyfield
 ou à l'ESP32.
 
-### 1.1 `ObjetCeleste`
+### 1.1 Le modèle `ObjetCeleste`
+
+**Où écrire le code** : pas de nouveau fichier. `startapp` a déjà créé
+`ciel/models.py`, avec une ligne `from django.db import models` en haut.
+Garde cette ligne (ne la duplique pas) et ajoute la classe en dessous :
 
 ```python
 # ciel/models.py
@@ -273,7 +277,7 @@ class ObjetCeleste(models.Model):
         return self.nom
 ```
 
-Deux choix de conception :
+Les choix de conception :
 
 - **Pas de RA/Dec stockés en base.** Pour une étoile, la position est quasi
   fixe à l'échelle humaine, mais on préfère calculer toutes les positions via
@@ -282,18 +286,103 @@ Deux choix de conception :
   modèle ne porte que le **contenu descriptif**.
 - **`categorie` en `TextChoices`** plutôt qu'en texte libre : ça évite les
   fautes de frappe ("etoile" / "Etoile" / "star") qui casseraient
-  discrètement les filtres plus tard (les filtres d'affichage par type
-  d'objet, F36 du cahier des charges), et Django génère un menu déroulant
-  dans l'admin.
+  discrètement les filtres plus tard (filtres d'affichage par type d'objet,
+  F36 du cahier des charges), et Django génère un menu déroulant dans
+  l'admin.
+- **`blank=True` sur `description` et `image`** : on peut créer un objet avec
+  juste un nom et une catégorie, et compléter la fiche plus tard.
+- **`__str__`** : sans lui, l'admin affiche "ObjetCeleste object (1)" au lieu
+  du nom.
+- **Les amas** (Hyades, Pléiades) ont leur place ici : même s'ils sont
+  visuellement étendus, pour le bras c'est une position unique à cibler,
+  comme une étoile.
 
-Un amas (Hyades, Pléiades) a sa place ici : même s'il est visuellement étendu,
-pour le bras c'est une position unique à cibler, comme une étoile.
+### 1.2 Préparer les images (Pillow et fichiers média)
 
-### 1.2 `Constellation`
+Le champ `ImageField` a besoin de la librairie Pillow. Sans elle,
+`makemigrations` s'arrête avec une erreur (`fields.E210`).
 
-Une constellation n'est pas un point unique du ciel : c'est un ensemble de
-points reliés par des lignes. C'est une autre nature d'objet, donc un modèle à
-part, qui **regroupe** des étoiles.
+```bash
+pip install pillow
+```
+
+Django doit aussi savoir où ranger les images envoyées et comment les servir.
+Ajoute en bas de `index_stellaire/settings.py` :
+
+```python
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+```
+
+Puis remplace le contenu de `index_stellaire/urls.py` par :
+
+```python
+from django.conf import settings
+from django.conf.urls.static import static
+from django.contrib import admin
+from django.urls import path
+
+urlpatterns = [
+    path("admin/", admin.site.urls),
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+```
+
+Le `static(...)` final ne sert qu'en développement : il permet au serveur de
+test d'afficher les images envoyées. En production, ce sera le serveur web
+qui s'en chargera (Partie 14).
+
+### 1.3 Brancher le modèle sur l'admin
+
+Dans `ciel/admin.py` :
+
+```python
+from django.contrib import admin
+from .models import ObjetCeleste
+
+admin.site.register(ObjetCeleste)
+```
+
+L'admin de Django est une interface de gestion générée automatiquement à
+partir des modèles. On s'en sert ici pour saisir le contenu des fiches sans
+avoir à coder de formulaire.
+
+### 1.4 Créer la table, le compte admin, et tester
+
+```bash
+python manage.py makemigrations ciel
+python manage.py migrate
+python manage.py createsuperuser
+python manage.py runserver
+```
+
+- `makemigrations ciel` écrit le plan de la table à partir du modèle. Si le
+  message est "No changes detected", c'est que `'ciel'` manque dans
+  `INSTALLED_APPS` (Partie 0, étape 3).
+- `migrate` crée réellement la table dans `db.sqlite3`.
+- `createsuperuser` crée ton compte pour te connecter à l'admin (nom
+  d'utilisateur, email facultatif, mot de passe). Ce n'est pas un rôle à
+  gérer : un seul compte suffit, vu que l'application est mono-utilisateur.
+
+Va sur `http://127.0.0.1:8000/admin/`, connecte-toi, puis **Objets célestes →
+Ajouter**. Crée par exemple "Aldébaran" (catégorie Étoile) et "Jupiter"
+(catégorie Planète).
+
+**Ce qui doit marcher** : les objets apparaissent dans la liste avec leur nom,
+et la catégorie est un menu déroulant avec les quatre choix.
+
+**Contenu des fiches** : les descriptions et images que tu saisis doivent
+venir de sources vérifiées et d'images libres de droits (décision du cahier
+des charges). Ce sera formalisé en Partie 10.
+
+Voici la section 1.5 à coller dans ton tuto, à la place du « 1.5 à venir ».
+
+---
+
+### 1.5 Le modèle `Constellation`
+
+Une constellation n'est pas un point unique du ciel, c'est un ensemble d'étoiles reliées par des lignes. On ne peut donc pas la ranger dans `ObjetCeleste`, qui décrit des objets que le bras peut viser. On crée un second modèle qui **regroupe** des étoiles.
+
+**Où écrire le code** : dans le même fichier `ciel/models.py`, **sous** la classe `ObjetCeleste`. Pas de nouveau fichier, et il ne faut pas remettre l'import en haut. `Constellation` doit être écrite après `ObjetCeleste`, parce qu'elle y fait référence.
 
 ```python
 class Constellation(models.Model):
@@ -311,81 +400,4011 @@ class Constellation(models.Model):
         return self.nom
 ```
 
-- **`ManyToManyField`** : les figures tracées entre étoiles peuvent partager
-  une étoile entre deux constellations voisines. La relation plusieurs-à-
-  plusieurs évite de figer une seule appartenance par étoile.
-- **`limit_choices_to`** restreint le choix aux objets de catégorie "étoile"
-  dans l'admin, pour ne pas associer par erreur une planète ou un satellite.
-- **`blank=True`** permet de créer une constellation avant d'y rattacher ses
-  étoiles.
+Ce que fait chaque partie :
 
-Ce qu'on laisse volontairement de côté : le **tracé** des lignes entre les
-étoiles. Il servira à l'affichage de la carte et sera traité en Partie 3.
+- **`nom`, `description`, `image`** : même logique que pour `ObjetCeleste`. C'est le contenu de la fiche, avec `blank=True` pour pouvoir la compléter plus tard.
+- **`ManyToManyField`** : une constellation contient plusieurs étoiles, et une étoile peut figurer dans le tracé de plusieurs constellations (par exemple une étoile qui sert de point de jonction entre deux figures voisines). Django crée tout seul la table de liaison entre les deux.
+- **`limit_choices_to`** : dans l'admin, le champ `etoiles` ne propose que les objets de catégorie « Étoile ». Ça évite d'y mettre Jupiter ou un amas par erreur. Cette restriction ne s'applique qu'aux formulaires (admin compris), pas à la base de données.
+- **`related_name="constellations"`** : permet de partir d'une étoile pour retrouver ses constellations, avec `aldebaran.constellations.all()`. On s'en servira pour afficher « Constellation : Taureau » sur la fiche d'une étoile.
+- **`blank=True`** : permet de créer la constellation d'abord et d'y rattacher les étoiles ensuite.
 
-### 1.3 Images : Pillow et fichiers média
+**Ce qu'on laisse de côté pour l'instant** : le tracé des lignes entre les étoiles. Il ne sert qu'à dessiner la carte, donc on le traitera en Partie 3.
 
-`ImageField` a besoin de la librairie Pillow. Sans elle, `makemigrations`
-s'arrête avec une erreur.
-
-```bash
-pip install pillow
-```
-
-Django doit aussi savoir où ranger et comment servir les images envoyées.
-Dans `settings.py` :
+**Brancher sur l'admin** : remplace le contenu de `ciel/admin.py` par :
 
 ```python
-MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+from django.contrib import admin
+from .models import ObjetCeleste, Constellation
+
+
+@admin.register(ObjetCeleste)
+class ObjetCelesteAdmin(admin.ModelAdmin):
+    list_display = ("nom", "categorie")
+    list_filter = ("categorie",)
+
+
+@admin.register(Constellation)
+class ConstellationAdmin(admin.ModelAdmin):
+    filter_horizontal = ("etoiles",)
 ```
 
-Et dans `index_stellaire/urls.py`, pour servir ces fichiers en développement :
+On passe de `admin.site.register(...)` à des classes `ModelAdmin`, pour deux petits confort :
+
+- `list_display` et `list_filter` affichent la catégorie dans la liste des objets et ajoutent un filtre sur le côté.
+- `filter_horizontal` remplace le champ `etoiles` par deux colonnes (« disponibles » et « choisies »). C'est beaucoup plus pratique que la liste à sélection multiple par défaut quand il y a beaucoup d'étoiles.
+
+**Créer la table** (le compte admin existe déjà, pas besoin de `createsuperuser`) :
+
+```bash
+python manage.py makemigrations ciel
+python manage.py migrate
+python manage.py runserver
+```
+
+`makemigrations` crée un nouveau fichier `ciel/migrations/0002_constellation.py`. Si tu vois « No changes detected », vérifie que tu as bien enregistré `models.py`.
+
+**Tester** : va sur `http://127.0.0.1:8000/admin/` → **Constellations → Ajouter**. Crée « Taureau » et rattache-lui « Aldébaran ».
+
+Ça marche si :
+- le champ `etoiles` ne propose **que** des étoiles (Jupiter n'y est pas) ;
+- la constellation apparaît dans la liste avec son nom ;
+- la liste des objets a maintenant une colonne Catégorie et un filtre.
+
+---
+
+Oui, l'admin ne servira que pour les retouches ponctuelles (corriger un texte, ajouter un objet isolé). Pour le contenu en masse, on fera quelque chose de plus propre.
+
+**Les descriptions et les images** : tu n'as pas à les chercher toi-même. Ça viendra en Partie 10, avec ce fonctionnement :
+- je recherche et je vérifie les sources (sources fiables, images libres de droits comme Wikimedia Commons, avec l'auteur et la licence notés) ;
+- j'écris le tout dans un fichier de données (JSON) ;
+- une commande unique, `python manage.py importer_contenu`, charge ce fichier en base. Ajouter du contenu revient alors à compléter le fichier et relancer la commande.
+
+On ajoutera à ce moment-là quelques champs (`source`, `credit_image`, `licence`), car une image libre doit être créditée. Pour l'instant tes deux ou trois objets de test suffisent.
+
+
+---
+
+## Partie 2 - Calcul astro avec Skyfield
+
+On veut une fonction qui répond à : **« où est cet astre dans le ciel, vu de ce lieu, à cet instant ? »** La réponse est en azimut et élévation (Alt/Az), donc exactement les deux angles que le bras devra prendre. Le bras n'en a pas besoin pour l'instant, mais c'est ce que la carte du ciel et le pointage utiliseront.
+
+### 2.1 Installer Skyfield et écrire le module de calcul
+
+```bash
+pip install skyfield pandas
+```
+
+`pandas` sert à lire le catalogue d'étoiles Hipparcos.
+
+**Où écrire le code** : crée un **nouveau fichier** `ciel/astro.py`. On le sépare de `models.py` car ce n'est pas de la donnée, c'est du calcul. Il ne dépend pas de Django, donc il reste simple à tester et à réutiliser.
+
+```python
+# ciel/astro.py
+from functools import lru_cache
+
+from skyfield.api import Loader, Star, wgs84
+from skyfield.data import hipparcos
+
+# Skyfield télécharge ses fichiers de référence dans ce dossier
+charge = Loader("donnees_skyfield")
+
+
+@lru_cache(maxsize=1)
+def _timescale():
+    return charge.timescale()
+
+
+@lru_cache(maxsize=1)
+def _ephemerides():
+    # Positions du Soleil, de la Lune et des planètes
+    return charge("de421.bsp")
+
+
+@lru_cache(maxsize=1)
+def _catalogue_hipparcos():
+    # Catalogue d'environ 118 000 étoiles
+    with charge.open(hipparcos.URL) as f:
+        return hipparcos.load_dataframe(f)
+
+
+def _corps(identifiant):
+    """'hip:21421' -> une étoile du catalogue Hipparcos.
+    Sinon, un nom de corps de l'éphéméride (ex. 'jupiter barycenter')."""
+    if identifiant.startswith("hip:"):
+        numero = int(identifiant[4:])
+        return Star.from_dataframe(_catalogue_hipparcos().loc[numero])
+    return _ephemerides()[identifiant]
+
+
+def altaz(identifiant, latitude, longitude, altitude_m=0, instant=None):
+    """Retourne (élévation, azimut) en degrés.
+    instant : un objet temps Skyfield. Par défaut, maintenant."""
+    if instant is None:
+        instant = _timescale().now()
+    lieu = _ephemerides()["earth"] + wgs84.latlon(
+        latitude, longitude, elevation_m=altitude_m
+    )
+    apparent = lieu.at(instant).observe(_corps(identifiant)).apparent()
+    elevation, azimut, _ = apparent.altaz()
+    return elevation.degrees, azimut.degrees
+```
+
+Les choix de conception :
+- **`lru_cache`** : les fichiers lourds ne sont chargés qu'**au premier appel**, pas au démarrage de Django, puis gardés en mémoire. Sans ça, le serveur télécharge et lit des dizaines de Mo à chaque lancement.
+- **Un identifiant texte** : `"hip:21421"` pour une étoile (numéro du catalogue Hipparcos), `"jupiter barycenter"` pour une planète. En 2.2, il sera stocké dans `ObjetCeleste`, ce qui reliera le contenu (la fiche) au calcul (la position).
+- **`instant`** : par défaut, `ts.now()` (UTC, donc aucun risque de décalage d'heure). Si tu passes une date plus tard, elle devra être **avec fuseau horaire**, sinon Skyfield la refuse.
+- **`.apparent()`** : position corrigée de l'aberration de la lumière, donc la direction dans laquelle on voit réellement l'astre. La réfraction de l'atmosphère n'est pas incluse. Elle ne compte que près de l'horizon, on la traitera plus tard.
+
+**Ignorer les fichiers téléchargés par Git** : ajoute cette ligne à ton `.gitignore` (et crée-le s'il n'existe pas) :
+
+```
+donnees_skyfield/
+```
+
+### 2.2 Tester dans le shell
+
+```bash
+python manage.py shell
+```
+
+```python
+from ciel.astro import altaz
+
+altaz("jupiter barycenter", 48.8566, 2.3522)
+altaz("hip:21421", 48.8566, 2.3522)   # Aldébaran
+```
+
+Le **premier appel est lent** : Skyfield télécharge l'éphéméride (environ 17 Mo) puis le catalogue Hipparcos. Les appels suivants sont instantanés. Les coordonnées sont celles de Paris, à remplacer par les tiennes.
+
+Chaque appel retourne deux nombres : `(élévation, azimut)` en degrés.
+- **Élévation** : positive si l'astre est au-dessus de l'horizon, négative s'il est dessous (le cas où le bras pointerait vers le sol).
+- **Azimut** : de 0° (nord) à 360°, en passant par 90° (est), 180° (sud) et 270° (ouest).
+
+**Vérification** : ouvre Sky Guide (ou Stellarium) et compare l'élévation et l'azimut de Jupiter et d'Aldébaran à cette heure-là, pour le même lieu. Tu dois trouver moins d'un degré d'écart.
+
+---
+
+
+**Vérification contre l'appli.** Dans le shell, fixe l'instant pour pouvoir comparer :
+
+```python
+from ciel.astro import altaz, _timescale
+
+t = _timescale().now()
+print(t.utc_strftime("%Y-%m-%d %H:%M:%S UTC"))
+altaz("jupiter barycenter", 48.8566, 2.3522, instant=t)
+altaz("hip:21421", 48.8566, 2.3522, instant=t)
+```
+
+Regarde ensuite Jupiter et Aldébaran dans Sky Guide ou Stellarium à cette heure, pour Paris. Le Soleil étant levé en journée, certaines applis n'affichent pas les étoiles, il faut leur forcer l'affichage ou changer l'heure. Tu dois trouver moins d'un degré d'écart.
+
+**Deux petites corrections dans `ciel/astro.py`.**
+
+1. `Loader("donnees_skyfield")` est un chemin relatif : le dossier est créé là d'où tu lances la commande. Si tu lances Django depuis un autre dossier, tout est retéléchargé. On le rend absolu, à côté de `manage.py`.
+2. Les résultats sont des `np.float64` (numpy). On les convertit en `float` Python normaux, plus propre pour l'API JSON qu'on écrira plus tard.
+
+Voici le fichier complet à mettre à la place de l'ancien (remplace tout le contenu) :
+
+```python
+# ciel/astro.py
+from functools import lru_cache
+from pathlib import Path
+
+from skyfield.api import Loader, Star, wgs84
+from skyfield.data import hipparcos
+
+# Dossier à la racine du projet (à côté de manage.py), quel que soit
+# l'endroit d'où on lance la commande
+DOSSIER_DONNEES = Path(__file__).resolve().parent.parent / "donnees_skyfield"
+charge = Loader(str(DOSSIER_DONNEES))
+
+
+@lru_cache(maxsize=1)
+def _timescale():
+    return charge.timescale()
+
+
+@lru_cache(maxsize=1)
+def _ephemerides():
+    # Positions du Soleil, de la Lune et des planètes
+    return charge("de421.bsp")
+
+
+@lru_cache(maxsize=1)
+def _catalogue_hipparcos():
+    # Catalogue d'environ 118 000 étoiles
+    with charge.open(hipparcos.URL) as f:
+        return hipparcos.load_dataframe(f)
+
+
+def _corps(identifiant):
+    """'hip:21421' -> une étoile du catalogue Hipparcos.
+    Sinon, un nom de corps de l'éphéméride (ex. 'jupiter barycenter')."""
+    if identifiant.startswith("hip:"):
+        numero = int(identifiant[4:])
+        return Star.from_dataframe(_catalogue_hipparcos().loc[numero])
+    return _ephemerides()[identifiant]
+
+
+def altaz(identifiant, latitude, longitude, altitude_m=0, instant=None):
+    """Retourne (élévation, azimut) en degrés.
+    instant : un objet temps Skyfield. Par défaut, maintenant."""
+    if instant is None:
+        instant = _timescale().now()
+    lieu = _ephemerides()["earth"] + wgs84.latlon(
+        latitude, longitude, elevation_m=altitude_m
+    )
+    apparent = lieu.at(instant).observe(_corps(identifiant)).apparent()
+    elevation, azimut, _ = apparent.altaz()
+    return float(elevation.degrees), float(azimut.degrees)
+```
+
+**Les fichiers déjà téléchargés** sont dans le dossier d'où tu as lancé le shell. Si ce n'est pas la racine du projet, tu peux le supprimer, il sera recréé au bon endroit au prochain appel (nouveau téléchargement unique). Vérifie que `donnees_skyfield/` est bien dans ton `.gitignore`.
+
+## 2.3 Relier le calcul aux modèles
+
+Jusqu'ici, `altaz()` marche avec un identifiant tapé à la main. On relie maintenant chaque `ObjetCeleste` de la base à son identifiant Skyfield, pour qu'un objet puisse dire lui-même où il se trouve : `jupiter.position()`.
+
+On ne stocke toujours **aucune coordonnée** en base. On stocke seulement le nom sous lequel Skyfield connaît l'objet, et Skyfield calcule le reste.
+
+### 2.3.1 Le champ et la méthode dans `ObjetCeleste`
+
+**Où écrire** : dans `ciel/models.py`.
+
+1. Ajoute ces deux imports **en haut du fichier**, sous `from django.db import models` :
+
+```python
+from django.conf import settings
+
+from .astro import altaz
+```
+
+2. Remplace la classe `ObjetCeleste` par cette version (`Constellation` ne change pas) :
+
+```python
+class ObjetCeleste(models.Model):
+    class Categorie(models.TextChoices):
+        ETOILE = "etoile", "Étoile"
+        PLANETE = "planete", "Planète"
+        AMAS = "amas", "Amas"
+        SATELLITE = "satellite", "Satellite"
+
+    nom = models.CharField(max_length=100)
+    categorie = models.CharField(max_length=20, choices=Categorie.choices)
+    identifiant_skyfield = models.CharField(
+        max_length=50,
+        blank=True,
+        default="",
+        help_text="Étoile : hip:NUMERO (ex. hip:21421). "
+        "Planète : nom de l'éphéméride (ex. jupiter barycenter).",
+    )
+    description = models.TextField(blank=True)
+    image = models.ImageField(upload_to="objets_celestes/", blank=True, null=True)
+
+    def __str__(self):
+        return self.nom
+
+    def position(self, lieu=None, instant=None):
+        """(élévation, azimut) en degrés, ou None si l'objet n'a pas
+        d'identifiant Skyfield. lieu : dict latitude/longitude/altitude_m."""
+        if not self.identifiant_skyfield:
+            return None
+        lieu = lieu or settings.LIEU_PAR_DEFAUT
+        return altaz(
+            self.identifiant_skyfield,
+            lieu["latitude"],
+            lieu["longitude"],
+            lieu.get("altitude_m", 0),
+            instant,
+        )
+```
+
+Les choix de conception :
+- **`default=""` avec `blank=True`** : les objets déjà créés dans l'admin reçoivent un identifiant vide, et Django ne bloque pas la migration en demandant une valeur.
+- **La méthode `position()`** fait le lien entre le contenu (la fiche) et le calcul (`astro.py`). Les vues, l'API et la carte l'appelleront sans connaître Skyfield.
+- **Elle retourne `None`** quand l'identifiant est vide, par exemple pour un amas ou un satellite. Les satellites (ISS) auront leur propre calcul en Partie 6, et les amas viendront plus tard.
+
+### 2.3.2 Le lieu d'observation par défaut
+
+On ne veut pas passer la latitude et la longitude à chaque appel. **Où écrire** : à la fin de `index_stellaire/settings.py`.
+
+```python
+# Lieu d'observation par défaut. Sera remplacé par la position réelle
+# (téléphone ou GNSS de l'appareil) quand on connectera le matériel.
+LIEU_PAR_DEFAUT = {
+    "latitude": 48.8566,
+    "longitude": 2.3522,
+    "altitude_m": 35,
+}
+```
+
+Mets tes propres coordonnées.
+
+### 2.3.3 Afficher l'identifiant dans l'admin
+
+**Où écrire** : dans `ciel/admin.py`, modifie la ligne `list_display` de `ObjetCelesteAdmin` :
+
+```python
+list_display = ("nom", "categorie", "identifiant_skyfield")
+```
+
+### 2.3.4 Migration
+
+```bash
+python manage.py makemigrations ciel
+python manage.py migrate
+```
+
+Ça crée `ciel/migrations/0003_objetceleste_identifiant_skyfield.py`.
+
+### 2.3.5 Renseigner les identifiants dans l'admin
+
+Lance `python manage.py runserver`, va sur **Objets célestes** et complète le champ pour chaque objet :
+
+| Objet | Identifiant |
+|---|---|
+| Aldébaran | `hip:21421` |
+| Sirius | `hip:32349` |
+| Polaris | `hip:11767` |
+| Véga | `hip:91262` |
+| Bételgeuse | `hip:27989` |
+| Mercure | `mercury` |
+| Vénus | `venus` |
+| Mars | `mars barycenter` |
+| Jupiter | `jupiter barycenter` |
+| Saturne | `saturn barycenter` |
+
+Une étoile s'écrit `hip:` suivi de son numéro dans le catalogue Hipparcos. Les planètes extérieures s'écrivent avec `barycenter` : l'éphéméride donne le centre de gravité du système (planète et lunes), ce qui est indistinguable à l'œil et pour le pointage.
+
+Ces numéros viennent de ma mémoire. Si une étoile donne un résultat absurde, signale-le-moi et on le corrige.
+
+### 2.3.6 Tester
+
+```bash
+python manage.py shell
+```
+
+```python
+from ciel.models import ObjetCeleste
+
+for o in ObjetCeleste.objects.all():
+    print(o.nom, o.position())
+```
+
+**Ce qui doit marcher** :
+- chaque objet qui a un identifiant affiche `(élévation, azimut)`, avec des valeurs proches de celles du test précédent pour Jupiter et Aldébaran (l'heure a avancé, donc elles ont un peu bougé) ;
+- un objet sans identifiant, comme un amas, affiche `None` ;
+- un identifiant faux (une faute de frappe, par exemple) fait planter avec une erreur `KeyError` ou `ValueError`. C'est volontaire, pour qu'on voie l'erreur plutôt que d'avoir une position fausse en silence.
+
+Tes résultats sont cohérents. Polaris sort à 48,2° d'élévation pour un azimut de 0,16° : c'est le meilleur test, car Polaris est presque au pôle céleste, donc son élévation doit être proche de la latitude (48,86°) et son azimut proche du nord. Véga haute à l'est, Aldébaran et Sirius sous l'horizon : tout colle avec le ciel de Paris en début de soirée d'octobre. Le calcul est donc bon, la 2.3 est validée.
+
+---
+
+## 2.4 Premier endpoint de l'API : la liste des objets avec leur position
+
+On veut une URL qui renvoie, en JSON, tous les objets calculables avec leur position **à cet instant**. La carte du ciel (Partie 3) et l'application mobile n'auront qu'à interroger cette URL, sans rien savoir de Skyfield. Pour l'instant on utilise Django seul (`JsonResponse`), sans bibliothèque en plus.
+
+### 2.4.1 Une fonction « maintenant » publique dans `astro.py`
+
+**Où écrire** : à la **fin** de `ciel/astro.py`.
+
+```python
+def maintenant():
+    """Instant présent (objet temps Skyfield, en UTC)."""
+    return _timescale().now()
+```
+
+On calcule `maintenant()` **une seule fois** par requête et on le passe à tous les objets, pour que toutes les positions correspondent au même instant. L'instant est aussi renvoyé dans la réponse, pour que le client sache à quelle heure les positions sont valables.
+
+### 2.4.2 La vue
+
+**Où écrire** : dans `ciel/views.py`, qui existe déjà. Remplace tout son contenu par :
+
+```python
+import logging
+
+from django.conf import settings
+from django.http import JsonResponse
+from django.views.decorators.http import require_GET
+
+from .astro import maintenant
+from .models import ObjetCeleste
+
+logger = logging.getLogger(__name__)
+
+
+@require_GET
+def liste_objets(request):
+    """Positions actuelles de tous les objets calculables."""
+    lieu = settings.LIEU_PAR_DEFAUT
+    instant = maintenant()
+    objets = []
+
+    for objet in ObjetCeleste.objects.exclude(identifiant_skyfield=""):
+        try:
+            elevation, azimut = objet.position(lieu=lieu, instant=instant)
+        except (KeyError, ValueError):
+            # Un identifiant faux ne doit pas casser toute la carte
+            logger.warning(
+                "Identifiant Skyfield invalide pour %r : %r",
+                objet.nom,
+                objet.identifiant_skyfield,
+            )
+            continue
+        objets.append(
+            {
+                "id": objet.id,
+                "nom": objet.nom,
+                "categorie": objet.categorie,
+                "elevation": round(elevation, 2),
+                "azimut": round(azimut, 2),
+                "visible": elevation > 0,
+            }
+        )
+
+    return JsonResponse(
+        {"instant": instant.utc_iso(), "lieu": lieu, "objets": objets},
+        json_dumps_params={"ensure_ascii": False},
+    )
+```
+
+Ce qu'il faut retenir :
+- **`exclude(identifiant_skyfield="")`** : on ne calcule que les objets qui ont un identifiant (pas les amas pour l'instant).
+- **`try/except`** : dans le shell, une faute de frappe plantait volontairement. Ici, un seul identifiant faux ne doit pas casser toute la réponse. On l'ignore et on écrit un avertissement dans le terminal de `runserver`, donc l'erreur reste visible.
+- **`visible`** : simplement « élévation au-dessus de 0° ». Ça ne tient compte ni de la réfraction ni du vrai horizon (immeubles, relief).
+- **`@require_GET`** : l'URL n'accepte que la lecture, aucune modification.
+- **`ensure_ascii=False`** : pour que « Aldébaran » reste lisible dans la réponse au lieu de `Ald\u00e9baran`.
+
+### 2.4.3 Les URL
+
+**Où écrire** : crée un **nouveau fichier** `ciel/urls.py` :
+
+```python
+from django.urls import path
+
+from . import views
+
+app_name = "ciel"
+
+urlpatterns = [
+    path("objets/", views.liste_objets, name="objets"),
+]
+```
+
+Puis remplace le contenu de `index_stellaire/urls.py` par :
 
 ```python
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
-from django.urls import path
+from django.urls import include, path
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("api/ciel/", include("ciel.urls")),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 ```
 
-### 1.4 Admin et premier test
+Le préfixe `api/ciel/` sera suivi d'un `api/appareil/` pour l'app `appareil` (Partie 4). Toutes les URL de l'API partagent ainsi le même début.
+
+### 2.4.4 Tester
+
+```bash
+python manage.py runserver
+```
+
+Ouvre `http://127.0.0.1:8000/api/ciel/objets/` dans le navigateur.
+
+**Ce qui doit marcher** :
+- une réponse JSON avec trois blocs : `instant` (UTC, au format `2026-10-05T…Z`), `lieu` et `objets` ;
+- un élément par objet avec identifiant, et les mêmes valeurs que dans le shell, légèrement décalées par l'heure ;
+- `visible` à `true` seulement quand l'élévation est positive ;
+- en rechargeant la page, `instant` et les angles changent.
+
+Pour tester la robustesse, mets volontairement un identifiant faux sur un objet dans l'admin (par exemple `hip:abc`) : la page doit continuer à s'afficher sans cet objet, avec un avertissement dans le terminal. Remets ensuite le bon identifiant.
+
+Si tu as ouvert le serveur au réseau (`runserver 0.0.0.0:8000`), tu peux aussi appeler cette URL depuis ton téléphone avec l'IP de ton PC.
+
+
+
+---
+
+## 2.5 Trajectoire, lever et coucher d'un astre
+
+Pour l'instant on sait où est un astre **maintenant**. Pour suivre un astre pendant des heures, puis pendant les 48 h d'autonomie de l'appareil, il faut savoir où il sera. Il faut aussi savoir quand il se lève et se couche, par exemple pour dire « Jupiter se couche dans 40 min » ou pour parquer le bras quand la cible disparaît.
+
+On ajoute deux fonctions dans `ciel/astro.py`, et on garde le même principe : pas de Django dans ce fichier.
+
+### 2.5.1 Imports
+
+**Où écrire** : en haut de `ciel/astro.py`, remplace le bloc d'imports par :
 
 ```python
-# ciel/admin.py
-from django.contrib import admin
-from .models import ObjetCeleste, Constellation
+from functools import lru_cache
+from pathlib import Path
 
-admin.site.register(ObjetCeleste)
-admin.site.register(Constellation)
+import numpy as np
+from skyfield import almanac
+from skyfield.api import Loader, Star, wgs84
+from skyfield.data import hipparcos
 ```
+
+`numpy` est déjà installé (Skyfield en dépend). On l'utilise pour calculer **plusieurs instants d'un coup**, ce qui est bien plus rapide qu'une boucle.
+
+### 2.5.2 Les deux fonctions
+
+**Où écrire** : à la **fin** de `ciel/astro.py`.
+
+```python
+def trajectoire(identifiant, latitude, longitude, altitude_m=0,
+                debut=None, duree_h=24, pas_min=10):
+    """Positions successives d'un astre : liste de dicts
+    {instant (UTC), elevation, azimut}, un point tous les pas_min minutes."""
+    ts = _timescale()
+    if debut is None:
+        debut = ts.now()
+    n = int(duree_h * 60 / pas_min) + 1
+    instants = ts.tt_jd(debut.tt + np.arange(n) * pas_min / 1440.0)
+    lieu = _ephemerides()["earth"] + wgs84.latlon(
+        latitude, longitude, elevation_m=altitude_m
+    )
+    apparent = lieu.at(instants).observe(_corps(identifiant)).apparent()
+    elevation, azimut, _ = apparent.altaz()
+    return [
+        {"instant": i, "elevation": round(float(e), 2), "azimut": round(float(a), 2)}
+        for i, e, a in zip(instants.utc_iso(), elevation.degrees, azimut.degrees)
+    ]
+
+
+def levers_couchers(identifiant, latitude, longitude, altitude_m=0,
+                    debut=None, duree_h=24):
+    """Levers et couchers d'un astre dans la fenêtre donnée : liste de dicts
+    {instant (UTC), evenement}. Liste vide si l'astre ne se lève ni ne se
+    couche (toujours visible, comme Polaris, ou jamais visible)."""
+    ts = _timescale()
+    if debut is None:
+        debut = ts.now()
+    fin = ts.tt_jd(debut.tt + duree_h / 24.0)
+    lieu = wgs84.latlon(latitude, longitude, elevation_m=altitude_m)
+    est_leve = almanac.risings_and_settings(
+        _ephemerides(), _corps(identifiant), lieu, horizon_degrees=-0.5667
+    )
+    temps, types = almanac.find_discrete(debut, fin, est_leve)
+    return [
+        {"instant": t.utc_iso(), "evenement": "lever" if y else "coucher"}
+        for t, y in zip(temps, types)
+    ]
+```
+
+Ce qu'il faut retenir :
+- **`trajectoire`** calcule tous les points d'un coup (`np.arange`), pas à pas régulier. Avec 24 h et un point toutes les 10 min, ça donne 145 points.
+- **`levers_couchers`** utilise la fonction d'almanach de Skyfield, qui cherche les instants où l'élévation passe par 0°. Le seuil `-0.5667°` est la valeur standard : à l'horizon, l'atmosphère relève l'astre d'environ 0,57°, donc on le voit déjà alors qu'il est géométriquement un peu en dessous.
+- **Liste vide pour Polaris** : à Paris, elle ne se couche jamais, donc pas de lever ni de coucher dans la fenêtre. C'est normal.
+- **Tous les instants sont en UTC**, avec le `Z` final. Paris est actuellement à UTC+2 (jusqu'au 25 octobre), donc 15:20 UTC = 17:20 à Paris. C'est la règle de la Partie 0 : le serveur ne manipule que de l'UTC, la conversion en heure locale se fera à l'affichage.
+
+### 2.5.3 Tester
+
+```bash
+python manage.py shell
+```
+
+```python
+from ciel.astro import trajectoire, levers_couchers
+
+lieu = (48.8566, 2.3522)
+
+levers_couchers("jupiter barycenter", *lieu)
+levers_couchers("hip:11767", *lieu)        # Polaris
+
+for p in trajectoire("jupiter barycenter", *lieu, duree_h=6, pas_min=60):
+    print(p)
+```
+
+**Ce qui doit marcher** :
+- **Jupiter** : il est bas dans l'ouest et descend, donc un **coucher d'ici environ une heure**, puis un **lever dans la nuit ou au petit matin** (à lire en UTC, donc retire 2 h au résultat pour avoir l'heure de Paris à l'envers : l'heure de Paris = UTC + 2 h).
+- **Polaris** : liste vide `[]`.
+- **Trajectoire de Jupiter sur 6 h** : 7 lignes, avec une élévation qui baisse puis devient négative après le coucher, et l'azimut qui évolue progressivement.
+
+Si `levers_couchers` plante avec une erreur sur `risings_and_settings`, copie-moi le message exact : Skyfield a changé cette fonction selon les versions et on adaptera.
+
+---
+
+## 2.6 L'API de détail d'un objet
+
+On ajoute une URL qui renvoie tout ce qu'il faut pour la **fiche d'un astre** : son contenu, sa position actuelle, sa trajectoire, ses levers et couchers. L'appli l'appellera quand on touche un astre sur la carte, et l'appareil s'en servira pour planifier son suivi.
+
+### 2.6.1 La vue
+
+**Où écrire** : dans `ciel/views.py`. Remplace tout le contenu par cette version, qui garde `liste_objets` telle quelle et ajoute `detail_objet` :
+
+```python
+import logging
+
+from django.conf import settings
+from django.http import JsonResponse
+from django.views.decorators.http import require_GET
+
+from .astro import levers_couchers, maintenant, trajectoire
+from .models import ObjetCeleste
+
+logger = logging.getLogger(__name__)
+
+
+def _entier(request, nom, defaut, mini, maxi):
+    """Lit un paramètre d'URL entier, borné entre mini et maxi."""
+    try:
+        valeur = int(request.GET.get(nom, defaut))
+    except ValueError:
+        return defaut
+    return max(mini, min(maxi, valeur))
+
+
+@require_GET
+def liste_objets(request):
+    """Positions actuelles de tous les objets calculables."""
+    lieu = settings.LIEU_PAR_DEFAUT
+    instant = maintenant()
+    objets = []
+
+    for objet in ObjetCeleste.objects.exclude(identifiant_skyfield=""):
+        try:
+            elevation, azimut = objet.position(lieu=lieu, instant=instant)
+        except (KeyError, ValueError):
+            # Un identifiant faux ne doit pas casser toute la carte
+            logger.warning(
+                "Identifiant Skyfield invalide pour %r : %r",
+                objet.nom,
+                objet.identifiant_skyfield,
+            )
+            continue
+        objets.append(
+            {
+                "id": objet.id,
+                "nom": objet.nom,
+                "categorie": objet.categorie,
+                "elevation": round(elevation, 2),
+                "azimut": round(azimut, 2),
+                "visible": elevation > 0,
+            }
+        )
+
+    return JsonResponse(
+        {"instant": instant.utc_iso(), "lieu": lieu, "objets": objets},
+        json_dumps_params={"ensure_ascii": False},
+    )
+
+
+@require_GET
+def detail_objet(request, objet_id):
+    """Fiche complète d'un objet : contenu, position, trajectoire,
+    levers et couchers. Paramètres facultatifs : ?duree=24 (heures,
+    1 à 72) et ?pas=10 (minutes, 1 à 60)."""
+    try:
+        objet = ObjetCeleste.objects.get(pk=objet_id)
+    except ObjetCeleste.DoesNotExist:
+        return JsonResponse({"erreur": "Objet introuvable."}, status=404)
+    if not objet.identifiant_skyfield:
+        return JsonResponse(
+            {"erreur": "Cet objet n'a pas d'identifiant de calcul."}, status=404
+        )
+
+    lieu = settings.LIEU_PAR_DEFAUT
+    duree = _entier(request, "duree", 24, 1, 72)
+    pas = _entier(request, "pas", 10, 1, 60)
+    instant = maintenant()
+    calcul = (
+        objet.identifiant_skyfield,
+        lieu["latitude"],
+        lieu["longitude"],
+        lieu.get("altitude_m", 0),
+    )
+
+    try:
+        elevation, azimut = objet.position(lieu=lieu, instant=instant)
+        points = trajectoire(*calcul, debut=instant, duree_h=duree, pas_min=pas)
+        evenements = levers_couchers(*calcul, debut=instant, duree_h=duree)
+    except (KeyError, ValueError):
+        logger.warning(
+            "Identifiant Skyfield invalide pour %r : %r",
+            objet.nom,
+            objet.identifiant_skyfield,
+        )
+        return JsonResponse({"erreur": "Identifiant de calcul invalide."}, status=500)
+
+    return JsonResponse(
+        {
+            "id": objet.id,
+            "nom": objet.nom,
+            "categorie": objet.categorie,
+            "description": objet.description,
+            "image": objet.image.url if objet.image else None,
+            "constellations": [c.nom for c in objet.constellations.all()],
+            "instant": instant.utc_iso(),
+            "lieu": lieu,
+            "position": {
+                "elevation": round(elevation, 2),
+                "azimut": round(azimut, 2),
+                "visible": elevation > 0,
+            },
+            "levers_couchers": evenements,
+            "trajectoire": points,
+        },
+        json_dumps_params={"ensure_ascii": False},
+    )
+```
+
+Ce qu'il faut retenir :
+- **Un seul `instant`** est calculé au début et réutilisé pour la position, la trajectoire et les levers/couchers, donc les trois sont cohérents entre eux.
+- **`_entier`** lit les paramètres `?duree=` et `?pas=` en les bornant (1 à 72 h, 1 à 60 min). Sans ces bornes, quelqu'un pourrait demander `?duree=100000` et bloquer le serveur. Les 72 h couvrent largement les 48 h d'autonomie de l'appareil.
+- **Erreurs en JSON** : un objet inconnu ou non calculable renvoie `{"erreur": ...}` avec le code 404, et non une page HTML, pour que l'appli puisse lire l'erreur proprement.
+- **`constellations`** utilise le `related_name` défini en 1.2 : la fiche de l'étoile liste ses constellations. Le champ reste vide tant que tu n'as rien rattaché dans l'admin.
+- **`image`** vaut `null` si l'objet n'en a pas encore, ce qui sera le cas jusqu'à la Partie 10.
+
+### 2.6.2 L'URL
+
+**Où écrire** : dans `ciel/urls.py`, ajoute une ligne à `urlpatterns` :
+
+```python
+urlpatterns = [
+    path("objets/", views.liste_objets, name="objets"),
+    path("objets/<int:objet_id>/", views.detail_objet, name="objet"),
+]
+```
+
+### 2.6.3 Tester
+
+```bash
+python manage.py runserver
+```
+
+Ouvre ces adresses dans le navigateur (utilise la case « Impression élégante » pour la lisibilité) :
+
+1. `http://127.0.0.1:8000/api/ciel/objets/2/` : la fiche de Jupiter, avec `position`, `levers_couchers` (le coucher puis le lever que tu as vus dans le shell) et 145 points de `trajectoire`.
+2. `http://127.0.0.1:8000/api/ciel/objets/2/?duree=6&pas=60` : la même chose sur 6 h, avec 7 points.
+3. `http://127.0.0.1:8000/api/ciel/objets/4/` : Polaris, avec `levers_couchers` vide.
+4. `http://127.0.0.1:8000/api/ciel/objets/999/` : un objet qui n'existe pas, donc `{"erreur": "Objet introuvable."}`.
+5. L'identifiant qui manque dans ta liste (le 10, sans identifiant de calcul) : le message « n'a pas d'identifiant de calcul ».
+
+**Ce qui doit marcher** : les valeurs de l'URL 1 correspondent à celles du shell, au décalage d'heure près. Si tu as rattaché Aldébaran à la constellation Taureau dans l'admin, `http://127.0.0.1:8000/api/ciel/objets/1/` doit afficher `"constellations": ["Taureau"]`.
+
+---
+
+Les tests passent donc. Deux points avant de continuer :
+
+- Ta page de Chrome a de nouveau été **traduite automatiquement** : tu y lis `"instantané"`, `"élévation"` et des décimales avec virgule (`-24,57`). Notre API renvoie `instant`, `elevation` et des points décimaux. Désactive la traduction sur ces pages. Ça ne gêne pas ici, mais ça fausserait un copier-coller et tu perdrais du temps à chercher un bug qui n'existe pas.
+- Les données sont cohérentes : Aldébaran se lève à 20:06 UTC (22:06 à Paris), culmine à environ 57° d'élévation vers 02:50 UTC (la valeur théorique est de 57,6°), et sa fiche affiche bien `"constellations": ["Taureau"]`.
+
+La Partie 2 est terminée. Pour la Partie 3 (la carte du ciel), je vérifie d'abord ce que d3-celestial permet vraiment, pour ne pas écrire de code sur des options qui n'existent pas.
+
+La lecture résumée du README ne suffit pas pour écrire du code fiable : je regarde directement les fichiers du dépôt.
+
+Je finis de vérifier le code source de d3-celestial (versions de d3 requises, fichiers de données, vue « ciel local ») avant d'écrire la Partie 3, pour ne pas te donner de code qui ne marche pas. Je reviens avec la suite dans un instant.
+
+J'ai monté la carte d3-celestial dans un navigateur de test de mon côté : elle s'affiche avec les noms en français. Je règle maintenant le rendu (centrage, nombre d'étiquettes, projection) pour que tu aies un point de départ propre.
+
+La carte s'affiche bien, centrée, sur mobile comme sur ordinateur, avec les noms en français et sans aucun appel externe. Je vérifie un dernier détail (le chargement de l'heure et du lieu), puis je te donne les étapes et un zip avec les fichiers de la bibliothèque, pour que tu n'aies rien à télécharger à la main.
+
+My test project used single quotes in a replace, so `ciel` was never registered (a test-harness slip, not a problem in the code). Fixing and re-testing.
+
+## Partie 3 : la carte du ciel interactive
+
+Cette partie met la carte du ciel dans l'app. La 3.1 est la première étape : afficher un ciel statique avec les étoiles et les constellations (noms en français), centré sur ton zénith. Je l'ai testée de bout en bout dans un projet Django de test : page en 200, aucun fichier manquant, aucune erreur console, et aucune requête vers un site externe.
+
+### 3.1 Afficher la carte du ciel
+
+**Étape 1 : la bibliothèque (fichier zip joint, `d3-celestial-pour-index-stellaire.zip`)**
+
+Dézippe-le **à la racine du projet** (là où se trouve `manage.py`). Le dossier `ciel/` du zip se fond dans le tien et crée :
+
+```
+ciel/static/ciel/vendor/d3-celestial/   (2,7 Mo : scripts, CSS, données d'étoiles et de constellations)
+```
+
+On l'héberge nous-mêmes au lieu de passer par un CDN : l'app doit marcher sans Internet (mode 1 : téléphone, ESP32 et Raspberry Pi sur le même Wi-Fi, donc parfois hors ligne). La licence BSD-3 est incluse dans le dossier (`LICENSE`), et il faudra la citer dans les crédits de l'app.
+
+Ajoute `donnees_skyfield/` à ton `.gitignore` si ce n'est pas déjà fait. Ne commite pas non plus de gros fichiers inutiles : ce dossier vendor, lui, doit bien être versionné.
+
+**Étape 2 : le gabarit HTML**
+
+Crée le fichier `ciel/templates/ciel/carte.html`. Crée les dossiers `templates/ciel/` s'ils n'existent pas.
+
+```html
+{% load static %}
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#05070d">
+  <title>Index Stellaire</title>
+  <link rel="stylesheet" href="{% static 'ciel/vendor/d3-celestial/celestial.css' %}">
+  <link rel="stylesheet" href="{% static 'ciel/carte.css' %}">
+</head>
+<body>
+  <div id="carte" data-datapath="{% static 'ciel/vendor/d3-celestial/data/' %}"></div>
+  <div id="celestial-form"></div>
+  {{ lieu|json_script:"donnees-lieu" }}
+
+  <script src="{% static 'ciel/vendor/d3-celestial/d3.min.js' %}"></script>
+  <script src="{% static 'ciel/vendor/d3-celestial/d3.geo.projection.min.js' %}"></script>
+  <script src="{% static 'ciel/vendor/d3-celestial/celestial.min.js' %}"></script>
+  <script src="{% static 'ciel/carte.js' %}"></script>
+</body>
+</html>
+```
+
+Explications :
+- `{% static %}` génère les bonnes URL des fichiers statiques. `data-datapath` donne à la bibliothèque le dossier de ses données.
+- `json_script` transmet proprement le lieu d'observation (de `settings.LIEU_PAR_DEFAUT`) au JavaScript, sans l'écrire en dur dans le JS.
+- `#celestial-form` est un conteneur que la bibliothèque exige, mais on le cache : on pilotera la carte nous-mêmes.
+- L'ordre des scripts compte : d3, puis son extension de projections, puis d3-celestial, puis notre code.
+
+**Étape 3 : le style**
+
+Crée `ciel/static/ciel/carte.css` (crée les dossiers `static/ciel/` si besoin) :
+
+```css
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #05070d;
+  overflow: hidden;
+}
+
+#carte {
+  position: absolute;
+}
+
+/* Le formulaire interne de d3-celestial doit exister, mais on le cache :
+   on pilote la carte nous-mêmes. */
+#celestial-form {
+  display: none;
+}
+```
+
+Le fond `#05070d` est notre thème nuit. La carte est positionnée en absolu parce que c'est le JS qui la dimensionne et la centre (étape 4).
+
+**Étape 4 : le JavaScript**
+
+Crée `ciel/static/ciel/carte.js` :
+
+```javascript
+(function () {
+  "use strict";
+
+  const carte = document.getElementById("carte");
+  const lieu = JSON.parse(document.getElementById("donnees-lieu").textContent);
+  const POSITION = [lieu.latitude, lieu.longitude];
+
+  // La carte est un disque : on la dimensionne sur le plus petit côté de l'écran
+  function taille() {
+    return Math.floor(Math.min(window.innerWidth, window.innerHeight)) - 16;
+  }
+
+  function placer() {
+    const t = taille();
+    carte.style.width = t + "px";
+    carte.style.height = t + "px";
+    carte.style.left = Math.round((window.innerWidth - t) / 2) + "px";
+    carte.style.top = Math.round((window.innerHeight - t) / 2) + "px";
+    return t;
+  }
+
+  Celestial.display({
+    container: "carte",
+    datapath: carte.dataset.datapath,
+    width: placer(),
+    projection: "orthographic",
+    interactive: true,
+    controls: false,
+
+    // Ciel vu du lieu d'observation, à l'instant présent, centré sur le zénith
+    location: true,
+    geopos: POSITION,
+    follow: "zenith",
+    settimezone: false, // sinon la bibliothèque interroge un service externe
+
+    // Formulaire interne : présent mais caché (voir carte.css)
+    form: true,
+
+    stars: {
+      limit: 5,
+      colors: true,
+      designation: false,
+      propername: true,
+      propernameType: "fr",
+      propernameLimit: 1.3,
+      propernameStyle: {
+        fill: "#cfd6e4",
+        font: "11px Helvetica, Arial, sans-serif",
+        align: "left",
+        baseline: "top",
+      },
+    },
+    dsos: { show: false },
+    planets: { show: false }, // on dessinera les nôtres (calculées par Skyfield)
+    constellations: {
+      names: true,
+      namesType: "fr",
+      lines: true,
+      nameStyle: {
+        fill: "#5d6a88",
+        align: "center",
+        baseline: "middle",
+        font: [
+          "11px Helvetica, Arial, sans-serif",
+          "10px Helvetica, Arial, sans-serif",
+          "10px Helvetica, Arial, sans-serif",
+        ],
+      },
+      lineStyle: { stroke: "#6f7da0", width: 1, opacity: 0.5 },
+    },
+    mw: { show: true, style: { fill: "#aab4d4", opacity: 0.06 } },
+    lines: {
+      graticule: { show: false },
+      equatorial: { show: false },
+      ecliptic: { show: false },
+    },
+    background: { fill: "#05070d", opacity: 1, stroke: "#05070d", width: 0 },
+    horizon: { show: false },
+    daylight: { show: false },
+  });
+
+  window.addEventListener("resize", function () {
+    Celestial.resize({ width: placer() });
+  });
+})();
+```
+
+Les choix importants :
+- **Projection orthographique** : le ciel est vu comme un hémisphère, un disque, ce qui est proche de l'esprit Sky Guide. La stéréographique débordait de l'écran lors de mes essais.
+- **`location: true` + `geopos` + `follow: "zenith"`** : la carte est calculée pour Paris, à l'instant présent, et centrée sur le point au-dessus de ta tête.
+- **`settimezone: false`** : par défaut, la bibliothèque envoie les coordonnées du lieu à un service tiers pour trouver le fuseau horaire. Pour un projet qui connaît ta position, on ne veut pas ça.
+- **`planets: { show: false }`** : les positions de planètes de la bibliothèque sont approximatives. On dessinera les nôtres, calculées par Skyfield, en 3.2.
+- **`limit: 5`** : seules les étoiles de magnitude ≤ 5 sont dessinées, ce qui garde la carte lisible et rapide sur téléphone.
+
+**Étape 5 : la vue et l'URL**
+
+Dans `ciel/views.py`, ajoute cet import en haut avec les autres :
+
+```python
+from django.shortcuts import render
+```
+
+Et cette vue à la fin du fichier :
+
+```python
+def carte(request):
+    """Page principale : la carte du ciel."""
+    return render(request, "ciel/carte.html", {"lieu": settings.LIEU_PAR_DEFAUT})
+```
+
+(`settings` est déjà importé depuis la Partie 2 ; sinon ajoute `from django.conf import settings`.)
+
+Dans `index_stellaire/urls.py`, ajoute l'import et la route :
+
+```python
+from ciel import views as vues_ciel
+```
+
+```python
+urlpatterns = [
+    path("admin/", admin.site.urls),
+    path("api/ciel/", include("ciel.urls")),
+    path("", vues_ciel.carte, name="carte"),
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+```
+
+La route `""` est la page d'accueil : l'application, c'est la carte.
+
+### Test
+
+```bash
+python manage.py runserver
+```
+
+Ouvre `http://127.0.0.1:8000/`. Tu dois voir :
+- un disque de ciel sombre, centré sur ton écran, avec la Voie lactée en gris-bleu discret ;
+- les étoiles colorées, les constellations reliées par des traits fins, et leurs noms en français (Grande Ourse, Cygne, Hercule...) ;
+- les étoiles principales nommées (Véga, Arcturus, Antarès...) ;
+- le glisser-déposer qui déplace la carte et la molette qui zoome.
+
+Redimensionne la fenêtre pour vérifier que le disque reste centré. Sur ton téléphone (Partie 0.2), le disque occupe la largeur de l'écran.
+
+Si tu as un message d'erreur type `404` dans la console du navigateur, c'est presque toujours le zip mal dézippé : vérifie que `ciel/static/ciel/vendor/d3-celestial/celestial.min.js` existe bien.
+
+### À savoir sur cette étape
+
+- **Orientation** : c'est celle d'une carte (nord en haut, est à droite), donc **inversée par rapport au ciel quand tu regardes en l'air**. Je prévois d'ajouter plus tard une vue « fenêtre » orientée comme dans Sky Guide (boussole, direction de visée).
+- **Pas de rafraîchissement automatique** : la carte est figée à l'instant du chargement. On gérera le temps réel avec les positions Skyfield en 3.2.
+- **Limites par rapport à Sky Guide** : la bibliothèque donne le ciel et les constellations, mais pas le clic sur un objet, ni l'interface (boutons ronds, panneaux). On les construit nous-mêmes en 3.3 et 3.4.
+
+
+C'est corrigé, et le défaut venait bien du redimensionnement. Dans tes captures, le ciel est zoomé ou découpé quand tu changes la taille de la fenêtre DevTools. Je l'ai reproduit en passant de 1280 px à 352 px. Dans d3-celestial, `Celestial.resize()` déforme la carte quand la taille change beaucoup, et la bibliothèque a en plus son propre gestionnaire de redimensionnement qui se superpose au nôtre. Sur un vrai téléphone, ça arrive surtout quand tu tournes l'écran.
+
+La correction est dans un seul fichier, `ciel/static/ciel/carte.js`. Remplace le bloc final `window.addEventListener("resize", ...)` (juste avant le `})();` de fin) par :
+
+```javascript
+  // Redimensionnement / rotation de l'écran : Celestial.resize() déforme la
+  // carte (zoom et découpe faux) quand la taille change beaucoup. Solution
+  // simple et fiable pour l'instant : on recharge la page une fois la taille
+  // stabilisée. On l'affinera quand la carte aura un état à conserver.
+  d3.select(window).on("resize", null); // gestionnaire interne de la bibliothèque
+
+  let minuteur = null;
+  let largeur = window.innerWidth;
+  let hauteur = window.innerHeight;
+  window.addEventListener("resize", function () {
+    clearTimeout(minuteur);
+    minuteur = setTimeout(function () {
+      if (window.innerWidth !== largeur || window.innerHeight !== hauteur) {
+        window.location.reload();
+      }
+    }, 300);
+  });
+```
+
+La ligne `d3.select(window).on("resize", null)` retire le gestionnaire de la bibliothèque. Ensuite, 300 ms après la fin du redimensionnement, la page se recharge et la carte est redessinée à la bonne taille. J'ai vérifié que 352, 331 et 500 px de large donnent chacun un disque complet et centré.
+
+Cette solution est volontairement simple. Une fois que la carte aura un état à conserver (objet sélectionné, zoom), on la remplacera par un vrai redessin sans rechargement.
+
+Les 373 et 407 erreurs rouges de ta barre DevTools ne viennent pas de notre page : l'onglet de contexte affiché est `warmup.html`, une extension du navigateur, et ta console indique « No issues ».
+
+
+## 3.2 Dessiner nos objets sur la carte
+
+On ajoute l'ascension droite et la déclinaison (RA/Dec) à l'API, puis le JavaScript dessine par-dessus la carte les objets de ta base : planètes en disques dorés avec leur nom, étoiles entourées d'un anneau bleu. Je l'ai testé de bout en bout dans un projet Django de test. Les planètes et la Lune viennent de l'éphéméride de2421, avec des positions plausibles : Jupiter et Mars du côté du Cancer et du Lion, la Lune vers la Vierge et la Balance.
+
+Une limite du test : mon bac à sable n'arrive pas à télécharger le catalogue Hipparcos. J'y ai donc testé les étoiles avec des coordonnées saisies à la main. La fonction `radec` utilise le même `_corps()` que ton `altaz`, donc le test réel est le tien.
+
+### Étape 1 : `ciel/astro.py`, la fonction `radec`
+
+Ajoute-la à la suite de `altaz`. Elle doit reprendre **les mêmes helpers** que ton `altaz` (`_timescale`, `_ephemerides`, `_corps`). Si ton `altaz` construit l'observateur autrement que ci-dessous, copie ses 2-3 premières lignes.
+
+```python
+def radec(identifiant, latitude, longitude, altitude_m=0, instant=None):
+    """Ascension droite et déclinaison (en degrés), repère J2000 (ICRS).
+
+    Retourne (ra, dec), avec ra entre 0 et 360. C'est le repère des catalogues
+    d'étoiles, donc celui de la carte : planètes et étoiles s'alignent.
+    """
+    t = instant if instant is not None else _timescale().now()
+    lieu = _ephemerides()["earth"] + wgs84.latlon(latitude, longitude, elevation_m=altitude_m)
+    ra, dec, _ = lieu.at(t).observe(_corps(identifiant)).radec()
+    return float(ra._degrees), float(dec.degrees)
+```
+
+- On n'appelle pas `.apparent()` ici, contrairement à `altaz`. La carte est en J2000, comme les étoiles de d3-celestial. `apparent()` corrigerait la précession et l'aberration, ce qui décalerait nos objets de quelques minutes d'arc par rapport aux étoiles.
+- L'observateur est à Paris et non au centre de la Terre. Pour la Lune, ça compte : la parallaxe atteint presque 1°.
+- `float(...)` convertit les `np.float64` en nombres Python, comme pour `altaz`.
+
+### Étape 2 : `ciel/views.py`, l'API renvoie `ra` et `dec`
+
+Dans l'import `from .astro import ...`, ajoute `altaz` et `radec` s'ils n'y sont pas. Puis **remplace entièrement la fonction `liste_objets`** (garde ses imports `logging`, `JsonResponse`, `require_GET` et `logger`) :
+
+```python
+@require_GET
+def liste_objets(request):
+    lieu = settings.LIEU_PAR_DEFAUT
+    instant = maintenant()  # même instant pour tous les objets
+    objets = []
+    for objet in ObjetCeleste.objects.exclude(identifiant_skyfield=""):
+        ident = objet.identifiant_skyfield
+        try:
+            elevation, azimut = altaz(
+                ident, lieu["latitude"], lieu["longitude"], lieu["altitude_m"], instant
+            )
+            ra, dec = radec(
+                ident, lieu["latitude"], lieu["longitude"], lieu["altitude_m"], instant
+            )
+        except (KeyError, ValueError):
+            logger.warning("Identifiant Skyfield invalide pour %s : %r", objet.nom, ident)
+            continue
+        objets.append({
+            "id": objet.id,
+            "nom": objet.nom,
+            "categorie": objet.categorie,
+            "elevation": round(elevation, 2),
+            "azimut": round(azimut, 2),
+            "ra": round(ra, 4),
+            "dec": round(dec, 4),
+            "visible": elevation > 0,
+        })
+    return JsonResponse({"instant": instant.utc_iso(), "lieu": lieu, "objets": objets})
+```
+
+Si ta version actuelle diffère un peu (noms de variables, arrondis), garde les tiens et ajoute seulement l'appel à `radec` et les deux clés `"ra"` et `"dec"`.
+
+**Test** : va sur `http://127.0.0.1:8000/api/ciel/objets/`. Chaque objet doit avoir `ra` (0 à 360) et `dec` (-90 à 90). Désactive la traduction automatique du navigateur, sinon les décimales se transforment en virgules. Pour te repérer : Jupiter doit avoir un `ra` d'environ 143° (Cancer/Lion) et une `dec` d'environ +15°.
+
+### Étape 3 : `ciel/templates/ciel/carte.html`, donner l'URL de l'API au JS
+
+Remplace la ligne `<div id="carte" ...></div>` par :
+
+```html
+  <div id="carte"
+       data-datapath="{% static 'ciel/vendor/d3-celestial/data/' %}"
+       data-url-objets="{% url 'ciel:objets' %}"></div>
+```
+
+`{% url %}` génère l'adresse depuis le nom de la route (`app_name="ciel"`, `name="objets"`). Si tu changes un jour le préfixe `/api/ciel/`, le JavaScript suivra.
+
+### Étape 4 : `ciel/static/ciel/carte.js`, charger et dessiner
+
+Insère ce bloc **juste avant `Celestial.display({`** (il va à l'intérieur de la fonction `(function () { ... })();`, après `placer()`) :
+
+```javascript
+  // --- Nos objets (calculés par Skyfield côté serveur) -----------------------
+
+  let objets = [];
+
+  // Style de dessin par catégorie. Les étoiles sont déjà sur la carte (et déjà
+  // nommées par la bibliothèque) : on se contente de les entourer.
+  const STYLES = {
+    planete: { forme: "disque", rayon: 5, couleur: "#ffd479", texte: "#ffe6ad", nom: true },
+    etoile: { forme: "anneau", rayon: 8, couleur: "#7fb0ff", texte: "#a9c8ff", nom: false },
+    amas: { forme: "anneau", rayon: 8, couleur: "#b79cff", texte: "#cdbcff", nom: true },
+    satellite: { forme: "disque", rayon: 4, couleur: "#ff5a5a", texte: "#ff9a9a", nom: true },
+  };
+
+  function chargerObjets() {
+    fetch(carte.dataset.urlObjets)
+      .then(function (reponse) {
+        if (!reponse.ok) throw new Error("HTTP " + reponse.status);
+        return reponse.json();
+      })
+      .then(function (donnees) {
+        objets = donnees.objets;
+        Celestial.redraw();
+      })
+      .catch(function (erreur) {
+        console.warn("Objets indisponibles :", erreur);
+      });
+  }
+
+  // Appelée par d3-celestial à chaque rafraîchissement de la carte
+  function dessinerObjets() {
+    const ctx = Celestial.context;
+    objets.forEach(function (o) {
+      const position = [o.ra, o.dec]; // ascension droite, déclinaison (degrés)
+      if (!Celestial.clip(position)) return; // sous l'horizon : hors du disque
+      const pt = Celestial.mapProjection(position);
+      const style = STYLES[o.categorie] || STYLES.etoile;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(pt[0], pt[1], style.rayon, 0, 2 * Math.PI);
+      if (style.forme === "disque") {
+        ctx.fillStyle = style.couleur;
+        ctx.fill();
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = "#05070d";
+        ctx.stroke();
+      } else {
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = style.couleur;
+        ctx.stroke();
+      }
+      if (style.nom) {
+        ctx.font = "12px Helvetica, Arial, sans-serif";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "bottom";
+        ctx.fillStyle = style.texte;
+        ctx.fillText(o.nom, pt[0] + style.rayon + 3, pt[1] - style.rayon + 2);
+      }
+      ctx.restore();
+    });
+  }
+
+  // À déclarer AVANT Celestial.display : le callback est lancé quand la carte est prête
+  Celestial.add({ type: "raw", callback: chargerObjets, redraw: dessinerObjets });
+```
+
+Comment ça fonctionne :
+- **`Celestial.add({type:"raw"})`** : on s'accroche au cycle de dessin de la bibliothèque. `redraw` est rappelée à chaque rafraîchissement (glisser, zoom), donc nos objets suivent la carte.
+- **`callback: chargerObjets`** : d3-celestial l'appelle quand la carte est prête. On évite ainsi de dessiner avant que la carte existe.
+- **`Celestial.clip(position)`** : indique si le point est sur la face visible du disque. Un objet sous l'horizon (comme Aldébaran en journée) est ignoré, sans calcul de notre part.
+- **`Celestial.mapProjection([ra, dec])`** : convertit des coordonnées célestes en pixels. Elle tient compte de la rotation du ciel pour Paris, du zoom et du glisser.
+- **Pas de nom pour les étoiles** : la bibliothèque affiche déjà celui des étoiles brillantes, et un doublon surchargeait l'écran.
+
+### Test
+
+Dans l'admin, vérifie que quelques objets ont un `identifiant_skyfield` (une planète, une étoile `hip:...`). Recharge `http://127.0.0.1:8000/` avec Ctrl+F5. Tu dois voir :
+- les **planètes** en disques dorés avec leur nom, à leur place parmi les constellations ;
+- les **étoiles de ta base** entourées d'un anneau bleu (si elles sont au-dessus de l'horizon) ;
+- le tout qui reste collé au ciel quand tu glisses ou zoomes.
+
+Pour te repérer : en ce moment, Mars et Jupiter sont à l'est dans le Cancer et le Lion. Un objet sous l'horizon n'apparaît pas, c'est normal.
+
+### À savoir
+
+- **Pas de mise à jour en direct** : comme la carte, les positions sont figées au chargement. Pour les planètes ça n'a pas d'importance. Pour l'ISS (Partie 6), il faudra rafraîchir toutes les quelques secondes et faire avancer la carte dans le temps.
+- **Les amas** n'apparaissent que s'ils ont un `identifiant_skyfield`. C'est le cas des étoiles de Hipparcos, mais pas forcément des amas (Pléiades, Hyades), qui ne sont pas des objets du catalogue. On verra ça avec le contenu en Partie 10.
+- **La Lune** n'a pas de catégorie propre : mets-la en « Planète » pour l'instant.
+
+Backend side is working (Moon category + `?instant=`). Now writing the front end: virtual clock, time controls, and the Sky Guide–style round button.
+
+## 3.3 Le temps réel, la catégorie Lune, et un premier bouton à la Sky Guide
+
+Oui, la carte peut bouger en direct. Elle suit maintenant une **horloge virtuelle** :
+
+- **×1** : le temps réel. La carte se recalcule toutes les 10 s. Le ciel ne tourne que de 15° par heure, donc c'est invisible à cette échelle.
+- **×60, ×600, ×3600** : le temps s'accélère (×3600 = 1 h par seconde), et tu vois tourner les étoiles, la Voie lactée et la Lune.
+- **Pause, ±1 h, ±1 jour** : pour aller voir le ciel de ce soir ou de demain.
+- **Planètes et Lune** : elles ne dérivent presque pas par rapport aux étoiles. Quand elles ont plus de 5 minutes d'écart avec l'horloge, le JavaScript redemande leurs positions à Skyfield pour l'instant affiché.
+
+J'ai testé le tout dans un projet Django de test, sur un écran de téléphone : le ×3600 fait avancer l'heure de 12:15 à 15:10 en 3 s, et le bouton « maintenant » ramène à l'heure réelle. Aucune erreur console et aucun appel externe.
+
+Pour le look Sky Guide, je me suis inspiré de tes captures. Le bouton rond avec l'heure (« 14:10 ») en bas est le premier d'une barre de boutons ronds : réglages, heure, boussole, calques, recherche. Je les ajouterai un par un. Les deux autres idées de Sky Guide (la vue « fenêtre » avec le sol et l'horizon, et le panneau latéral) viendront en 3.5. Je ne reproduirai pas ses illustrations de constellations, qui sont leurs créations protégées : on aura des tracés propres à nous.
+
+### Étape 1 : la catégorie Lune (`ciel/models.py`)
+
+Dans la classe `Categorie`, ajoute la ligne `LUNE` après `PLANETE` :
+
+```python
+    class Categorie(models.TextChoices):
+        ETOILE = "etoile", "Étoile"
+        PLANETE = "planete", "Planète"
+        LUNE = "lune", "Lune"
+        AMAS = "amas", "Amas"
+        SATELLITE = "satellite", "Satellite"
+```
+
+Puis dans le terminal :
 
 ```bash
 python manage.py makemigrations ciel
 python manage.py migrate
-python manage.py createsuperuser
+```
+
+Django crée une migration pour le nouveau choix. Ça ne modifie aucune donnée.
+
+Dans l'admin, crée l'objet **Lune** : catégorie « Lune », `identifiant_skyfield` = `moon`.
+
+### Étape 2 : `ciel/astro.py`, convertir une date en instant Skyfield
+
+Ajoute à la fin du fichier :
+
+```python
+def instant_depuis(dt):
+    """datetime avec fuseau -> instant Skyfield."""
+    return _timescale().from_datetime(dt)
+```
+
+### Étape 3 : `ciel/views.py`, l'API accepte `?instant=`
+
+L'API peut maintenant calculer pour n'importe quel instant (`/api/ciel/objets/?instant=2026-10-12T20:00:00Z`).
+
+En haut du fichier, ajoute `from datetime import datetime, timezone` et complète l'import depuis `.astro`. Garde les noms que tu utilises déjà pour `detail_objet` (`levers_couchers`, `trajectoire`) :
+
+```python
+from .astro import altaz, instant_depuis, levers_couchers, maintenant, radec, trajectoire
+```
+
+**Remplace la vue `carte`** (elle passe désormais aussi le fuseau horaire, pour afficher l'heure de Paris) :
+
+```python
+def carte(request):
+    """Page principale : la carte du ciel."""
+    lieu = {**settings.LIEU_PAR_DEFAUT, "fuseau": settings.TIME_ZONE}
+    return render(request, "ciel/carte.html", {"lieu": lieu})
+```
+
+**Ajoute `_instant_demande` et remplace `liste_objets`** :
+
+```python
+def _instant_demande(request):
+    """Lit ?instant=<ISO 8601> ; sans paramètre, maintenant. Lève ValueError si invalide."""
+    texte = request.GET.get("instant")
+    if not texte:
+        return maintenant()
+    dt = datetime.fromisoformat(texte.replace("Z", "+00:00"))
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    if not 1950 <= dt.year <= 2049:  # plage couverte par l'éphéméride DE421
+        raise ValueError("instant hors plage")
+    return instant_depuis(dt)
+
+
+@require_GET
+def liste_objets(request):
+    lieu = settings.LIEU_PAR_DEFAUT
+    try:
+        instant = _instant_demande(request)  # même instant pour tous les objets
+    except ValueError:
+        return JsonResponse(
+            {"erreur": "Paramètre 'instant' invalide (ISO 8601, 1950-2049)."}, status=400
+        )
+    objets = []
+    for objet in ObjetCeleste.objects.exclude(identifiant_skyfield=""):
+        ident = objet.identifiant_skyfield
+        try:
+            elevation, azimut = altaz(
+                ident, lieu["latitude"], lieu["longitude"], lieu["altitude_m"], instant
+            )
+            ra, dec = radec(
+                ident, lieu["latitude"], lieu["longitude"], lieu["altitude_m"], instant
+            )
+        except (KeyError, ValueError):
+            logger.warning("Identifiant Skyfield invalide pour %s : %r", objet.nom, ident)
+            continue
+        objets.append({
+            "id": objet.id,
+            "nom": objet.nom,
+            "categorie": objet.categorie,
+            "elevation": round(elevation, 2),
+            "azimut": round(azimut, 2),
+            "ra": round(ra, 4),
+            "dec": round(dec, 4),
+            "visible": elevation > 0,
+        })
+    return JsonResponse({"instant": instant.utc_iso(), "lieu": lieu, "objets": objets})
+```
+
+Les choix de conception :
+- **Plage 1950 à 2049** : c'est la période que couvre l'éphéméride DE421. Au-delà, Skyfield lèverait une erreur obscure.
+- **Un `instant` invalide renvoie une 400 en JSON** plutôt qu'une page d'erreur HTML, comme le reste de l'API.
+
+**Test** : va sur `http://127.0.0.1:8000/api/ciel/objets/?instant=2026-10-12T20:00:00Z` (avec la traduction automatique désactivée), puis avec `?instant=bidon`, qui doit donner l'erreur 400 en JSON.
+
+### Étape 4 : `ciel/templates/ciel/carte.html` (remplace tout le fichier)
+
+```html
+{% load static %}
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#05070d">
+  <title>Index Stellaire</title>
+  <link rel="stylesheet" href="{% static 'ciel/vendor/d3-celestial/celestial.css' %}">
+  <link rel="stylesheet" href="{% static 'ciel/carte.css' %}">
+</head>
+<body>
+  <div id="carte"
+       data-datapath="{% static 'ciel/vendor/d3-celestial/data/' %}"
+       data-url-objets="{% url 'ciel:objets' %}"></div>
+  <div id="celestial-form"></div>
+
+  <!-- Panneau du temps (s'ouvre au-dessus du bouton rond) -->
+  <div id="panneau-temps" class="verre" hidden>
+    <div id="panneau-heure"></div>
+    <div id="panneau-date"></div>
+    <div class="groupe" role="group" aria-label="Vitesse du temps">
+      <button type="button" data-vitesse="0" title="Pause">⏸</button>
+      <button type="button" data-vitesse="1">×1</button>
+      <button type="button" data-vitesse="60">×60</button>
+      <button type="button" data-vitesse="600">×600</button>
+      <button type="button" data-vitesse="3600">×3600</button>
+    </div>
+    <div class="groupe" role="group" aria-label="Sauter dans le temps">
+      <button type="button" data-saut="-86400000">−1 j</button>
+      <button type="button" data-saut="-3600000">−1 h</button>
+      <button type="button" data-saut="3600000">+1 h</button>
+      <button type="button" data-saut="86400000">+1 j</button>
+    </div>
+    <button type="button" id="btn-maintenant" class="large">Revenir à maintenant</button>
+  </div>
+
+  <!-- Barre de boutons ronds (d'autres s'ajouteront : recherche, calques, boussole...) -->
+  <nav id="barre" aria-label="Commandes">
+    <button type="button" id="btn-temps" class="rond verre" aria-expanded="false" aria-controls="panneau-temps">
+      <span id="heure">--:--</span>
+    </button>
+  </nav>
+
+  {{ lieu|json_script:"donnees-lieu" }}
+
+  <script src="{% static 'ciel/vendor/d3-celestial/d3.min.js' %}"></script>
+  <script src="{% static 'ciel/vendor/d3-celestial/d3.geo.projection.min.js' %}"></script>
+  <script src="{% static 'ciel/vendor/d3-celestial/celestial.min.js' %}"></script>
+  <script src="{% static 'ciel/carte.js' %}"></script>
+</body>
+</html>
+```
+
+`viewport-fit=cover` et les `env(safe-area-inset-bottom)` du CSS évitent que la barre de boutons passe sous la barre de gestes d'un iPhone.
+
+### Étape 5 : `ciel/static/ciel/carte.css` (remplace tout le fichier)
+
+```css
+:root {
+  --fond: #05070d;
+  --texte: #e8ecf5;
+  --texte-doux: #9aa6c2;
+  --accent: #ffd479; /* doré : état « hors du direct » */
+  --verre: rgba(22, 28, 46, 0.55);
+  --verre-bord: rgba(255, 255, 255, 0.16);
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--fond);
+  color: var(--texte);
+  font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+#carte {
+  position: absolute;
+}
+
+/* Le formulaire interne de d3-celestial doit exister, mais on le cache :
+   on pilote la carte nous-mêmes. */
+#celestial-form {
+  display: none;
+}
+
+/* --- Effet « verre dépoli », commun aux boutons et panneaux ---------------- */
+.verre {
+  background: var(--verre);
+  border: 1px solid var(--verre-bord);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  color: var(--texte);
+}
+
+/* --- Barre de boutons ronds en bas de l'écran ------------------------------ */
+#barre {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  pointer-events: none; /* seuls les boutons captent les touches */
+}
+
+.rond {
+  pointer-events: auto;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  font: inherit;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.rond:active {
+  transform: scale(0.95);
+}
+
+/* Hors du direct (pause, accéléré, autre date) : le bouton passe en doré */
+.rond.decale {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* --- Panneau du temps ------------------------------------------------------- */
+#panneau-temps {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(92px + env(safe-area-inset-bottom));
+  width: min(340px, calc(100vw - 32px));
+  box-sizing: border-box;
+  padding: 16px;
+  border-radius: 22px;
+  text-align: center;
+}
+
+#panneau-heure {
+  font-size: 34px;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+}
+
+#panneau-date {
+  margin-bottom: 14px;
+  color: var(--texte-doux);
+  font-size: 14px;
+}
+
+#panneau-date::first-letter {
+  text-transform: uppercase; /* « lundi » → « Lundi », mais « octobre » reste en minuscule */
+}
+
+.groupe {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+#panneau-temps button {
+  flex: 1;
+  padding: 9px 0;
+  border: 1px solid var(--verre-bord);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--texte);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+#panneau-temps button[aria-pressed="true"] {
+  background: rgba(255, 212, 121, 0.18);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+#panneau-temps button.large {
+  width: 100%;
+  margin-top: 2px;
+}
+```
+
+Les couleurs sont des variables CSS (`:root`) : pour changer le thème plus tard (par exemple un mode « rouge nocturne » pour préserver la vision d'obscurité), on modifiera ces quelques lignes.
+
+### Étape 6 : `ciel/static/ciel/carte.js` (remplace tout le fichier)
+
+Le fichier est maintenant organisé en six sections numérotées. Les sections 1, 4 et 5 reprennent le code des étapes précédentes, avec trois changements : le style `lune`, la requête `?instant=`, et `disableAnimations: true` dans la config.
+
+```javascript
+(function () {
+  "use strict";
+
+  const carte = document.getElementById("carte");
+  const lieu = JSON.parse(document.getElementById("donnees-lieu").textContent);
+  const POSITION = [lieu.latitude, lieu.longitude];
+
+  // ===========================================================================
+  // 1. Mise en page : la carte est un disque centré, dimensionné sur le plus
+  //    petit côté de l'écran
+  // ===========================================================================
+
+  function taille() {
+    return Math.floor(Math.min(window.innerWidth, window.innerHeight)) - 16;
+  }
+
+  function placer() {
+    const t = taille();
+    carte.style.width = t + "px";
+    carte.style.height = t + "px";
+    carte.style.left = Math.round((window.innerWidth - t) / 2) + "px";
+    carte.style.top = Math.round((window.innerHeight - t) / 2) + "px";
+    return t;
+  }
+
+  // ===========================================================================
+  // 2. L'horloge virtuelle : l'heure affichée par la carte. Elle suit le temps
+  //    réel (×1) ou s'accélère / se met en pause / saute, pour voir le ciel tourner.
+  // ===========================================================================
+
+  const horloge = {
+    virtuel: Date.now(), // l'instant affiché, en ms depuis 1970 (UTC)
+    vitesse: 1, // 0 = pause, 1 = temps réel, 60 = 1 min par seconde...
+    dernierTop: Date.now(),
+  };
+
+  const PERIODE_TIC = 100; // ms entre deux tics de l'horloge
+  const PERIODE_CARTE_DIRECT = 10000; // à ×1 le ciel bouge trop peu pour redessiner plus souvent
+  const PERIODE_CARTE_ACCELERE = 100;
+  const OBJETS_PERIMES_APRES = 5 * 60 * 1000; // ms virtuelles avant de recalculer planètes et Lune
+  const DELAI_MINI_REQUETES = 500; // ms réelles entre deux appels à l'API
+
+  let derniereMajCarte = 0;
+
+  function avancerHorloge() {
+    const top = Date.now();
+    let delta = top - horloge.dernierTop;
+    // Onglet resté en arrière-plan : on ne fait pas un énorme saut en accéléré
+    if (horloge.vitesse !== 1 && delta > 1000) delta = PERIODE_TIC;
+    horloge.virtuel += delta * horloge.vitesse;
+    horloge.dernierTop = top;
+  }
+
+  // Dit à d3-celestial de recalculer le ciel pour l'instant virtuel : la carte
+  // se recentre sur le zénith, les étoiles « tournent ».
+  function majCarte() {
+    Celestial.skyview({ date: new Date(horloge.virtuel) });
+    derniereMajCarte = Date.now();
+  }
+
+  function enDirect() {
+    return horloge.vitesse === 1 && Math.abs(horloge.virtuel - Date.now()) < 2000;
+  }
+
+  function tic() {
+    avancerHorloge();
+    afficherHeure();
+    if (horloge.vitesse !== 0) {
+      const periode = horloge.vitesse === 1 ? PERIODE_CARTE_DIRECT : PERIODE_CARTE_ACCELERE;
+      if (Date.now() - derniereMajCarte >= periode) majCarte();
+    }
+    if (objetsPerimes()) chargerObjets();
+  }
+
+  // ===========================================================================
+  // 3. Affichage de l'heure et panneau de contrôle
+  // ===========================================================================
+
+  const fmtHeure = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: lieu.fuseau });
+  const fmtHeureSec = new Intl.DateTimeFormat("fr-FR", {
+    hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: lieu.fuseau,
+  });
+  const fmtDate = new Intl.DateTimeFormat("fr-FR", {
+    weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: lieu.fuseau,
+  });
+
+  const elBouton = document.getElementById("btn-temps");
+  const elHeure = document.getElementById("heure");
+  const elPanneau = document.getElementById("panneau-temps");
+  const elPanneauHeure = document.getElementById("panneau-heure");
+  const elPanneauDate = document.getElementById("panneau-date");
+
+  function afficherHeure() {
+    const d = new Date(horloge.virtuel);
+    elHeure.textContent = fmtHeure.format(d);
+    elBouton.classList.toggle("decale", !enDirect());
+    if (!elPanneau.hidden) {
+      elPanneauHeure.textContent = fmtHeureSec.format(d);
+      elPanneauDate.textContent = fmtDate.format(d);
+      elPanneau.querySelectorAll("[data-vitesse]").forEach(function (b) {
+        b.setAttribute("aria-pressed", String(Number(b.dataset.vitesse) === horloge.vitesse));
+      });
+    }
+  }
+
+  function basculerPanneau() {
+    elPanneau.hidden = !elPanneau.hidden;
+    elBouton.setAttribute("aria-expanded", String(!elPanneau.hidden));
+    afficherHeure();
+  }
+
+  elBouton.addEventListener("click", basculerPanneau);
+
+  // Toucher la carte referme le panneau
+  document.addEventListener("pointerdown", function (e) {
+    if (!elPanneau.hidden && !elPanneau.contains(e.target) && !elBouton.contains(e.target)) {
+      basculerPanneau();
+    }
+  });
+
+  elPanneau.addEventListener("click", function (e) {
+    const bouton = e.target.closest("button");
+    if (!bouton) return;
+    if (bouton.dataset.vitesse !== undefined) {
+      horloge.vitesse = Number(bouton.dataset.vitesse);
+      horloge.dernierTop = Date.now();
+    } else if (bouton.dataset.saut !== undefined) {
+      horloge.virtuel += Number(bouton.dataset.saut);
+      majCarte();
+    } else if (bouton.id === "btn-maintenant") {
+      horloge.virtuel = Date.now();
+      horloge.vitesse = 1;
+      horloge.dernierTop = Date.now();
+      majCarte();
+    }
+    afficherHeure();
+  });
+
+  // ===========================================================================
+  // 4. Nos objets (positions calculées par Skyfield côté serveur)
+  // ===========================================================================
+
+  let objets = [];
+  let instantObjets = null; // instant virtuel auquel les positions ont été calculées
+  let chargementEnCours = false;
+  let dernierChargement = 0;
+
+  // Style de dessin par catégorie. Les étoiles sont déjà sur la carte (et déjà
+  // nommées par la bibliothèque) : on se contente de les entourer.
+  const STYLES = {
+    planete: { forme: "disque", rayon: 5, couleur: "#ffd479", texte: "#ffe6ad", nom: true },
+    lune: { forme: "disque", rayon: 7, couleur: "#e8ecf5", texte: "#ffffff", nom: true },
+    etoile: { forme: "anneau", rayon: 8, couleur: "#7fb0ff", texte: "#a9c8ff", nom: false },
+    amas: { forme: "anneau", rayon: 8, couleur: "#b79cff", texte: "#cdbcff", nom: true },
+    satellite: { forme: "disque", rayon: 4, couleur: "#ff5a5a", texte: "#ff9a9a", nom: true },
+  };
+
+  function objetsPerimes() {
+    if (chargementEnCours || Date.now() - dernierChargement < DELAI_MINI_REQUETES) return false;
+    if (instantObjets === null) return true;
+    return Math.abs(horloge.virtuel - instantObjets) > OBJETS_PERIMES_APRES;
+  }
+
+  function chargerObjets() {
+    chargementEnCours = true;
+    dernierChargement = Date.now();
+    const cible = horloge.virtuel;
+    const url = carte.dataset.urlObjets + "?instant=" + encodeURIComponent(new Date(cible).toISOString());
+    fetch(url)
+      .then(function (reponse) {
+        if (!reponse.ok) throw new Error("HTTP " + reponse.status);
+        return reponse.json();
+      })
+      .then(function (donnees) {
+        objets = donnees.objets;
+        instantObjets = cible;
+        Celestial.redraw();
+      })
+      .catch(function (erreur) {
+        console.warn("Objets indisponibles :", erreur);
+      })
+      .finally(function () {
+        chargementEnCours = false;
+      });
+  }
+
+  // Appelée par d3-celestial à chaque rafraîchissement de la carte
+  function dessinerObjets() {
+    const ctx = Celestial.context;
+    objets.forEach(function (o) {
+      const position = [o.ra, o.dec]; // ascension droite, déclinaison (degrés)
+      if (!Celestial.clip(position)) return; // sous l'horizon : hors du disque
+      const pt = Celestial.mapProjection(position);
+      const style = STYLES[o.categorie] || STYLES.etoile;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(pt[0], pt[1], style.rayon, 0, 2 * Math.PI);
+      ctx.lineWidth = 1.5;
+      if (style.forme === "disque") {
+        ctx.fillStyle = style.couleur;
+        ctx.fill();
+        ctx.strokeStyle = "#05070d";
+      } else {
+        ctx.strokeStyle = style.couleur;
+      }
+      ctx.stroke();
+      if (style.nom) {
+        ctx.font = "12px Helvetica, Arial, sans-serif";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "bottom";
+        ctx.fillStyle = style.texte;
+        ctx.fillText(o.nom, pt[0] + style.rayon + 3, pt[1] - style.rayon + 2);
+      }
+      ctx.restore();
+    });
+  }
+
+  // Quand la carte est prête : premier chargement des objets, puis l'horloge démarre
+  function carteprete() {
+    chargerObjets();
+    setInterval(tic, PERIODE_TIC);
+  }
+
+  // À déclarer AVANT Celestial.display : le callback est lancé quand la carte est prête
+  Celestial.add({ type: "raw", callback: carteprete, redraw: dessinerObjets });
+
+  // ===========================================================================
+  // 5. La carte elle-même
+  // ===========================================================================
+
+  Celestial.display({
+    container: "carte",
+    datapath: carte.dataset.datapath,
+    width: placer(),
+    projection: "orthographic",
+    interactive: true,
+    controls: false,
+    disableAnimations: true, // sinon chaque mise à jour du temps est « animée » et saccade
+
+    // Ciel vu du lieu d'observation, centré sur le zénith
+    location: true,
+    geopos: POSITION,
+    follow: "zenith",
+    settimezone: false, // sinon la bibliothèque interroge un service externe
+
+    // Formulaire interne : présent mais caché (voir carte.css)
+    form: true,
+
+    stars: {
+      limit: 5,
+      colors: true,
+      designation: false,
+      propername: true,
+      propernameType: "fr",
+      propernameLimit: 1.3,
+      propernameStyle: {
+        fill: "#cfd6e4",
+        font: "11px Helvetica, Arial, sans-serif",
+        align: "left",
+        baseline: "top",
+      },
+    },
+    dsos: { show: false },
+    planets: { show: false }, // on dessine les nôtres (calculées par Skyfield)
+    constellations: {
+      names: true,
+      namesType: "fr",
+      lines: true,
+      nameStyle: {
+        fill: "#5d6a88",
+        align: "center",
+        baseline: "middle",
+        font: [
+          "11px Helvetica, Arial, sans-serif",
+          "10px Helvetica, Arial, sans-serif",
+          "10px Helvetica, Arial, sans-serif",
+        ],
+      },
+      lineStyle: { stroke: "#6f7da0", width: 1, opacity: 0.5 },
+    },
+    mw: { show: true, style: { fill: "#aab4d4", opacity: 0.06 } },
+    lines: {
+      graticule: { show: false },
+      equatorial: { show: false },
+      ecliptic: { show: false },
+    },
+    background: { fill: "#05070d", opacity: 1, stroke: "#05070d", width: 0 },
+    horizon: { show: false },
+    daylight: { show: false },
+  });
+
+  // ===========================================================================
+  // 6. Changement de taille / rotation de l'écran
+  // ===========================================================================
+
+  // Celestial.resize() déforme la carte (zoom et découpe faux) quand la taille
+  // change beaucoup. Solution simple et fiable : on recharge la page une fois la
+  // taille stabilisée. On l'affinera quand la carte aura un état à conserver.
+  d3.select(window).on("resize", null); // gestionnaire interne de la bibliothèque
+
+  let minuteur = null;
+  const largeur = window.innerWidth;
+  const hauteur = window.innerHeight;
+  window.addEventListener("resize", function () {
+    clearTimeout(minuteur);
+    minuteur = setTimeout(function () {
+      if (window.innerWidth !== largeur || window.innerHeight !== hauteur) {
+        window.location.reload();
+      }
+    }, 300);
+  });
+})();
+```
+
+Les points à retenir :
+- **`Celestial.skyview({date})`** est la fonction de la bibliothèque qui change la date : elle recalcule la rotation du ciel et recentre sur le zénith. L'horloge virtuelle l'appelle à chaque tic.
+- **`disableAnimations: true`** : sans ça, la bibliothèque anime chaque rotation de plus de 2° (donc en accéléré, tout le temps), ce qui saccade.
+- **Le bouton devient doré** dès que tu n'es plus en temps réel (pause, accéléré ou autre date), pour ne jamais confondre avec le direct.
+- **Un seul appel à l'API à la fois**, avec 500 ms mini entre deux : l'accéléré ne peut pas saturer le serveur.
+- **L'ordre compte** : `Celestial.add(...)` doit venir avant `Celestial.display(...)`, et l'horloge ne démarre qu'une fois la carte prête (`carteprete`).
+
+### Test
+
+Recharge `http://127.0.0.1:8000/` avec Ctrl+F5. Tu dois voir :
+- un bouton rond avec l'heure de Paris en bas (par exemple « 14:10 ») ;
+- au toucher, un panneau avec l'heure à la seconde, la date en français et les vitesses ;
+- **×600** : le ciel tourne autour du pôle, la Lune glisse parmi les étoiles. Le bouton passe en doré ;
+- **« Revenir à maintenant »** : retour au direct, bouton à nouveau gris ;
+- un clic sur la carte referme le panneau.
+
+Pour vérifier la rotation, mets **×3600** pendant 6 secondes : le ciel doit avoir tourné d'environ 90°.
+
+Si ça saccade sur ton téléphone, augmente `PERIODE_CARTE_ACCELERE` (par exemple 200) dans `carte.js`.
+
+### À savoir
+
+- **L'ISS** (Partie 6) bougera de 4° par minute : elle aura son propre rafraîchissement, plus rapide que celui des planètes.
+- **Le Soleil** n'a pas encore de catégorie. On l'ajoutera avec une alerte de sécurité, car viser le Soleil avec le bras serait dangereux pour la caméra et pour les yeux.
+- **Dates limitées à 1950-2049**, la plage de l'éphéméride. Les boutons « −1 j / +1 j » ne bloquent pas, mais au-delà l'API renvoie une 400 et les planètes ne se mettent plus à jour.
+- **Les étoiles cliquables** et la fiche d'objet ne sont pas encore là : c'est la prochaine étape.
+
+
+## 3.4 Toucher un objet pour ouvrir sa fiche
+
+Quand tu touches un objet de la carte, une fiche s'ouvre en bas, dans l'esprit de la fiche d'objet de Sky Guide :
+- son nom, sa catégorie et sa constellation ;
+- sa **hauteur** et sa **direction** (par exemple « O · 262° »), qui se mettent à jour avec l'horloge ;
+- ses heures de **lever et de coucher** ;
+- une **courbe de sa hauteur sur 24 h**, avec un point pour l'instant actuel ;
+- sa description et son image, si tu en as saisi une dans l'admin ;
+- un bouton **Pointer**, grisé tant qu'aucun appareil n'est connecté.
+
+Je l'ai testé de bout en bout sur écran de téléphone :
+- Jupiter, la Lune et Polaris s'ouvrent avec les bonnes valeurs.
+- Un glisser (pour déplacer la carte) ne sélectionne rien.
+- Toucher le ciel vide referme la fiche.
+- Aucune erreur console.
+
+Les 3 fichiers complets (`carte.html`, `carte.css`, `carte.js`) sont dans le zip joint, `etape-3-4-fichiers.zip`. Dézippe-le à la racine du projet en acceptant de remplacer les anciens. Le détail ci-dessous sert pour ton tutoriel.
+
+### Étape 1 : `ciel/views.py`, la vue `detail_objet`
+
+**Remplace entièrement** ta fonction `detail_objet`. Garde ton `_entier` et ton import `from .astro import ...` de l'étape 3.3.
+
+```python
+@require_GET
+def detail_objet(request, objet_id):
+    try:
+        objet = ObjetCeleste.objects.get(pk=objet_id)
+    except ObjetCeleste.DoesNotExist:
+        return JsonResponse({"erreur": "Objet introuvable."}, status=404)
+    ident = objet.identifiant_skyfield
+    if not ident:
+        return JsonResponse({"erreur": "Cet objet n'a pas d'identifiant Skyfield."}, status=404)
+
+    try:
+        instant = _instant_demande(request)
+    except ValueError:
+        return JsonResponse(
+            {"erreur": "Paramètre 'instant' invalide (ISO 8601, 1950-2049)."}, status=400
+        )
+    duree = _entier(request, "duree", 24, 1, 72)  # heures
+    pas = _entier(request, "pas", 10, 1, 60)  # minutes
+
+    lieu = settings.LIEU_PAR_DEFAUT
+    lat, lon, alt = lieu["latitude"], lieu["longitude"], lieu["altitude_m"]
+    try:
+        elevation, azimut = altaz(ident, lat, lon, alt, instant)
+        evenements = levers_couchers(ident, lat, lon, alt, instant, duree)
+        courbe = trajectoire(ident, lat, lon, alt, instant, duree, pas)
+    except (KeyError, ValueError):
+        logger.warning("Identifiant Skyfield invalide pour %s : %r", objet.nom, ident)
+        return JsonResponse({"erreur": "Identifiant Skyfield invalide."}, status=404)
+
+    return JsonResponse({
+        "id": objet.id,
+        "nom": objet.nom,
+        "categorie": objet.categorie,
+        "description": objet.description,
+        "image": objet.image.url if objet.image else None,
+        "constellations": [c.nom for c in objet.constellations.all()],
+        "instant": instant.utc_iso(),
+        "lieu": lieu,
+        "position": {
+            "elevation": round(elevation, 2),
+            "azimut": round(azimut, 2),
+            "visible": elevation > 0,
+        },
+        "levers_couchers": evenements,
+        "trajectoire": courbe,
+    })
+```
+
+La nouveauté est le paramètre `?instant=`, comme pour la liste : la fiche est calculée pour l'instant affiché par l'horloge virtuelle, pas pour « maintenant ».
+
+**Test** : va sur `http://127.0.0.1:8000/api/ciel/objets/1/?duree=24&pas=60` (remplace `1` par l'id d'un de tes objets). Tu dois voir 25 points de trajectoire et, pour Polaris, une liste `levers_couchers` vide (elle ne se couche jamais à Paris).
+
+### Étape 2 : `ciel/templates/ciel/carte.html`
+
+Insère ce bloc **juste avant** le commentaire `<!-- Barre de boutons ronds ... -->` :
+
+```html
+  <!-- Fiche d'objet (s'ouvre quand on touche un objet de la carte) -->
+  <aside id="fiche" class="verre" hidden aria-live="polite">
+    <button type="button" id="fiche-fermer" aria-label="Fermer la fiche">×</button>
+    <img id="fiche-image" alt="" hidden>
+    <h2 id="fiche-nom"></h2>
+    <p id="fiche-sous-titre"></p>
+    <dl id="fiche-infos">
+      <div><dt>Hauteur</dt><dd id="fiche-hauteur">—</dd></div>
+      <div><dt>Direction</dt><dd id="fiche-direction">—</dd></div>
+      <div><dt>Lever</dt><dd id="fiche-lever">—</dd></div>
+      <div><dt>Coucher</dt><dd id="fiche-coucher">—</dd></div>
+    </dl>
+    <p id="fiche-note-horizon" hidden></p>
+    <svg id="fiche-courbe" viewBox="0 0 300 64" role="img" aria-label="Hauteur de l'objet sur les 24 prochaines heures"></svg>
+    <p id="fiche-description"></p>
+    <button type="button" id="btn-pointer" class="large" disabled>Pointer</button>
+    <p id="fiche-note-appareil">Aucun appareil connecté.</p>
+  </aside>
+```
+
+L'attribut `hidden` garde la fiche invisible au départ. Le bouton « Pointer » est déjà dans la page, en `disabled` : en Partie 4, il suffira de l'activer quand un appareil sera connecté.
+
+### Étape 3 : `ciel/static/ciel/carte.css`
+
+**Une modification** dans la règle `#carte` existante, pour que la carte glisse en douceur vers le haut quand la fiche s'ouvre :
+
+```css
+#carte {
+  position: absolute;
+  transition: transform 0.25s ease; /* la carte remonte quand la fiche s'ouvre */
+}
+```
+
+**Ajoute à la fin du fichier** :
+
+```css
+/* --- Fiche d'objet ---------------------------------------------------------- */
+#fiche {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(92px + env(safe-area-inset-bottom));
+  width: min(380px, calc(100vw - 32px));
+  max-height: min(58vh, 460px);
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 18px;
+  border-radius: 22px;
+}
+
+#fiche-fermer {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--texte);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+#fiche-image {
+  display: block;
+  width: 100%;
+  max-height: 150px;
+  margin-bottom: 12px;
+  border-radius: 14px;
+  object-fit: cover;
+}
+
+#fiche h2 {
+  margin: 0 36px 2px 0;
+  font-size: 22px;
+  font-weight: 500;
+}
+
+#fiche-sous-titre {
+  margin: 0 0 14px;
+  color: var(--texte-doux);
+  font-size: 14px;
+}
+
+#fiche-infos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+  margin: 0 0 10px;
+}
+
+#fiche-infos dt {
+  color: var(--texte-doux);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+#fiche-infos dd {
+  margin: 2px 0 0;
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}
+
+#fiche-note-horizon {
+  margin: 0 0 8px;
+  color: var(--texte-doux);
+  font-size: 13px;
+}
+
+#fiche-courbe {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 6px 0 12px;
+}
+
+#fiche-courbe .sous-horizon {
+  fill: rgba(255, 255, 255, 0.05);
+}
+
+#fiche-courbe .horizon {
+  stroke: rgba(255, 255, 255, 0.35);
+  stroke-dasharray: 3 3;
+}
+
+#fiche-courbe .courbe {
+  fill: none;
+  stroke: #7fb0ff;
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+#fiche-courbe .maintenant {
+  fill: #fff;
+  stroke: #05070d;
+  stroke-width: 1.5;
+}
+
+#fiche-description {
+  margin: 0 0 14px;
+  color: #cbd3e6;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+#fiche button.large {
+  width: 100%;
+  padding: 11px 0;
+  border: 1px solid var(--verre-bord);
+  border-radius: 14px;
+  background: rgba(255, 212, 121, 0.16);
+  color: var(--accent);
+  font: inherit;
+  font-size: 15px;
+}
+
+#fiche button.large:disabled {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--texte-doux);
+  cursor: not-allowed;
+}
+
+#fiche-note-appareil {
+  margin: 8px 0 0;
+  color: var(--texte-doux);
+  font-size: 12px;
+  text-align: center;
+}
+```
+
+### Étape 4 : `ciel/static/ciel/carte.js`
+
+Il y a **quatre modifications** à faire. Si tu préfères, remplace tout le fichier par celui du zip.
+
+**4a. Section 3, fonction `basculerPanneau`** : ajoute la ligne `selectionner(null)`.
+
+```javascript
+  function basculerPanneau() {
+    elPanneau.hidden = !elPanneau.hidden;
+    if (!elPanneau.hidden) selectionner(null); // un seul panneau à la fois
+    elBouton.setAttribute("aria-expanded", String(!elPanneau.hidden));
+    afficherHeure();
+  }
+```
+
+**4b. Section 2, fonction `tic`** : ajoute `majFiche();` après `afficherHeure();`.
+
+```javascript
+  function tic() {
+    avancerHorloge();
+    afficherHeure();
+    majFiche();
+    if (horloge.vitesse !== 0) {
+```
+
+**4c. Section 4, fonction `dessinerObjets`** : ajoute le halo entre `ctx.stroke();` et `if (style.nom) {`.
+
+```javascript
+      ctx.stroke();
+      if (o.id === selection) {
+        // halo autour de l'objet sélectionné
+        ctx.beginPath();
+        ctx.arc(pt[0], pt[1], style.rayon + 7, 0, 2 * Math.PI);
+        ctx.strokeStyle = "#ffffff";
+        ctx.stroke();
+      }
+      if (style.nom) {
+```
+
+**4d. Nouvelle section 5.** Insère-la **avant** le bloc `// 5. La carte elle-même`. Ce bloc devient la section 6, et « Changement de taille » devient la 7 : renumérote ces deux commentaires.
+
+```javascript
+  // ===========================================================================
+  // 5. Sélection d'un objet et fiche
+  // ===========================================================================
+
+  const NOMS_CATEGORIES = {
+    etoile: "Étoile", planete: "Planète", lune: "Lune", amas: "Amas", satellite: "Satellite",
+  };
+  const POINTS_CARDINAUX = [
+    "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO",
+  ];
+  const RAYON_TOUCHE = 24; // px : distance maxi entre le doigt et un objet pour le sélectionner
+  const FICHE_PERIMEE_APRES = 6 * 3600 * 1000; // ms virtuelles
+
+  const fmtNombre = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
+  const fmtJour = new Intl.DateTimeFormat("en-CA", { timeZone: lieu.fuseau }); // AAAA-MM-JJ
+
+  const elFiche = document.getElementById("fiche");
+  const el = {
+    image: document.getElementById("fiche-image"),
+    nom: document.getElementById("fiche-nom"),
+    sousTitre: document.getElementById("fiche-sous-titre"),
+    hauteur: document.getElementById("fiche-hauteur"),
+    direction: document.getElementById("fiche-direction"),
+    lever: document.getElementById("fiche-lever"),
+    coucher: document.getElementById("fiche-coucher"),
+    noteHorizon: document.getElementById("fiche-note-horizon"),
+    courbe: document.getElementById("fiche-courbe"),
+    description: document.getElementById("fiche-description"),
+  };
+
+  let selection = null; // id de l'objet sélectionné (ou null)
+  let fiche = null; // réponse de /api/ciel/objets/<id>/
+  let instantFiche = null; // instant virtuel auquel la fiche a été calculée
+  let ficheEnCours = false;
+  let derniereDemandeFiche = 0;
+  let dernierRafraichissementFiche = 0;
+
+  // --- Toucher la carte : sélectionner l'objet le plus proche du doigt --------
+
+  function objetProche(px, py) {
+    let meilleur = null;
+    let dmin = RAYON_TOUCHE;
+    objets.forEach(function (o) {
+      const position = [o.ra, o.dec];
+      if (!Celestial.clip(position)) return;
+      const pt = Celestial.mapProjection(position);
+      const d = Math.hypot(pt[0] - px, pt[1] - py);
+      if (d < dmin) {
+        dmin = d;
+        meilleur = o;
+      }
+    });
+    return meilleur;
+  }
+
+  // On distingue un « toucher » d'un « glisser » (qui déplace la carte).
+  // On écoute tout le document : toucher le ciel vide, hors du disque, désélectionne.
+  const INTERFACE = "#fiche, #panneau-temps, #barre";
+  let depart = null;
+  document.addEventListener("pointerdown", function (e) {
+    if (e.isPrimary && !e.target.closest(INTERFACE)) depart = { x: e.clientX, y: e.clientY, t: Date.now() };
+  });
+  document.addEventListener("pointerup", function (e) {
+    if (!e.isPrimary || !depart) return;
+    const deplacement = Math.hypot(e.clientX - depart.x, e.clientY - depart.y);
+    const duree = Date.now() - depart.t;
+    depart = null;
+    if (deplacement > 6 || duree > 500) return; // c'était un glisser
+    const canvas = carte.querySelector("canvas");
+    if (!canvas) return;
+    const zone = canvas.getBoundingClientRect();
+    const o = objetProche(e.clientX - zone.left, e.clientY - zone.top);
+    selectionner(o ? o.id : null);
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") selectionner(null);
+  });
+  document.getElementById("fiche-fermer").addEventListener("click", function () {
+    selectionner(null);
+  });
+
+  // La fiche cache le bas de l'écran : on remonte la carte pour que tout le disque
+  // reste visible et touchable au-dessus. (getBoundingClientRect tient compte du décalage.)
+  function decalerCarte() {
+    const haut = elFiche.hidden ? window.innerHeight : elFiche.getBoundingClientRect().top;
+    const decalage = Math.min(Math.max(0, (window.innerHeight - haut) / 2), Math.max(0, carte.offsetTop - 4));
+    carte.style.transform = decalage ? "translateY(" + -Math.round(decalage) + "px)" : "";
+  }
+  new ResizeObserver(decalerCarte).observe(elFiche); // la hauteur change quand la fiche se remplit
+
+  // --- Ouvrir / fermer la fiche ------------------------------------------------
+
+  function selectionner(id) {
+    selection = id;
+    fiche = null;
+    elFiche.hidden = id === null;
+    decalerCarte();
+    if (id !== null) {
+      elPanneau.hidden = true; // un seul panneau à la fois
+      elBouton.setAttribute("aria-expanded", "false");
+      remplirFiche();
+      chargerFiche();
+    }
+    Celestial.redraw(); // le halo autour de l'objet apparaît / disparaît
+  }
+
+  function chargerFiche() {
+    ficheEnCours = true;
+    derniereDemandeFiche = Date.now();
+    const id = selection;
+    const cible = horloge.virtuel;
+    const url = carte.dataset.urlObjets + id + "/?instant=" + encodeURIComponent(new Date(cible).toISOString());
+    fetch(url)
+      .then(function (reponse) {
+        if (!reponse.ok) throw new Error("HTTP " + reponse.status);
+        return reponse.json();
+      })
+      .then(function (donnees) {
+        if (selection !== id) return; // l'utilisateur a changé d'objet entre-temps
+        fiche = donnees;
+        instantFiche = cible;
+        remplirFiche();
+      })
+      .catch(function (erreur) {
+        console.warn("Fiche indisponible :", erreur);
+      })
+      .finally(function () {
+        ficheEnCours = false;
+      });
+  }
+
+  // La fiche est calculée pour 24 h : on la recalcule quand elle est dépassée
+  function fichePerimee() {
+    if (!fiche || ficheEnCours || Date.now() - derniereDemandeFiche < DELAI_MINI_REQUETES) return false;
+    return (
+      Math.abs(horloge.virtuel - instantFiche) > FICHE_PERIMEE_APRES ||
+      fiche.levers_couchers.some(function (e) { return Date.parse(e.instant) < horloge.virtuel; })
+    );
+  }
+
+  // Appelée à chaque tic de l'horloge
+  function majFiche() {
+    if (selection === null) return;
+    if (fichePerimee()) chargerFiche();
+    if (Date.now() - dernierRafraichissementFiche >= 1000) remplirFiche();
+  }
+
+  // --- Contenu de la fiche -------------------------------------------------------
+
+  // Position à l'instant virtuel, interpolée entre les points de la trajectoire
+  function positionActuelle() {
+    const pts = fiche && fiche.trajectoire;
+    if (pts && pts.length > 1) {
+      const t0 = Date.parse(pts[0].instant);
+      const pas = Date.parse(pts[1].instant) - t0;
+      const x = (horloge.virtuel - t0) / pas;
+      const i = Math.floor(x);
+      if (i >= 0 && i < pts.length - 1) {
+        const f = x - i;
+        const a = pts[i];
+        const b = pts[i + 1];
+        const ecartAzimut = ((b.azimut - a.azimut + 540) % 360) - 180; // plus court chemin
+        return {
+          elevation: a.elevation + (b.elevation - a.elevation) * f,
+          azimut: (a.azimut + ecartAzimut * f + 360) % 360,
+        };
+      }
+    }
+    const o = objets.find(function (obj) { return obj.id === selection; });
+    return o ? { elevation: o.elevation, azimut: o.azimut } : null;
+  }
+
+  function heureEvenement(type) {
+    const evt = fiche && fiche.levers_couchers.find(function (e) { return e.evenement === type; });
+    if (!evt) return "—";
+    const d = new Date(evt.instant);
+    const demain = fmtJour.format(d) !== fmtJour.format(new Date(horloge.virtuel));
+    return fmtHeure.format(d) + (demain ? " (demain)" : "");
+  }
+
+  function remplirFiche() {
+    dernierRafraichissementFiche = Date.now();
+    const o = objets.find(function (obj) { return obj.id === selection; });
+    const nom = fiche ? fiche.nom : o ? o.nom : "";
+    const categorie = NOMS_CATEGORIES[fiche ? fiche.categorie : o && o.categorie] || "";
+    el.nom.textContent = nom;
+    const constellations = fiche && fiche.constellations.length ? " · " + fiche.constellations.join(", ") : "";
+    el.sousTitre.textContent = categorie + constellations;
+
+    const pos = positionActuelle();
+    if (pos) {
+      el.hauteur.textContent = fmtNombre.format(pos.elevation) + "°";
+      const point = POINTS_CARDINAUX[Math.round(pos.azimut / 22.5) % 16];
+      el.direction.textContent = point + " · " + (Math.round(pos.azimut) % 360) + "°";
+    }
+
+    el.lever.textContent = heureEvenement("lever");
+    el.coucher.textContent = heureEvenement("coucher");
+    const sansEvenement = fiche && fiche.levers_couchers.length === 0 && pos;
+    el.noteHorizon.hidden = !sansEvenement;
+    if (sansEvenement) {
+      el.noteHorizon.textContent =
+        pos.elevation > 0 ? "Reste au-dessus de l'horizon pendant 24 h." : "Reste sous l'horizon pendant 24 h.";
+    } else if (pos && pos.elevation <= 0) {
+      el.noteHorizon.hidden = false;
+      el.noteHorizon.textContent = "Sous l'horizon en ce moment.";
+    }
+
+    // Texte et image : toujours via textContent / src, jamais innerHTML
+    // (le contenu vient de l'admin, on ne le traite jamais comme du HTML)
+    el.description.textContent = fiche
+      ? fiche.description || "Description à venir."
+      : "";
+    if (fiche && fiche.image) {
+      el.image.src = fiche.image;
+      el.image.alt = fiche.nom;
+      el.image.hidden = false;
+    } else {
+      el.image.hidden = true;
+    }
+    tracerCourbe();
+  }
+
+  // Petite courbe « hauteur sur 24 h », avec un point pour l'instant actuel
+  function tracerCourbe() {
+    const NS = "http://www.w3.org/2000/svg";
+    const L = 300, H = 64, MARGE = 5;
+    el.courbe.replaceChildren();
+    const pts = fiche && fiche.trajectoire;
+    if (!pts || pts.length < 2) return;
+
+    const hauteurs = pts.map(function (p) { return p.elevation; });
+    const mini = Math.min(-10, Math.min.apply(null, hauteurs));
+    const maxi = Math.max(10, Math.max.apply(null, hauteurs));
+    const y = function (e) { return H - MARGE - ((e - mini) / (maxi - mini)) * (H - 2 * MARGE); };
+    const t0 = Date.parse(pts[0].instant);
+    const duree = Date.parse(pts[pts.length - 1].instant) - t0;
+    const x = function (ms) { return MARGE + Math.min(1, Math.max(0, (ms - t0) / duree)) * (L - 2 * MARGE); };
+
+    function ajouter(nom, attributs) {
+      const n = document.createElementNS(NS, nom);
+      Object.keys(attributs).forEach(function (k) { n.setAttribute(k, attributs[k]); });
+      el.courbe.appendChild(n);
+    }
+    ajouter("rect", { class: "sous-horizon", x: 0, y: y(0), width: L, height: H - y(0) });
+    ajouter("line", { class: "horizon", x1: 0, x2: L, y1: y(0), y2: y(0) });
+    ajouter("polyline", {
+      class: "courbe",
+      points: pts.map(function (p) { return x(Date.parse(p.instant)).toFixed(1) + "," + y(p.elevation).toFixed(1); }).join(" "),
+    });
+    const pos = positionActuelle();
+    if (pos) ajouter("circle", { class: "maintenant", cx: x(horloge.virtuel), cy: y(pos.elevation), r: 4 });
+  }
+```
+
+Les choix de conception :
+- **Toucher ou glisser** : si le doigt a bougé de plus de 6 px ou est resté plus de 0,5 s, c'est un glisser (la carte se déplace) et on ne sélectionne rien. Le rayon de 24 px compense la taille d'un doigt.
+- **Les objets sont retrouvés par leur position écran** : `Celestial.mapProjection` convertit RA/Dec en pixels, et le plus proche du doigt gagne. Les objets sous l'horizon (hors du disque) ne sont pas sélectionnables.
+- **La carte remonte quand la fiche s'ouvre**, pour que tout le disque reste visible et touchable au-dessus. `getBoundingClientRect` tient compte du décalage, donc les clics restent justes.
+- **La hauteur affichée est interpolée sur la trajectoire**, point par point. Elle évolue avec l'horloge, même en accéléré, sans rappeler le serveur à chaque seconde.
+- **La fiche se recalcule** quand elle est dépassée : un lever ou un coucher est passé, ou plus de 6 h virtuelles d'écart.
+- **`textContent` et jamais `innerHTML`** pour la description. Elle vient de l'admin, et on ne l'interprète jamais comme du HTML (protection contre l'injection de code).
+
+### Test
+
+Recharge avec Ctrl+F5 et touche :
+- **Jupiter** ou une autre planète : la fiche s'ouvre, un halo blanc entoure l'objet, la carte remonte. La courbe a un point blanc à l'instant actuel.
+- **Polaris** : lever et coucher à « — », avec « Reste au-dessus de l'horizon pendant 24 h ».
+- **La Lune** : lever et coucher du jour.
+- **Un objet sous l'horizon** (Saturne, Vénus, selon l'heure) : il n'est pas sur la carte, donc pas touchable. Pour le voir, ouvre le panneau du temps et saute de quelques heures.
+- **Le ciel vide** ou la croix : ça ferme la fiche. Un glisser ne la ferme pas.
+- **Ouvrir le panneau du temps** ferme la fiche, et inversement.
+- **Passe en ×600** avec la fiche ouverte : la hauteur change, le point glisse sur la courbe.
+
+Ajoute une description à une planète dans l'admin et recharge : elle apparaît dans la fiche.
+
+### À savoir
+
+- **Seuls les objets de ta base sont sélectionnables.** Les 5 000 étoiles de la bibliothèque n'ont pas de fiche, car elles n'ont ni description ni identifiant dans ta base. Pour en avoir plus, il suffit d'ajouter des objets (ou d'importer du contenu en Partie 10).
+- **Le bouton « Pointer » est grisé.** Il s'activera en Partie 4, quand un appareil (simulé d'abord) sera connecté.
+- **Les heures sont celles de Paris**, comme sur le bouton de l'horloge.
+
+### La suite de la Partie 3
+
+La carte est maintenant fonctionnelle. Il reste la **3.5, le look Sky Guide** :
+- une **vue « fenêtre »** orientée comme quand tu regardes le ciel (horizon, sol, direction de visée) ;
+- une **boussole**, la **recherche** et le panneau des **calques**, qui rejoindront le bouton rond de l'heure.
+
+C'est une étape plus visuelle, et elle change la projection de la carte. Dis-moi si ça te va, ou si tu préfères d'abord enchaîner sur la Partie 4 (l'appareil simulé et l'API de pointage) pour avoir tout le circuit complet, et peaufiner le visuel ensuite.
+
+## 3.4 Toucher un objet pour ouvrir sa fiche
+
+Quand tu touches un objet de la carte, une fiche s'ouvre en bas, dans l'esprit de la fiche d'objet de Sky Guide :
+- son nom, sa catégorie et sa constellation ;
+- sa **hauteur** et sa **direction** (par exemple « O · 262° »), qui se mettent à jour avec l'horloge ;
+- ses heures de **lever et de coucher** ;
+- une **courbe de sa hauteur sur 24 h**, avec un point pour l'instant actuel ;
+- sa description et son image, si tu en as saisi une dans l'admin ;
+- un bouton **Pointer**, grisé tant qu'aucun appareil n'est connecté.
+
+Je l'ai testé de bout en bout sur écran de téléphone :
+- Jupiter, la Lune et Polaris s'ouvrent avec les bonnes valeurs.
+- Un glisser (pour déplacer la carte) ne sélectionne rien.
+- Toucher le ciel vide referme la fiche.
+- Aucune erreur console.
+
+Les 3 fichiers complets (`carte.html`, `carte.css`, `carte.js`) sont dans le zip joint, `etape-3-4-fichiers.zip`. Dézippe-le à la racine du projet en acceptant de remplacer les anciens. Le détail ci-dessous sert pour ton tutoriel.
+
+### Étape 1 : `ciel/views.py`, la vue `detail_objet`
+
+**Remplace entièrement** ta fonction `detail_objet`. Garde ton `_entier` et ton import `from .astro import ...` de l'étape 3.3.
+
+```python
+@require_GET
+def detail_objet(request, objet_id):
+    try:
+        objet = ObjetCeleste.objects.get(pk=objet_id)
+    except ObjetCeleste.DoesNotExist:
+        return JsonResponse({"erreur": "Objet introuvable."}, status=404)
+    ident = objet.identifiant_skyfield
+    if not ident:
+        return JsonResponse({"erreur": "Cet objet n'a pas d'identifiant Skyfield."}, status=404)
+
+    try:
+        instant = _instant_demande(request)
+    except ValueError:
+        return JsonResponse(
+            {"erreur": "Paramètre 'instant' invalide (ISO 8601, 1950-2049)."}, status=400
+        )
+    duree = _entier(request, "duree", 24, 1, 72)  # heures
+    pas = _entier(request, "pas", 10, 1, 60)  # minutes
+
+    lieu = settings.LIEU_PAR_DEFAUT
+    lat, lon, alt = lieu["latitude"], lieu["longitude"], lieu["altitude_m"]
+    try:
+        elevation, azimut = altaz(ident, lat, lon, alt, instant)
+        evenements = levers_couchers(ident, lat, lon, alt, instant, duree)
+        courbe = trajectoire(ident, lat, lon, alt, instant, duree, pas)
+    except (KeyError, ValueError):
+        logger.warning("Identifiant Skyfield invalide pour %s : %r", objet.nom, ident)
+        return JsonResponse({"erreur": "Identifiant Skyfield invalide."}, status=404)
+
+    return JsonResponse({
+        "id": objet.id,
+        "nom": objet.nom,
+        "categorie": objet.categorie,
+        "description": objet.description,
+        "image": objet.image.url if objet.image else None,
+        "constellations": [c.nom for c in objet.constellations.all()],
+        "instant": instant.utc_iso(),
+        "lieu": lieu,
+        "position": {
+            "elevation": round(elevation, 2),
+            "azimut": round(azimut, 2),
+            "visible": elevation > 0,
+        },
+        "levers_couchers": evenements,
+        "trajectoire": courbe,
+    })
+```
+
+La nouveauté est le paramètre `?instant=`, comme pour la liste : la fiche est calculée pour l'instant affiché par l'horloge virtuelle, pas pour « maintenant ».
+
+**Test** : va sur `http://127.0.0.1:8000/api/ciel/objets/1/?duree=24&pas=60` (remplace `1` par l'id d'un de tes objets). Tu dois voir 25 points de trajectoire et, pour Polaris, une liste `levers_couchers` vide (elle ne se couche jamais à Paris).
+
+### Étape 2 : `ciel/templates/ciel/carte.html`
+
+Insère ce bloc **juste avant** le commentaire `<!-- Barre de boutons ronds ... -->` :
+
+```html
+  <!-- Fiche d'objet (s'ouvre quand on touche un objet de la carte) -->
+  <aside id="fiche" class="verre" hidden aria-live="polite">
+    <button type="button" id="fiche-fermer" aria-label="Fermer la fiche">×</button>
+    <img id="fiche-image" alt="" hidden>
+    <h2 id="fiche-nom"></h2>
+    <p id="fiche-sous-titre"></p>
+    <dl id="fiche-infos">
+      <div><dt>Hauteur</dt><dd id="fiche-hauteur">—</dd></div>
+      <div><dt>Direction</dt><dd id="fiche-direction">—</dd></div>
+      <div><dt>Lever</dt><dd id="fiche-lever">—</dd></div>
+      <div><dt>Coucher</dt><dd id="fiche-coucher">—</dd></div>
+    </dl>
+    <p id="fiche-note-horizon" hidden></p>
+    <svg id="fiche-courbe" viewBox="0 0 300 64" role="img" aria-label="Hauteur de l'objet sur les 24 prochaines heures"></svg>
+    <p id="fiche-description"></p>
+    <button type="button" id="btn-pointer" class="large" disabled>Pointer</button>
+    <p id="fiche-note-appareil">Aucun appareil connecté.</p>
+  </aside>
+```
+
+L'attribut `hidden` garde la fiche invisible au départ. Le bouton « Pointer » est déjà dans la page, en `disabled` : en Partie 4, il suffira de l'activer quand un appareil sera connecté.
+
+### Étape 3 : `ciel/static/ciel/carte.css`
+
+**Une modification** dans la règle `#carte` existante, pour que la carte glisse en douceur vers le haut quand la fiche s'ouvre :
+
+```css
+#carte {
+  position: absolute;
+  transition: transform 0.25s ease; /* la carte remonte quand la fiche s'ouvre */
+}
+```
+
+**Ajoute à la fin du fichier** :
+
+```css
+/* --- Fiche d'objet ---------------------------------------------------------- */
+#fiche {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(92px + env(safe-area-inset-bottom));
+  width: min(380px, calc(100vw - 32px));
+  max-height: min(58vh, 460px);
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 18px;
+  border-radius: 22px;
+}
+
+#fiche-fermer {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--texte);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+#fiche-image {
+  display: block;
+  width: 100%;
+  max-height: 150px;
+  margin-bottom: 12px;
+  border-radius: 14px;
+  object-fit: cover;
+}
+
+#fiche h2 {
+  margin: 0 36px 2px 0;
+  font-size: 22px;
+  font-weight: 500;
+}
+
+#fiche-sous-titre {
+  margin: 0 0 14px;
+  color: var(--texte-doux);
+  font-size: 14px;
+}
+
+#fiche-infos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+  margin: 0 0 10px;
+}
+
+#fiche-infos dt {
+  color: var(--texte-doux);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+#fiche-infos dd {
+  margin: 2px 0 0;
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}
+
+#fiche-note-horizon {
+  margin: 0 0 8px;
+  color: var(--texte-doux);
+  font-size: 13px;
+}
+
+#fiche-courbe {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 6px 0 12px;
+}
+
+#fiche-courbe .sous-horizon {
+  fill: rgba(255, 255, 255, 0.05);
+}
+
+#fiche-courbe .horizon {
+  stroke: rgba(255, 255, 255, 0.35);
+  stroke-dasharray: 3 3;
+}
+
+#fiche-courbe .courbe {
+  fill: none;
+  stroke: #7fb0ff;
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+#fiche-courbe .maintenant {
+  fill: #fff;
+  stroke: #05070d;
+  stroke-width: 1.5;
+}
+
+#fiche-description {
+  margin: 0 0 14px;
+  color: #cbd3e6;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+#fiche button.large {
+  width: 100%;
+  padding: 11px 0;
+  border: 1px solid var(--verre-bord);
+  border-radius: 14px;
+  background: rgba(255, 212, 121, 0.16);
+  color: var(--accent);
+  font: inherit;
+  font-size: 15px;
+}
+
+#fiche button.large:disabled {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--texte-doux);
+  cursor: not-allowed;
+}
+
+#fiche-note-appareil {
+  margin: 8px 0 0;
+  color: var(--texte-doux);
+  font-size: 12px;
+  text-align: center;
+}
+```
+
+### Étape 4 : `ciel/static/ciel/carte.js`
+
+Il y a **quatre modifications** à faire. Si tu préfères, remplace tout le fichier par celui du zip.
+
+**4a. Section 3, fonction `basculerPanneau`** : ajoute la ligne `selectionner(null)`.
+
+```javascript
+  function basculerPanneau() {
+    elPanneau.hidden = !elPanneau.hidden;
+    if (!elPanneau.hidden) selectionner(null); // un seul panneau à la fois
+    elBouton.setAttribute("aria-expanded", String(!elPanneau.hidden));
+    afficherHeure();
+  }
+```
+
+**4b. Section 2, fonction `tic`** : ajoute `majFiche();` après `afficherHeure();`.
+
+```javascript
+  function tic() {
+    avancerHorloge();
+    afficherHeure();
+    majFiche();
+    if (horloge.vitesse !== 0) {
+```
+
+**4c. Section 4, fonction `dessinerObjets`** : ajoute le halo entre `ctx.stroke();` et `if (style.nom) {`.
+
+```javascript
+      ctx.stroke();
+      if (o.id === selection) {
+        // halo autour de l'objet sélectionné
+        ctx.beginPath();
+        ctx.arc(pt[0], pt[1], style.rayon + 7, 0, 2 * Math.PI);
+        ctx.strokeStyle = "#ffffff";
+        ctx.stroke();
+      }
+      if (style.nom) {
+```
+
+**4d. Nouvelle section 5.** Insère-la **avant** le bloc `// 5. La carte elle-même`. Ce bloc devient la section 6, et « Changement de taille » devient la 7 : renumérote ces deux commentaires.
+
+```javascript
+  // ===========================================================================
+  // 5. Sélection d'un objet et fiche
+  // ===========================================================================
+
+  const NOMS_CATEGORIES = {
+    etoile: "Étoile", planete: "Planète", lune: "Lune", amas: "Amas", satellite: "Satellite",
+  };
+  const POINTS_CARDINAUX = [
+    "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO",
+  ];
+  const RAYON_TOUCHE = 24; // px : distance maxi entre le doigt et un objet pour le sélectionner
+  const FICHE_PERIMEE_APRES = 6 * 3600 * 1000; // ms virtuelles
+
+  const fmtNombre = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
+  const fmtJour = new Intl.DateTimeFormat("en-CA", { timeZone: lieu.fuseau }); // AAAA-MM-JJ
+
+  const elFiche = document.getElementById("fiche");
+  const el = {
+    image: document.getElementById("fiche-image"),
+    nom: document.getElementById("fiche-nom"),
+    sousTitre: document.getElementById("fiche-sous-titre"),
+    hauteur: document.getElementById("fiche-hauteur"),
+    direction: document.getElementById("fiche-direction"),
+    lever: document.getElementById("fiche-lever"),
+    coucher: document.getElementById("fiche-coucher"),
+    noteHorizon: document.getElementById("fiche-note-horizon"),
+    courbe: document.getElementById("fiche-courbe"),
+    description: document.getElementById("fiche-description"),
+  };
+
+  let selection = null; // id de l'objet sélectionné (ou null)
+  let fiche = null; // réponse de /api/ciel/objets/<id>/
+  let instantFiche = null; // instant virtuel auquel la fiche a été calculée
+  let ficheEnCours = false;
+  let derniereDemandeFiche = 0;
+  let dernierRafraichissementFiche = 0;
+
+  // --- Toucher la carte : sélectionner l'objet le plus proche du doigt --------
+
+  function objetProche(px, py) {
+    let meilleur = null;
+    let dmin = RAYON_TOUCHE;
+    objets.forEach(function (o) {
+      const position = [o.ra, o.dec];
+      if (!Celestial.clip(position)) return;
+      const pt = Celestial.mapProjection(position);
+      const d = Math.hypot(pt[0] - px, pt[1] - py);
+      if (d < dmin) {
+        dmin = d;
+        meilleur = o;
+      }
+    });
+    return meilleur;
+  }
+
+  // On distingue un « toucher » d'un « glisser » (qui déplace la carte).
+  // On écoute tout le document : toucher le ciel vide, hors du disque, désélectionne.
+  const INTERFACE = "#fiche, #panneau-temps, #barre";
+  let depart = null;
+  document.addEventListener("pointerdown", function (e) {
+    if (e.isPrimary && !e.target.closest(INTERFACE)) depart = { x: e.clientX, y: e.clientY, t: Date.now() };
+  });
+  document.addEventListener("pointerup", function (e) {
+    if (!e.isPrimary || !depart) return;
+    const deplacement = Math.hypot(e.clientX - depart.x, e.clientY - depart.y);
+    const duree = Date.now() - depart.t;
+    depart = null;
+    if (deplacement > 6 || duree > 500) return; // c'était un glisser
+    const canvas = carte.querySelector("canvas");
+    if (!canvas) return;
+    const zone = canvas.getBoundingClientRect();
+    const o = objetProche(e.clientX - zone.left, e.clientY - zone.top);
+    selectionner(o ? o.id : null);
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") selectionner(null);
+  });
+  document.getElementById("fiche-fermer").addEventListener("click", function () {
+    selectionner(null);
+  });
+
+  // La fiche cache le bas de l'écran : on remonte la carte pour que tout le disque
+  // reste visible et touchable au-dessus. (getBoundingClientRect tient compte du décalage.)
+  function decalerCarte() {
+    const haut = elFiche.hidden ? window.innerHeight : elFiche.getBoundingClientRect().top;
+    const decalage = Math.min(Math.max(0, (window.innerHeight - haut) / 2), Math.max(0, carte.offsetTop - 4));
+    carte.style.transform = decalage ? "translateY(" + -Math.round(decalage) + "px)" : "";
+  }
+  new ResizeObserver(decalerCarte).observe(elFiche); // la hauteur change quand la fiche se remplit
+
+  // --- Ouvrir / fermer la fiche ------------------------------------------------
+
+  function selectionner(id) {
+    selection = id;
+    fiche = null;
+    elFiche.hidden = id === null;
+    decalerCarte();
+    if (id !== null) {
+      elPanneau.hidden = true; // un seul panneau à la fois
+      elBouton.setAttribute("aria-expanded", "false");
+      remplirFiche();
+      chargerFiche();
+    }
+    Celestial.redraw(); // le halo autour de l'objet apparaît / disparaît
+  }
+
+  function chargerFiche() {
+    ficheEnCours = true;
+    derniereDemandeFiche = Date.now();
+    const id = selection;
+    const cible = horloge.virtuel;
+    const url = carte.dataset.urlObjets + id + "/?instant=" + encodeURIComponent(new Date(cible).toISOString());
+    fetch(url)
+      .then(function (reponse) {
+        if (!reponse.ok) throw new Error("HTTP " + reponse.status);
+        return reponse.json();
+      })
+      .then(function (donnees) {
+        if (selection !== id) return; // l'utilisateur a changé d'objet entre-temps
+        fiche = donnees;
+        instantFiche = cible;
+        remplirFiche();
+      })
+      .catch(function (erreur) {
+        console.warn("Fiche indisponible :", erreur);
+      })
+      .finally(function () {
+        ficheEnCours = false;
+      });
+  }
+
+  // La fiche est calculée pour 24 h : on la recalcule quand elle est dépassée
+  function fichePerimee() {
+    if (!fiche || ficheEnCours || Date.now() - derniereDemandeFiche < DELAI_MINI_REQUETES) return false;
+    return (
+      Math.abs(horloge.virtuel - instantFiche) > FICHE_PERIMEE_APRES ||
+      fiche.levers_couchers.some(function (e) { return Date.parse(e.instant) < horloge.virtuel; })
+    );
+  }
+
+  // Appelée à chaque tic de l'horloge
+  function majFiche() {
+    if (selection === null) return;
+    if (fichePerimee()) chargerFiche();
+    if (Date.now() - dernierRafraichissementFiche >= 1000) remplirFiche();
+  }
+
+  // --- Contenu de la fiche -------------------------------------------------------
+
+  // Position à l'instant virtuel, interpolée entre les points de la trajectoire
+  function positionActuelle() {
+    const pts = fiche && fiche.trajectoire;
+    if (pts && pts.length > 1) {
+      const t0 = Date.parse(pts[0].instant);
+      const pas = Date.parse(pts[1].instant) - t0;
+      const x = (horloge.virtuel - t0) / pas;
+      const i = Math.floor(x);
+      if (i >= 0 && i < pts.length - 1) {
+        const f = x - i;
+        const a = pts[i];
+        const b = pts[i + 1];
+        const ecartAzimut = ((b.azimut - a.azimut + 540) % 360) - 180; // plus court chemin
+        return {
+          elevation: a.elevation + (b.elevation - a.elevation) * f,
+          azimut: (a.azimut + ecartAzimut * f + 360) % 360,
+        };
+      }
+    }
+    const o = objets.find(function (obj) { return obj.id === selection; });
+    return o ? { elevation: o.elevation, azimut: o.azimut } : null;
+  }
+
+  function heureEvenement(type) {
+    const evt = fiche && fiche.levers_couchers.find(function (e) { return e.evenement === type; });
+    if (!evt) return "—";
+    const d = new Date(evt.instant);
+    const demain = fmtJour.format(d) !== fmtJour.format(new Date(horloge.virtuel));
+    return fmtHeure.format(d) + (demain ? " (demain)" : "");
+  }
+
+  function remplirFiche() {
+    dernierRafraichissementFiche = Date.now();
+    const o = objets.find(function (obj) { return obj.id === selection; });
+    const nom = fiche ? fiche.nom : o ? o.nom : "";
+    const categorie = NOMS_CATEGORIES[fiche ? fiche.categorie : o && o.categorie] || "";
+    el.nom.textContent = nom;
+    const constellations = fiche && fiche.constellations.length ? " · " + fiche.constellations.join(", ") : "";
+    el.sousTitre.textContent = categorie + constellations;
+
+    const pos = positionActuelle();
+    if (pos) {
+      el.hauteur.textContent = fmtNombre.format(pos.elevation) + "°";
+      const point = POINTS_CARDINAUX[Math.round(pos.azimut / 22.5) % 16];
+      el.direction.textContent = point + " · " + (Math.round(pos.azimut) % 360) + "°";
+    }
+
+    el.lever.textContent = heureEvenement("lever");
+    el.coucher.textContent = heureEvenement("coucher");
+    const sansEvenement = fiche && fiche.levers_couchers.length === 0 && pos;
+    el.noteHorizon.hidden = !sansEvenement;
+    if (sansEvenement) {
+      el.noteHorizon.textContent =
+        pos.elevation > 0 ? "Reste au-dessus de l'horizon pendant 24 h." : "Reste sous l'horizon pendant 24 h.";
+    } else if (pos && pos.elevation <= 0) {
+      el.noteHorizon.hidden = false;
+      el.noteHorizon.textContent = "Sous l'horizon en ce moment.";
+    }
+
+    // Texte et image : toujours via textContent / src, jamais innerHTML
+    // (le contenu vient de l'admin, on ne le traite jamais comme du HTML)
+    el.description.textContent = fiche
+      ? fiche.description || "Description à venir."
+      : "";
+    if (fiche && fiche.image) {
+      el.image.src = fiche.image;
+      el.image.alt = fiche.nom;
+      el.image.hidden = false;
+    } else {
+      el.image.hidden = true;
+    }
+    tracerCourbe();
+  }
+
+  // Petite courbe « hauteur sur 24 h », avec un point pour l'instant actuel
+  function tracerCourbe() {
+    const NS = "http://www.w3.org/2000/svg";
+    const L = 300, H = 64, MARGE = 5;
+    el.courbe.replaceChildren();
+    const pts = fiche && fiche.trajectoire;
+    if (!pts || pts.length < 2) return;
+
+    const hauteurs = pts.map(function (p) { return p.elevation; });
+    const mini = Math.min(-10, Math.min.apply(null, hauteurs));
+    const maxi = Math.max(10, Math.max.apply(null, hauteurs));
+    const y = function (e) { return H - MARGE - ((e - mini) / (maxi - mini)) * (H - 2 * MARGE); };
+    const t0 = Date.parse(pts[0].instant);
+    const duree = Date.parse(pts[pts.length - 1].instant) - t0;
+    const x = function (ms) { return MARGE + Math.min(1, Math.max(0, (ms - t0) / duree)) * (L - 2 * MARGE); };
+
+    function ajouter(nom, attributs) {
+      const n = document.createElementNS(NS, nom);
+      Object.keys(attributs).forEach(function (k) { n.setAttribute(k, attributs[k]); });
+      el.courbe.appendChild(n);
+    }
+    ajouter("rect", { class: "sous-horizon", x: 0, y: y(0), width: L, height: H - y(0) });
+    ajouter("line", { class: "horizon", x1: 0, x2: L, y1: y(0), y2: y(0) });
+    ajouter("polyline", {
+      class: "courbe",
+      points: pts.map(function (p) { return x(Date.parse(p.instant)).toFixed(1) + "," + y(p.elevation).toFixed(1); }).join(" "),
+    });
+    const pos = positionActuelle();
+    if (pos) ajouter("circle", { class: "maintenant", cx: x(horloge.virtuel), cy: y(pos.elevation), r: 4 });
+  }
+```
+
+Les choix de conception :
+- **Toucher ou glisser** : si le doigt a bougé de plus de 6 px ou est resté plus de 0,5 s, c'est un glisser (la carte se déplace) et on ne sélectionne rien. Le rayon de 24 px compense la taille d'un doigt.
+- **Les objets sont retrouvés par leur position écran** : `Celestial.mapProjection` convertit RA/Dec en pixels, et le plus proche du doigt gagne. Les objets sous l'horizon (hors du disque) ne sont pas sélectionnables.
+- **La carte remonte quand la fiche s'ouvre**, pour que tout le disque reste visible et touchable au-dessus. `getBoundingClientRect` tient compte du décalage, donc les clics restent justes.
+- **La hauteur affichée est interpolée sur la trajectoire**, point par point. Elle évolue avec l'horloge, même en accéléré, sans rappeler le serveur à chaque seconde.
+- **La fiche se recalcule** quand elle est dépassée : un lever ou un coucher est passé, ou plus de 6 h virtuelles d'écart.
+- **`textContent` et jamais `innerHTML`** pour la description. Elle vient de l'admin, et on ne l'interprète jamais comme du HTML (protection contre l'injection de code).
+
+### Test
+
+Recharge avec Ctrl+F5 et touche :
+- **Jupiter** ou une autre planète : la fiche s'ouvre, un halo blanc entoure l'objet, la carte remonte. La courbe a un point blanc à l'instant actuel.
+- **Polaris** : lever et coucher à « — », avec « Reste au-dessus de l'horizon pendant 24 h ».
+- **La Lune** : lever et coucher du jour.
+- **Un objet sous l'horizon** (Saturne, Vénus, selon l'heure) : il n'est pas sur la carte, donc pas touchable. Pour le voir, ouvre le panneau du temps et saute de quelques heures.
+- **Le ciel vide** ou la croix : ça ferme la fiche. Un glisser ne la ferme pas.
+- **Ouvrir le panneau du temps** ferme la fiche, et inversement.
+- **Passe en ×600** avec la fiche ouverte : la hauteur change, le point glisse sur la courbe.
+
+Ajoute une description à une planète dans l'admin et recharge : elle apparaît dans la fiche.
+
+### À savoir
+
+- **Seuls les objets de ta base sont sélectionnables.** Les 5 000 étoiles de la bibliothèque n'ont pas de fiche, car elles n'ont ni description ni identifiant dans ta base. Pour en avoir plus, il suffit d'ajouter des objets (ou d'importer du contenu en Partie 10).
+- **Le bouton « Pointer » est grisé.** Il s'activera en Partie 4, quand un appareil (simulé d'abord) sera connecté.
+- **Les heures sont celles de Paris**, comme sur le bouton de l'horloge.
+
+### La suite de la Partie 3
+
+La carte est maintenant fonctionnelle. Il reste la **3.5, le look Sky Guide** :
+- une **vue « fenêtre »** orientée comme quand tu regardes le ciel (horizon, sol, direction de visée) ;
+- une **boussole**, la **recherche** et le panneau des **calques**, qui rejoindront le bouton rond de l'heure.
+
+
+Ok : on fait le circuit complet (Partie 4 : appareil simulé + pointage), et je note la 3.5 (look Sky Guide) dans une feuille de route du Project pour qu'elle ne se perde pas. Je mets aussi en place des tests automatiques pour que les évolutions futures ne cassent pas l'existant. Je construis et teste tout, puis je te donne l'étape 4.1.
+
+Tests catch a deliberately broken contract and pass otherwise (30/30). Now the real end-to-end check: server + simulator + commands.
+
+## Partie 4.1 : l'appareil simulé et le pointage (côté serveur)
+
+On construit l'appli `appareil` : le serveur reçoit l'état du bras et lui renvoie la consigne, avec un **simulateur** qui joue le rôle de l'ESP32. Quand le matériel existera, seul l'émetteur changera, pas le protocole.
+
+J'ai testé tout le circuit : serveur Django, simulateur dans un second terminal, commandes de pointage par HTTP.
+- Le bras part du nord (azimut 0°), choisit le chemin le plus court vers Jupiter (264°, en passant par 319° puis 278°), et passe de « en déplacement » à « en suivi ».
+- Un objet sous l'horizon (Aldébaran) donne bien une élévation négative, et le bras s'y place.
+- L'appareil passe « hors ligne » 10 s après l'arrêt du simulateur.
+- Sans jeton CSRF, une commande est refusée (403).
+- Les 30 tests automatiques passent, et ils échouent bien quand je casse volontairement le contrat d'API.
+
+Les fichiers complets sont dans `etape-4-1-fichiers.zip` (sans les migrations). Dézippe-le à la racine du projet, à côté de `manage.py`.
+
+**Pour ne pas oublier la 3.5** : j'ai écrit une **feuille de route** dans le Project (`Feuille_de_route.md`), avec :
+- la 3.5 (look Sky Guide) marquée « À NE PAS OUBLIER », et la liste des morceaux de `carte.js` qu'elle touchera ;
+- le contrat d'API ;
+- les règles et une checklist pour ne rien casser.
+
+### Étape 1 : créer l'app
+
+```bash
+python manage.py startapp appareil
+```
+
+Dans `index_stellaire/settings.py`, ajoute-la à `INSTALLED_APPS` après `"ciel"` :
+
+```python
+    "ciel",
+    "appareil",
+```
+
+### Étape 2 : `appareil/models.py` (remplace le contenu)
+
+```python
+import secrets
+from datetime import timedelta
+
+from django.db import models
+from django.db.models import Q
+from django.utils import timezone
+
+from ciel.models import ObjetCeleste
+
+# Au-delà de ce délai sans nouvelles, l'appareil est considéré hors ligne
+DELAI_HORS_LIGNE = timedelta(seconds=10)
+
+
+def nouveau_jeton():
+    """Secret propre à l'appareil : l'ESP32 le présente à chaque requête."""
+    return secrets.token_urlsafe(32)
+
+
+class Appareil(models.Model):
+    class Mode(models.TextChoices):
+        REPOS = "repos", "Au repos"
+        DEPLACEMENT = "deplacement", "En déplacement"
+        SUIVI = "suivi", "En suivi"
+        ERREUR = "erreur", "Erreur"
+
+    nom = models.CharField(max_length=100, default="Index Stellaire")
+    jeton = models.CharField(max_length=64, unique=True, default=nouveau_jeton, editable=False)
+
+    # Dernier état rapporté par l'appareil lui-même
+    derniere_vue = models.DateTimeField(null=True, blank=True)
+    azimut = models.FloatField(null=True, blank=True)  # degrés, 0 = nord, sens horaire
+    elevation = models.FloatField(null=True, blank=True)  # degrés, négatif = sous l'horizon
+    batterie = models.PositiveSmallIntegerField(null=True, blank=True)  # pourcentage
+    mode = models.CharField(max_length=20, choices=Mode.choices, default=Mode.REPOS)
+
+    def __str__(self):
+        return self.nom
+
+    @property
+    def connecte(self):
+        return self.derniere_vue is not None and timezone.now() - self.derniere_vue < DELAI_HORS_LIGNE
+
+
+class Commande(models.Model):
+    """Ce que l'utilisateur demande au bras : pointer un objet, en continu."""
+
+    appareil = models.ForeignKey(Appareil, on_delete=models.CASCADE, related_name="commandes")
+    objet = models.ForeignKey(ObjetCeleste, on_delete=models.CASCADE, related_name="commandes")
+    cree_le = models.DateTimeField(auto_now_add=True)
+    active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["-cree_le"]
+        constraints = [
+            # Au plus une commande active par appareil
+            models.UniqueConstraint(
+                fields=["appareil"], condition=Q(active=True), name="une_commande_active_par_appareil"
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.appareil} → {self.objet}" + ("" if self.active else " (terminée)")
+```
+
+Les choix de conception :
+- **`Appareil` garde le dernier état rapporté** (position, batterie, mode) et la date de dernière vue. L'interface peut ainsi afficher l'état sans interroger le matériel.
+- **`jeton`** : un secret par appareil, généré automatiquement. `editable=False` le protège d'une modification accidentelle dans l'admin.
+- **`connecte` est calculé, pas stocké** : « vu il y a moins de 10 s ». Rien à maintenir à jour si l'appareil disparaît brutalement.
+- **`Commande` garde l'historique** : on désactive l'ancienne commande au lieu de la supprimer. La contrainte `UniqueConstraint` garantit **au niveau de la base** qu'il n'y a jamais deux commandes actives pour un même appareil, même en cas de bug.
+- **`mode`** est rapporté par l'appareil lui-même, et non déduit par le serveur.
+
+### Étape 3 : `appareil/services.py` (nouveau fichier)
+
+La logique du pointage, séparée de HTTP : on peut la tester seule.
+
+```python
+"""Logique métier du pointage, indépendante de HTTP (testable seule)."""
+
+import math
+
+from django.conf import settings
+from django.db import transaction
+
+from ciel.astro import altaz
+
+from .models import Appareil, Commande
+
+
+def lieu_observation():
+    """Où se trouve le bras. Pour l'instant : le lieu par défaut des réglages.
+    Plus tard (Partie 13), ce sera la position GPS rapportée par l'appareil."""
+    return settings.LIEU_PAR_DEFAUT
+
+
+def appareil_principal():
+    """Le projet est mono-appareil : on prend le premier. None s'il n'y en a pas."""
+    return Appareil.objects.order_by("id").first()
+
+
+def commande_active(appareil):
+    return appareil.commandes.filter(active=True).select_related("objet").first()
+
+
+@transaction.atomic
+def definir_cible(appareil, objet):
+    """Remplace la commande en cours par un pointage sur `objet`."""
+    appareil.commandes.filter(active=True).update(active=False)
+    return Commande.objects.create(appareil=appareil, objet=objet)
+
+
+def arreter(appareil):
+    appareil.commandes.filter(active=True).update(active=False)
+
+
+def cible_de(commande, instant=None):
+    """Où doit pointer le bras maintenant pour viser l'objet de la commande.
+
+    L'élévation peut être négative : le bras est une structure ouverte, il sait
+    pointer à travers la Terre (objets de l'autre côté du globe)."""
+    lieu = lieu_observation()
+    elevation, azimut = altaz(
+        commande.objet.identifiant_skyfield,
+        lieu["latitude"], lieu["longitude"], lieu["altitude_m"],
+        instant,
+    )
+    return {"azimut": round(azimut, 3), "elevation": round(elevation, 3), "visible": elevation > 0}
+
+
+def ecart_angulaire(a, b):
+    """Angle (degrés) entre deux directions (azimut, élévation), par la trigonométrie sphérique."""
+    az1, el1, az2, el2 = map(math.radians, (a[0], a[1], b[0], b[1]))
+    c = math.sin(el1) * math.sin(el2) + math.cos(el1) * math.cos(el2) * math.cos(az1 - az2)
+    return math.degrees(math.acos(max(-1.0, min(1.0, c))))
+```
+
+Points à noter :
+- **`lieu_observation()`** est le **point d'extension** pour la Partie 13. Aujourd'hui, c'est Paris. Quand le GPS du bras existera, on changera cette seule fonction.
+- **`@transaction.atomic`** : désactiver l'ancienne commande et créer la nouvelle se fait en bloc, sans état intermédiaire bancal.
+- **L'écart angulaire** passe par la trigonométrie sphérique. Une simple différence des azimuts serait fausse près du zénith, ou autour de 360°. Les tests couvrent ces cas.
+
+### Étape 4 : `appareil/views.py` (remplace le contenu)
+
+```python
+import json
+import logging
+import math
+
+from django.http import JsonResponse
+from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_GET, require_POST
+
+from ciel.astro import maintenant
+from ciel.models import ObjetCeleste
+
+from . import services
+from .models import Appareil
+
+logger = logging.getLogger(__name__)
+
+INTERVALLE_MS = 1000  # cadence de synchronisation demandée à l'appareil
+
+
+def _erreur(message, statut):
+    return JsonResponse({"erreur": message}, status=statut)
+
+
+# ===========================================================================
+# Côté appareil (ESP32) : authentifié par un jeton, pas de session ni de CSRF
+# ===========================================================================
+
+
+def _appareil_authentifie(request):
+    entete = request.headers.get("Authorization", "")
+    if not entete.startswith("Bearer "):
+        return None
+    return Appareil.objects.filter(jeton=entete[7:].strip()).first()
+
+
+def _nombre(corps, cle, mini, maxi):
+    """Nombre optionnel du corps JSON, borné. ValueError s'il est invalide."""
+    valeur = corps.get(cle)
+    if valeur is None:
+        return None
+    if isinstance(valeur, bool) or not isinstance(valeur, (int, float)):
+        raise ValueError(cle)
+    if not math.isfinite(valeur) or not mini <= valeur <= maxi:
+        raise ValueError(cle)
+    return float(valeur)
+
+
+def _commande_pour_appareil(appareil, instant):
+    commande = services.commande_active(appareil)
+    if commande is None:
+        return None
+    try:
+        cible = services.cible_de(commande, instant)
+    except (KeyError, ValueError):
+        logger.warning("Cible impossible à calculer pour %s", commande.objet)
+        return None
+    return {
+        "id": commande.id,
+        "mode": "pointer",
+        "objet": {"id": commande.objet.id, "nom": commande.objet.nom},
+        "cible": cible,
+    }
+
+
+@csrf_exempt
+@require_POST
+def synchroniser(request):
+    """L'appareil envoie son état et reçoit sa consigne, en un seul aller-retour."""
+    appareil = _appareil_authentifie(request)
+    if appareil is None:
+        return _erreur("Jeton d'appareil manquant ou invalide.", 401)
+
+    try:
+        corps = json.loads(request.body or b"{}")
+        if not isinstance(corps, dict):
+            raise ValueError("corps")
+        azimut = _nombre(corps, "azimut", -3600, 3600)  # la bague collectrice tourne sans fin
+        elevation = _nombre(corps, "elevation", -90, 90)
+        batterie = _nombre(corps, "batterie", 0, 100)
+        mode = corps.get("mode", appareil.mode)
+        if mode not in Appareil.Mode.values:
+            raise ValueError("mode")
+    except ValueError:
+        return _erreur("Corps JSON invalide (azimut, elevation, batterie, mode).", 400)
+
+    appareil.derniere_vue = timezone.now()
+    appareil.mode = mode
+    if azimut is not None:
+        appareil.azimut = azimut % 360
+    if elevation is not None:
+        appareil.elevation = elevation
+    if batterie is not None:
+        appareil.batterie = round(batterie)
+    appareil.save()
+
+    instant = maintenant()
+    return JsonResponse({
+        "heure_serveur": instant.utc_iso(),
+        "intervalle_ms": INTERVALLE_MS,
+        "commande": _commande_pour_appareil(appareil, instant),
+    })
+
+
+# ===========================================================================
+# Côté interface web : état, choix d'une cible, arrêt
+# ===========================================================================
+
+
+def _etat(appareil):
+    """Ce que l'interface affiche : l'appareil, la commande en cours, l'écart."""
+    if appareil is None:
+        return {"appareil": None, "commande": None, "ecart_deg": None}
+
+    commande = services.commande_active(appareil)
+    resume_commande = None
+    ecart = None
+    if commande is not None:
+        try:
+            cible = services.cible_de(commande)
+        except (KeyError, ValueError):
+            cible = None
+        resume_commande = {
+            "objet": {"id": commande.objet.id, "nom": commande.objet.nom},
+            "depuis": commande.cree_le.isoformat(),
+            "cible": cible,
+        }
+        if cible and appareil.azimut is not None and appareil.elevation is not None:
+            ecart = round(
+                services.ecart_angulaire(
+                    (appareil.azimut, appareil.elevation), (cible["azimut"], cible["elevation"])
+                ),
+                2,
+            )
+
+    return {
+        "appareil": {
+            "nom": appareil.nom,
+            "connecte": appareil.connecte,
+            "derniere_vue": appareil.derniere_vue.isoformat() if appareil.derniere_vue else None,
+            "azimut": appareil.azimut,
+            "elevation": appareil.elevation,
+            "batterie": appareil.batterie,
+            "mode": appareil.mode,
+        },
+        "commande": resume_commande,
+        "ecart_deg": ecart,
+    }
+
+
+@require_GET
+def etat_pointage(request):
+    return JsonResponse(_etat(services.appareil_principal()))
+
+
+@require_POST
+def definir_commande(request):
+    appareil = services.appareil_principal()
+    if appareil is None:
+        return _erreur("Aucun appareil enregistré.", 404)
+    try:
+        corps = json.loads(request.body or b"{}")
+        objet_id = corps["objet_id"]
+        if isinstance(objet_id, bool) or not isinstance(objet_id, int):
+            raise ValueError("objet_id")
+    except (ValueError, KeyError, TypeError):
+        return _erreur("Corps JSON attendu : {\"objet_id\": <entier>}.", 400)
+
+    objet = ObjetCeleste.objects.filter(pk=objet_id).exclude(identifiant_skyfield="").first()
+    if objet is None:
+        return _erreur("Objet introuvable ou sans identifiant Skyfield.", 404)
+
+    services.definir_cible(appareil, objet)
+    return JsonResponse(_etat(appareil))
+
+
+@require_POST
+def arreter_pointage(request):
+    appareil = services.appareil_principal()
+    if appareil is None:
+        return _erreur("Aucun appareil enregistré.", 404)
+    services.arreter(appareil)
+    return JsonResponse(_etat(appareil))
+```
+
+Les choix de conception :
+- **Un seul aller-retour par seconde** : l'appareil envoie son état *et* reçoit sa consigne dans la même requête `POST /api/appareil/sync/`. Pour l'ESP32, c'est la boucle la plus simple possible, et elle marche en HTTP ordinaire sur le Wi-Fi.
+- **Le serveur calcule la cible** (azimut et élévation avec Skyfield), l'appareil l'exécute. L'ESP32 et le STM32 n'ont jamais besoin de connaître une éphéméride.
+- **Deux mécanismes d'accès séparés.** L'appareil s'authentifie par **jeton** (`Authorization: Bearer ...`), sans cookie ni CSRF (`@csrf_exempt` ne s'applique qu'à lui). L'interface web, elle, est **protégée par CSRF**. En Partie 5, le code de session s'ajoutera du côté web sans toucher à l'appareil.
+- **Validation stricte des entrées** : nombres finis, bornés (`nan`, `true` ou `"haut"` sont refusés avec une 400). Un firmware qui bugge ne peut pas corrompre la base.
+- **Élévation négative acceptée** : c'est le cas « viser l'autre côté de la Terre » de ton cahier des charges.
+- **L'azimut est ramené dans [0, 360[** : la bague collectrice permet de tourner sans fin, donc l'appareil peut rapporter 370°.
+
+### Étape 5 : les URL
+
+**`appareil/urls.py`** (nouveau fichier) :
+
+```python
+from django.urls import path
+
+from . import views
+
+app_name = "appareil"
+
+urlpatterns = [
+    # Côté appareil (jeton)
+    path("appareil/sync/", views.synchroniser, name="sync"),
+    # Côté interface web
+    path("pointage/", views.etat_pointage, name="etat"),
+    path("pointage/commande/", views.definir_commande, name="commande"),
+    path("pointage/arret/", views.arreter_pointage, name="arret"),
+]
+```
+
+**`index_stellaire/urls.py`** : ajoute la ligne `include("appareil.urls")` après celle de `ciel` :
+
+```python
+    path("api/ciel/", include("ciel.urls")),
+    path("api/", include("appareil.urls")),
+    path("", vues_ciel.carte, name="carte"),
+```
+
+### Étape 6 : `appareil/admin.py` (remplace le contenu)
+
+```python
+from django.contrib import admin
+
+from .models import Appareil, Commande
+
+
+@admin.register(Appareil)
+class AppareilAdmin(admin.ModelAdmin):
+    list_display = ("nom", "mode", "batterie", "derniere_vue")
+    # Le jeton se lit ici une fois pour le copier dans l'appareil ; il ne se modifie pas
+    readonly_fields = ("jeton", "derniere_vue", "azimut", "elevation", "batterie", "mode")
+
+
+@admin.register(Commande)
+class CommandeAdmin(admin.ModelAdmin):
+    list_display = ("appareil", "objet", "cree_le", "active")
+    list_filter = ("active",)
+```
+
+### Étape 7 : créer les tables
+
+```bash
+python manage.py makemigrations appareil
+python manage.py migrate
+```
+
+### Étape 8 : `ciel/views.py`, le cookie CSRF
+
+Le JavaScript aura besoin du cookie CSRF pour faire des requêtes POST. Ajoute l'import en haut, avec les autres :
+
+```python
+from django.views.decorators.csrf import ensure_csrf_cookie
+```
+
+Puis le décorateur sur la vue `carte` :
+
+```python
+@ensure_csrf_cookie  # dépose le cookie CSRF dont le JavaScript aura besoin pour ses requêtes POST
+def carte(request):
+```
+
+### Étape 9 : le simulateur
+
+Crée les dossiers `appareil/management/commands/`, avec un fichier vide `__init__.py` dans `management/` et dans `commands/`. Les dossiers et les deux fichiers vides sont dans le zip. Puis `appareil/management/commands/simuler_appareil.py` :
+
+```python
+"""Simule le bras : mêmes échanges HTTP que le futur firmware de l'ESP32.
+
+    python manage.py simuler_appareil
+
+Le simulateur ne touche pas à la base de données du serveur pour pointer : il
+parle à l'API (POST /api/appareil/sync/) comme le ferait le vrai appareil. Ainsi,
+quand le matériel existera, seul l'émetteur changera, pas le protocole.
+"""
+
+import json
+import time
+import urllib.error
+import urllib.request
+
+from django.core.management.base import BaseCommand
+
+from appareil.models import Appareil
+
+
+def ecart_azimut(depuis, vers):
+    """Plus court chemin signé (-180..180] : la bague collectrice permet de tourner sans fin."""
+    return (vers - depuis + 540) % 360 - 180
+
+
+class Command(BaseCommand):
+    help = "Simule l'appareil : envoie son état au serveur et suit la consigne reçue."
+
+    def add_arguments(self, parser):
+        parser.add_argument("--url", default="http://127.0.0.1:8000", help="adresse du serveur")
+        parser.add_argument("--jeton", help="jeton de l'appareil (par défaut : celui du premier appareil en base)")
+        parser.add_argument("--vitesse", type=float, default=20.0, help="vitesse maxi des axes, en °/s")
+        parser.add_argument("--intervalle", type=float, default=1.0, help="secondes entre deux synchronisations")
+
+    def handle(self, *args, **options):
+        jeton = options["jeton"]
+        if not jeton:
+            appareil = Appareil.objects.order_by("id").first() or Appareil.objects.create()
+            jeton = appareil.jeton
+            self.stdout.write(f"Appareil « {appareil.nom} » (jeton lu en base).")
+
+        url = options["url"].rstrip("/") + "/api/appareil/sync/"
+        vitesse = options["vitesse"]
+        intervalle = options["intervalle"]
+
+        # État physique simulé : le bras démarre vers le nord, à l'horizontale
+        azimut, elevation, batterie = 0.0, 0.0, 100.0
+        cible = None
+        mode = "repos"
+        prochaine_sync = 0.0
+        dernier = time.monotonic()
+
+        self.stdout.write(f"Simulation vers {url} — vitesse maxi {vitesse}°/s. Ctrl+C pour arrêter.")
+        try:
+            while True:
+                maintenant = time.monotonic()
+                dt = maintenant - dernier
+                dernier = maintenant
+
+                # --- Physique : les deux axes rejoignent la cible à vitesse limitée ----
+                if cible is not None:
+                    pas = vitesse * dt
+                    d_az = ecart_azimut(azimut, cible["azimut"])
+                    d_el = cible["elevation"] - elevation
+                    azimut = (azimut + max(-pas, min(pas, d_az))) % 360
+                    elevation = max(-90.0, min(90.0, elevation + max(-pas, min(pas, d_el))))
+                    arrive = abs(d_az) < 0.05 and abs(d_el) < 0.05
+                    mode = "suivi" if arrive else "deplacement"
+                else:
+                    mode = "repos"
+                batterie = max(0.0, batterie - 0.01 * dt)
+
+                # --- Réseau : une synchronisation par intervalle -----------------------
+                if maintenant >= prochaine_sync:
+                    prochaine_sync = maintenant + intervalle
+                    corps = {
+                        "azimut": round(azimut, 3), "elevation": round(elevation, 3),
+                        "batterie": round(batterie), "mode": mode,
+                    }
+                    try:
+                        reponse = self.synchroniser(url, jeton, corps)
+                    except (urllib.error.URLError, TimeoutError, ValueError) as erreur:
+                        self.stdout.write(self.style.WARNING(f"Serveur injoignable ({erreur}), on réessaie…"))
+                    else:
+                        commande = reponse.get("commande")
+                        cible = commande["cible"] if commande else None
+                        intervalle = reponse.get("intervalle_ms", intervalle * 1000) / 1000
+                        visee = (
+                            f"→ {commande['objet']['nom']} az={cible['azimut']:.1f}° el={cible['elevation']:.1f}°"
+                            if commande else "(aucune consigne)"
+                        )
+                        self.stdout.write(f"[{mode:11}] az={azimut:6.1f}° el={elevation:6.1f}° bat={batterie:.0f}% {visee}")
+
+                time.sleep(0.05)
+        except KeyboardInterrupt:
+            self.stdout.write("\nSimulation arrêtée.")
+
+    @staticmethod
+    def synchroniser(url, jeton, corps):
+        requete = urllib.request.Request(
+            url,
+            data=json.dumps(corps).encode(),
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {jeton}"},
+            method="POST",
+        )
+        with urllib.request.urlopen(requete, timeout=5) as reponse:
+            return json.load(reponse)
+```
+
+Pourquoi un simulateur « réseau » plutôt qu'un simple bouton dans l'interface :
+- **Il parle HTTP comme l'ESP32** : si le circuit marche avec lui, il marchera avec le vrai appareil, avec seulement l'émetteur à remplacer.
+- **Il simule un vrai bras** : vitesse limitée (20°/s par défaut, réglable), plus court chemin sur l'azimut, et l'élévation limitée à ±90°.
+- **Il ne plante pas si le serveur tombe** : il affiche un avertissement et réessaie, comme le fera le firmware.
+
+### Étape 10 : les tests automatiques
+
+Les deux fichiers de tests sont dans le zip : `appareil/tests.py` (26 tests) et `ciel/tests.py` (10 tests, qui verrouillent l'API du ciel de la Partie 3). Ils sont longs, je ne les recopie pas ici. Ils vérifient :
+
+| Domaine | Ce qui est vérifié |
+|---|---|
+| Écart angulaire | cas connus, zénith, passage par 360° |
+| Modèles | jeton unique, `connecte`, **une seule commande active (au niveau base)**, historique conservé |
+| API appareil | jeton obligatoire (401), valeurs invalides refusées (400), état enregistré, azimut ramené dans [0, 360[, **cible = celle de Skyfield**, élévation négative permise |
+| API interface | sans appareil, commander, remplacer, arrêter, objets invalides, méthodes interdites (405) |
+| API ciel | **contrat exact des clés JSON**, `?instant=` valide ou invalide, bornes `duree` et `pas`, 404 |
+
+Lance-les :
+
+```bash
+python manage.py test
+```
+
+Tu dois voir `OK`. Les tests du ciel utilisent les planètes et la Lune, qui n'ont besoin que de l'éphéméride (`de421.bsp`, déjà dans ton `donnees_skyfield/`).
+
+Je n'ai pas pu tester contre **ton** `astro.py` ni ton `detail_objet` (je ne les vois pas) : j'ai refait leurs fonctions d'après leurs signatures. Si un test échoue chez toi, envoie-moi le message. Ce sera soit un test trop strict, soit un vrai écart à corriger.
+
+À partir de maintenant, **lance `python manage.py test` avant chaque commit**. C'est le garde-fou principal contre « plus tard ça casse tout » : si l'étape 3.5 ou un changement de projection abîme les données, un test le dit tout de suite.
+
+### Test du circuit
+
+Ouvre **deux terminaux** (dans VS Code : « Terminal → Nouveau terminal », ou deux fenêtres Git Bash).
+
+**Terminal 1** : le serveur.
+
+```bash
 python manage.py runserver
 ```
 
-Va sur `http://127.0.0.1:8000/admin/`, connecte-toi, et crée quelques
-`ObjetCeleste` (par exemple "Aldébaran", étoile, et "Hyades", amas), puis une
-`Constellation` ("Taureau") à laquelle tu rattaches les étoiles créées.
+**Terminal 2** : l'appareil simulé.
 
-**Ce qui doit marcher** : les objets apparaissent avec leur nom dans les
-listes de l'admin, la catégorie est un menu déroulant, et le champ `etoiles`
-d'une constellation ne propose que des étoiles.
+```bash
+python manage.py simuler_appareil
+```
 
-**Contenu des fiches** : les descriptions et images que tu saisis ici doivent
-venir de sources vérifiées et d'images libres de droits (décision du cahier
-des charges). Ce sera formalisé en Partie 10.
+Il affiche « Appareil « Index Stellaire » (jeton lu en base) » (il le crée au premier lancement), puis une ligne par seconde :
 
----
+```
+[repos      ] az=   0.0° el=   0.0° bat=100% (aucune consigne)
+```
 
-### Statut
+Dans l'admin (`/admin/`), **Appareils** liste ton appareil, avec son jeton visible : c'est celui que le vrai ESP32 utilisera plus tard.
 
-Parties 0 et 1 posées. Prochaine étape : **Partie 2 - Calcul astro avec
-Skyfield** (positions d'un objet à un instant donné), ou l'ordre du cahier des
-charges si tu me le transmets.
+Ouvre `http://127.0.0.1:8000/api/pointage/` : tu vois `"connecte": true` et sa position. Il n'y a pas encore de bouton dans l'interface (c'est la 4.2). Pour donner une cible, ouvre la page `http://127.0.0.1:8000/`, la console du navigateur (F12), et colle ceci (remplace `1` par l'id d'une de tes planètes) :
+
+```javascript
+const csrf = document.cookie.split("; ").find(c => c.startsWith("csrftoken=")).split("=")[1];
+fetch("/api/pointage/commande/", {
+  method: "POST",
+  headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
+  body: JSON.stringify({ objet_id: 1 }),
+}).then(r => r.json()).then(console.log);
+```
+
+**Ce que tu dois voir dans le terminal 2** : l'appareil passe de `repos` à `deplacement` (les angles changent chaque seconde, par le chemin le plus court), puis à `suivi` quand il est arrivé, avec la ligne `→ Jupiter az=… el=…`. En rechargeant `/api/pointage/`, `ecart_deg` descend vers 0.
+
+Pour arrêter : dans la console, remplace l'URL par `/api/pointage/arret/` et retire le `body`. Pour tester **l'autre côté de la Terre**, vise un objet sous l'horizon (Saturne ou Vénus, selon l'heure) : l'élévation sera négative et le bras la rejoindra quand même. Arrête le simulateur (Ctrl+C) et attends 10 s : `connecte` passe à `false`.
+
+### À savoir
+
+- **Latence** : l'appareil interroge le serveur chaque seconde. Pour un astre, c'est largement suffisant. Pour l'**ISS** (4° par minute) et l'**autonomie de 48 h** sans application, on enverra plus tard à l'appareil des trajectoires à l'avance (Partie 6), pour qu'il continue seul si le Wi-Fi coupe.
+- **Le lieu** reste Paris pour l'instant (`lieu_observation()`). Il deviendra la position GPS du bras en Partie 13.
+- **Un seul appareil** : `appareil_principal()` prend le premier. Suffisant pour ton projet, et facile à étendre si besoin.
+- **Rien n'est protégé côté web pour l'instant.** N'importe quel visiteur du serveur peut commander le bras. C'est normal à ce stade (le serveur est local, et la Partie 5 ajoute le code de session). N'expose pas encore ce serveur sur Internet.
+
+### La suite
+
+La **4.2** relie le circuit à l'interface :
+- le bouton « Pointer » de la fiche s'active et envoie la commande ;
+- un panneau d'état de l'appareil (connecté, batterie, mode, écart) ;
+- un **réticule sur la carte** qui montre où le bras pointe réellement, pour voir l'appareil rejoindre sa cible en direct.
+
+Dis-moi quand le circuit tourne chez toi (et si un test échoue).
+
+
+
+Ton `/api/pointage/` répond avec `connecte: false` parce que le simulateur est arrêté, mais `batterie: 99` et `derniere_vue` prouvent qu'il a déjà parlé au serveur une fois. Le circuit marche donc. Je passe à la 4.2 : bouton « Pointer », état de l'appareil et réticule sur la carte.
+
+4.2 en cours : j'ajoute d'abord côté serveur la position du bras en coordonnées du ciel (pour le réticule), puis le bouton Pointer, la pastille d'état et le réticule dans le JavaScript. Ensuite je teste le tout dans un vrai navigateur avec le simulateur.
+
+4.2 testée dans un vrai navigateur (téléphone et grand écran) avec le simulateur : tout marche, 31 tests OK. Je mets à jour la feuille de route dans le Project, puis je t'envoie les fichiers et les explications.
+
+## Partie 4.2 : bouton « Pointer », état de l'appareil et réticule
+
+Dans la fiche, « Pointer » envoie la commande au serveur, et une pastille en haut à gauche affiche l'état du bras. Sur la carte, un **réticule vert** montre où le bras pointe vraiment et glisse jusqu'à sa cible.
+
+Je l'ai testé dans un vrai navigateur (téléphone et grand écran) avec le simulateur :
+- Après « Pointer » sur Polaris, le réticule glisse en 2 secondes, passe de « En déplacement » à « En suivi », et arrive à moins d'un pixel de l'étoile.
+- « Arrêter le pointage » le laisse sur place.
+- Couper le simulateur passe l'appareil « hors ligne » et fait disparaître le réticule.
+- Un objet sous l'horizon (la Lune) est accepté, avec la mention « sous l'horizon ».
+- Les 31 tests passent, et aucune requête ne part vers un site externe.
+
+Je n'ai pas pu les passer contre ton `ciel/astro.py`, que je ne vois pas : le zip ne le contient donc pas, et tu ajoutes la fonction à la main (étape 1).
+
+Le zip `etape-4-2-fichiers.zip` contient 7 fichiers, à dézipper à la racine du projet en remplaçant les anciens :
+- `appareil/services.py`
+- `appareil/views.py`
+- `appareil/tests.py`
+- `ciel/tests.py`
+- `ciel/templates/ciel/carte.html`
+- `ciel/static/ciel/carte.css`
+- `ciel/static/ciel/carte.js`
+
+Aucune migration n'est nécessaire. Les détails du code sont ci-dessous.
+
+### Étape 1 : `ciel/astro.py`, la conversion inverse
+
+Pour dessiner le réticule, il faut savoir où pointe le bras dans le ciel. Le bras rapporte un azimut et une élévation, et la carte travaille en ascension droite et déclinaison. Ajoute cette fonction dans `ciel/astro.py`, à côté de `altaz` :
+
+```python
+def radec_depuis_altaz(azimut, elevation, latitude, longitude, altitude_m=0, instant=None):
+    """Direction (azimut, élévation) vue du lieu -> (ascension droite, déclinaison) en degrés.
+
+    C'est l'inverse de `altaz` : sert à placer sur la carte l'endroit où pointe le bras."""
+    t = instant if instant is not None else _timescale().now()
+    lieu = _ephemerides()["earth"] + wgs84.latlon(latitude, longitude, elevation_m=altitude_m)
+    ra, dec, _ = lieu.at(t).from_altaz(alt_degrees=elevation, az_degrees=azimut).radec()
+    return float(ra._degrees), float(dec.degrees)
+```
+
+Pourquoi côté serveur : une conversion en JavaScript demanderait le temps sidéral et la précession (environ 0,4° en 26 ans). Skyfield le fait déjà, et on peut le tester. Un test vérifie qu'un bras pointé sur Jupiter est donné aux coordonnées de Jupiter à 0,05° près.
+
+### Étape 2 : `appareil/services.py`
+
+Change l'import en haut :
+
+```python
+from ciel.astro import altaz, radec_depuis_altaz
+```
+
+Ajoute cette fonction avant `ecart_angulaire` :
+
+```python
+def position_ciel_du_bras(appareil):
+    """Où pointe le bras, en coordonnées du ciel (ra, dec) : de quoi le dessiner sur la carte.
+    None tant que l'appareil n'a jamais rapporté sa position."""
+    if appareil.azimut is None or appareil.elevation is None:
+        return None
+    lieu = lieu_observation()
+    ra, dec = radec_depuis_altaz(
+        appareil.azimut, appareil.elevation, lieu["latitude"], lieu["longitude"], lieu["altitude_m"]
+    )
+    return {"ra": round(ra, 3), "dec": round(dec, 3)}
+```
+
+### Étape 3 : `appareil/views.py`
+
+Dans `_etat`, juste avant le `return {` final, calcule la position :
+
+```python
+    ciel = services.position_ciel_du_bras(appareil)
+    return {
+        "appareil": {
+```
+
+Puis ajoute deux champs à la fin du dictionnaire `appareil` :
+
+```python
+            "mode": appareil.mode,
+            "ra": ciel["ra"] if ciel else None,
+            "dec": ciel["dec"] if ciel else None,
+        },
+```
+
+Le contrat d'API **grandit** (deux champs ajoutés) sans rien renommer, conformément à la règle de la feuille de route. Le test de contrat est mis à jour dans le même geste.
+
+### Étape 4 : `carte.html`
+
+- Trois nouveaux attributs sur `#carte`. Le JavaScript lit ainsi les adresses dans la page, sans les écrire en dur :
+
+```html
+       data-url-pointage="{% url 'appareil:etat' %}"
+       data-url-commande="{% url 'appareil:commande' %}"
+       data-url-arret="{% url 'appareil:arret' %}"></div>
+```
+
+- La pastille d'état, juste avant le panneau du temps :
+
+```html
+  <div id="etat-appareil" class="verre" role="status">
+    <span id="etat-point"></span>
+    <div>
+      <strong id="etat-titre">Appareil</strong>
+      <span id="etat-detail" hidden></span>
+    </div>
+  </div>
+```
+
+### Étape 5 : `carte.js`, la nouvelle section 6
+
+Le fichier complet est dans le zip. La nouvelle section « L'appareil » est insérée entre la fiche et la carte (la carte devient la 7, le redimensionnement la 8). Voici comment elle marche.
+
+- **Lecture de l'état** : toutes les secondes, `chargerPointage()` appelle `/api/pointage/`. Elle ne tourne pas si l'onglet est caché, et un appel à la fois. Si le serveur ne répond plus, la pastille passe à « Serveur injoignable ».
+- **Pastille** :
+  - point vert si l'appareil est connecté, gris s'il est hors ligne, rouge en mode erreur ;
+  - ligne de détail du type « En suivi · Polaris · écart 0° · 100 % ».
+- **Bouton de la fiche**, selon la situation :
+
+| Situation | Bouton |
+|---|---|
+| Aucun appareil enregistré | « Pointer », désactivé |
+| Appareil hors ligne | « Pointer » (la commande l'attend) |
+| Le bras suit cet objet | « Arrêter le pointage » (rouge) |
+| Le bras suit un autre objet | « Pointer celui-ci à la place » |
+
+  La note dessous précise l'état, avertit pour un objet sous l'horizon (« le bras pointera à travers la Terre »), et indique que le bras suit le ciel réel si la carte est décalée dans le temps.
+- **Envoi (POST)** : le jeton CSRF est lu dans le cookie `csrftoken`, que la page dépose grâce au `@ensure_csrf_cookie` de la 4.1, puis envoyé dans l'en-tête `X-CSRFToken`. Les erreurs s'affichent 5 s dans la note.
+- **Réticule** : un cercle avec quatre repères, comme un viseur, et un trait pointillé vers la cible. L'objet visé reçoit aussi un anneau vert.
+- **Lissage** : l'appareil rapporte sa position chaque seconde. Sans lissage, le réticule avancerait par bonds de 20°. La position affichée glisse donc vers la dernière reçue, à 10 images par seconde, **seulement pendant qu'il bouge**, pour ne pas redessiner la carte pour rien.
+- **Direct seulement** : si tu décales l'heure (pause, ×600…), le réticule disparaît, car le bras suit le ciel réel et pas l'heure affichée.
+
+Choix de conception : `Celestial.clip` et `Celestial.mapProjection` fonctionnent avec n'importe quelle projection. Le réticule survivra donc à la refonte de la 3.5.
+
+### Étape 6 : `carte.css`
+
+Le fichier complet est dans le zip. Il ajoute le style de la pastille et du bouton « Arrêter ». La pastille est dans le **coin haut gauche** : le disque du ciel est rond, donc les coins sont libres. Centrée en haut, elle cachait le sommet du disque, la Polaire comprise.
+
+Sur téléphone en portrait, la fiche ouverte remonte le disque sous la pastille. Elle est alors masquée, et l'état (mode, batterie) est rappelé dans la note sous le bouton.
+
+### Étape 7 : les tests
+
+Mets à jour `appareil/tests.py` et `ciel/tests.py` depuis le zip, puis lance :
+
+```bash
+python manage.py test
+```
+
+Tu dois obtenir `Ran 31 tests … OK`. Le nouveau test vérifie que le réticule tombe sur Jupiter quand le bras vise Jupiter. Le test de la page vérifie que les trois adresses d'API sont bien dans le HTML.
+
+### Test chez toi
+
+Terminal 1 : `python manage.py runserver`. Terminal 2 : `python manage.py simuler_appareil`. Puis ouvre `http://127.0.0.1:8000/` :
+
+1. La pastille indique « Appareil connecté · Au repos ».
+2. Touche une planète ou une étoile **au-dessus de l'horizon**, puis « Pointer ». Le réticule vert glisse vers l'objet, la pastille passe à « En déplacement » puis « En suivi », avec l'écart qui tombe à 0°.
+3. Touche « Arrêter le pointage » : le réticule reste sur place, le bras se met « au repos ».
+4. Coupe le simulateur (Ctrl+C) : après environ 10 s, « Appareil hors ligne » et le réticule disparaît.
+5. Ouvre le panneau d'heure et passe en ×600 : le réticule disparaît (voulu), et revient avec « Revenir à maintenant ».
+
+Si l'appareil que tu as vu dans ta capture n'est jamais passé « connecté » depuis la semaine dernière, c'est normal : le simulateur ne tournait pas.
+
+### À savoir
+
+- **Grand écran** : la fiche, centrée en bas, recouvre le centre de la carte, donc l'objet visé et le réticule. J'ai noté dans la feuille de route que la 3.5 en fera un panneau latéral.
+- **Objets sous l'horizon** : le réticule n'est pas dessiné (hors du disque). La pastille le dit : « sous l'horizon ».
+- **Toujours pas de protection d'accès** : n'importe qui sur ton réseau peut commander le bras. Le code de session arrive en Partie 5, et le serveur reste hors Internet d'ici là.
+
+La **feuille de route du Project** est à jour : 4.1 et 4.2 faites, la 3.5 marquée comme prochaine étape visuelle, le contrat d'API avec `ra`/`dec`, la checklist avec le test du réticule, et le journal de séance.
+
+**La suite** : dis-moi quand ça tourne chez toi. Ensuite, on peut faire la **3.5** (le look Sky Guide : vue fenêtre, boussole, panneau latéral, fiche adaptée aux grands écrans), ou la **Partie 5** (code de session, pour sécuriser avant d'aller plus loin). Je te conseille la 3.5 d'abord, pour finir ce qui se voit avant de passer à la sécurité.
+
+Je regarde la capture : la carte est bien redessinée dans la zone, le réticule vert est sur Mercure et la fiche reste lisible. Je passe à la 3.5.2, la vue « fenêtre ». Je commence par vérifier ce que la bibliothèque sait faire : projection stéréographique, rotation de la vue, dessin de l'horizon, hauteur du canvas.
+
+La bibliothèque dessine l'horizon comme un cercle autour du nadir, rempli : le sol vient donc gratuitement avec `horizon.fill`. Je teste maintenant la rotation de la vue et le format du canvas, directement dans le navigateur.
+
+Deux résultats utiles : la rotation fonctionne (Jupiter tombe au centre, à 392 px sur 784), et le canvas est toujours carré. Pour une vue « fenêtre » plein écran, je fais donc un canvas carré assez grand pour couvrir l'écran dans toutes les directions, centré dans la zone.
+
+Je vérifie d'abord que le paramétrage de la vue (azimut et hauteur) donne la bonne direction, avant de toucher au reste. Le test : prendre Jupiter, ses azimut et hauteur depuis l'API, et vérifier qu'elle tombe au centre.
+
+La conversion est juste à 0,4° près, et l'écart est le même pour tous les objets : c'est la précession depuis J2000 (environ 0,36° en RA sur 26 ans). Les objets sont dessinés en coordonnées J2000, comme avant, donc la fenêtre et les objets restent cohérents entre eux. Je le note dans la feuille de route et je passe à la modification de `carte.js`.
+
+Le code passe la vérification de syntaxe. Il reste à ajuster le CSS (rognage du conteneur, pas de défilement sur le canevas) et à tester dans le navigateur.
+
+Le conteneur mesure 1186 px de haut au lieu de 800 : la bibliothèque remet la hauteur du conteneur à la taille du canevas lors du dessin. Je fixe la taille du conteneur après chaque dessin, au même endroit que le canevas.
+
+La vue « fenêtre » fonctionne : le glisser déplace le ciel, la fiche ne s'ouvre pas par erreur, et l'horizon (S, O, N, E) est au bon endroit, avec le sud en bas du centre. Il manque le sol : les étoiles sous l'horizon restent visibles. Je regarde si la bibliothèque remplit l'horizon, en le colorant en rouge pour le voir.
+
+Le rouge n'apparaît pas : la bibliothèque dessine l'horizon dans un calque SVG placé sous le canevas, donc masqué. Je dessine donc le sol moi-même, dans le canevas. L'horizon est un cercle sur la sphère, et la projection stéréographique le conserve en cercle à l'écran : je calcule son contour (un point tous les 2°), puis je remplis le côté où se trouve le nadir (le sous-sol).
+
+Le sol apparaît : on a maintenant une vraie vue « par la fenêtre », avec le ciel au-dessus, l'horizon courbe et le sol en dessous. Les étoiles sous l'horizon se devinent encore à travers le sol, donc je rends le remplissage opaque. Ensuite je relance tous les tests.
+
+La plupart des tests passent. Deux points à regarder :
+- `fiche.js` : Polaris n'est pas à l'écran dans la vue par défaut (au nord, sous le centre), et la Lune est hors de la zone visible. C'est attendu : le test suppose une vue centrée sur le zénith.
+- `pointer.js` ne sort rien : le test prend l'objet le plus haut dans le ciel, qui n'est pas forcément à l'écran. Je le corrige pour choisir un objet visible à l'écran.
+
+Le pointage fonctionne (écart à 0°, bon mode, commande arrêtée). Mais le réticule est à (981, 641) alors qu'Arcturus est à (219, 277) : le test signale 586 px d'écart. C'est donc un vrai problème d'affichage, pas du test. Je compare les coordonnées renvoyées par le serveur à celles d'Arcturus.
+
+The server isn't running (the earlier kill took it down). I restart it cleanly.
+
+Le réticule et Arcturus tombent au même endroit : 0,01 px d'écart, donc le bras vise bien. L'écart de 586 px venait de ma mesure du vert (elle moyennait aussi d'autres pixels verts), pas de l'affichage. Je regarde maintenant le rendu sur téléphone avec une fiche ouverte.
+
+Sur téléphone, le sol et l'horizon sont bien là, et la fiche cache le bas comme prévu. Par contre le champ de vision est trop serré : comme le canevas est devenu plus grand, la bibliothèque calcule une échelle plus grande. Je cherche comment régler l'échelle.
+
+La bibliothèque calcule l'échelle à partir de la largeur du canevas. Le paramètre `zoomlevel` multiplie cette échelle, donc je peux la rétablir à la valeur d'avant. Je règle `zoomlevel` pour que l'échelle reste celle du disque précédent, puis je vérifie en mesurant des pixels par degré.
+
+Les pixels par degré : 1,59 sur téléphone (environ 94° de champ en largeur), 2,03 sur bureau. Je regarde le rendu avant de juger l'échelle.
+
+Le bureau ressemble à une vraie vue « fenêtre » : réticule sur Arcturus, horizon avec S et O, sol en dessous. Le téléphone semble trop bas pour un centre en hauteur 25°, donc je vérifie numériquement où tombent la direction de visée et l'horizon, sur les deux tailles.
+
+La géométrie est correcte : la direction de visée tombe au centre du canevas, et l'horizon, les points cardinaux (S, O, E) et le réticule sont cohérents sur les deux tailles. Le téléphone paraît vide car son échelle est deux fois plus large que celle du bureau : le champ de vision suit la taille du disque, comme avant. Pour une vue « fenêtre », je fixe la même échelle angulaire partout (3,5 pixels par degré).
+
+L'échelle est maintenant la même sur les deux tailles : le point S est à 85 px sous le centre dans les deux cas. Je refais les captures et l'ensemble des tests.
+
+Les tests Django passent et la fiche, le glisser, le panneau du temps et le redimensionnement sont corrects. Le test de pointage est pollué : un simulateur lancé plus tôt tourne encore, en plus de celui du test. Je l'arrête, et je remplace la mesure du réticule par le calcul des coordonnées (plus fiable que la détection de couleur).
+
+Le réticule est à 0,01 px de la cible. Je vérifie une dernière fois le rendu final sur téléphone et sur bureau.
+
+Le bureau est proche du résultat voulu : réticule sur Arcturus, horizon avec S et O, sol en dessous. Sur téléphone, la fiche couvre le bas, et on fait glisser le ciel pour amener un objet au-dessus. Je prépare le zip et je mets à jour la feuille de route.
+
+## Étape 3.5.2 : vue « fenêtre »
+
+Le ciel se regarde maintenant comme par une fenêtre : le sud au centre, l'horizon courbe, le sol en dessous, et les points N, E, S, O sur l'horizon. Glisser le doigt ou la souris fait tourner la vue, et un simple toucher sélectionne toujours un objet.
+
+Tout est testé dans le navigateur, sur bureau et téléphone, avec le simulateur :
+- le réticule du bras arrive sur Arcturus à 0,01 px près ;
+- la fiche, le glisser, le panneau du temps et le redimensionnement fonctionnent comme avant ;
+- les 31 tests Django passent ;
+- les objets sous l'horizon ne s'affichent plus (ils sont cachés par le sol).
+
+### Installation
+
+Remplace `ciel/static/ciel/carte.js` et `ciel/static/ciel/carte.css` par les deux fichiers du zip `etape-3-5-2-fichiers.zip`. Pas de migration, pas de changement serveur.
+
+1. Ctrl+F5 dans le navigateur.
+2. Vérifie sur bureau : la vue s'ouvre vers le sud, le sol est en bas, les points cardinaux sont sur l'horizon.
+3. Fais glisser le ciel : il suit le doigt, et la fiche ne s'ouvre pas.
+4. Lance le simulateur, touche un objet au-dessus de l'horizon, puis « Pointer » : le réticule vert va vers l'objet.
+5. Sur téléphone : ouvre une fiche, puis fais glisser le ciel pour mettre l'objet au-dessus de la fiche.
+6. `python manage.py test` doit afficher `OK`.
+7. Commit : `git commit -m "Partie 3.5.2 : vue fenêtre, sol, glisser"`.
+
+### Ce qui a changé
+
+- **La vue** : une direction du ciel (azimut et hauteur) reste fixe par rapport à l'horizon, et le ciel tourne autour. Au départ, elle regarde le sud à 25° au-dessus de l'horizon.
+- **Le sol** : la bibliothèque dessine l'horizon dans un calque caché, donc je le dessine moi-même dans le canevas.
+- **L'échelle** : même champ de vision sur téléphone et bureau (3,5 pixels par degré).
+
+### À savoir
+
+- **Téléphone, fiche ouverte** : la fiche cache le bas de l'écran, et l'objet peut passer derrière. Il suffit de faire glisser le ciel. Recentrer automatiquement sur l'objet sélectionné est une option à étudier.
+- **Précision** : la direction de la vue n'est pas corrigée de la précession (environ 0,4°). Tous les objets ont le même décalage, donc la vue reste cohérente avec eux. Je ne le corrigerai que si on voit un défaut.
+- **Pas encore fait** : la barre de boutons, la boussole complète, la pastille d'état intégrée au panneau, et la direction de visée affichée. C'est la 3.5.3.
+
+La feuille de route du Project est à jour.
+
+**Suite** : 3.5.3, la barre de boutons ronds, la boussole, le panneau latéral avec l'état de l'appareil. Ensuite la 3.5.4 (tracés de constellations), puis la Partie 5. On continue ?
+
+
+est ce que par hasard on peut le mettre sur le telephone ? c'est a dire ouvrir le serveur l'ordi et je peux ouvirir sur le téléphone
+
+Explaining how to access the server from a phone.
+Explaining how to access the server from a phone.
+Oui, c’est possible. Le téléphone et l’ordi doivent être sur le même Wi-Fi. Le serveur écoute alors sur le réseau local, et le téléphone ouvre l’adresse de l’ordi. Je ne peux pas le faire d’ici, parce que ton ordi n’est pas accessible depuis la session : les étapes se font chez toi.
+
+1. Trouver l’adresse IP de ton PC
+
+Dans Git Bash ou l’invite de commandes :
+
+ipconfig
+Cherche « Adresse IPv4 » de ta carte Wi-Fi, par exemple 192.168.1.42.
+
+2. Autoriser cette adresse dans Django
+
+Dans index_stellaire/settings.py, la liste ALLOWED_HOSTS doit contenir cette IP. Sinon Django répond « Bad Request (400) » au téléphone. Pour un usage à la maison :
+
+python
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "192.168.1.42"]
+(Remplace par ton IP. Si tu changes de box, l’adresse peut changer.)
+
+3. Lancer le serveur sur le réseau
+
+python manage.py runserver 0.0.0.0:8000
+La première fois, Windows demande d’autoriser Python dans le pare-feu : accepte pour les réseaux privés.
+
+4. Ouvrir sur le téléphone
+
+Dans le navigateur du téléphone : http://192.168.1.42:8000/
+
+Le simulateur se lance comme avant, mais vers l’adresse réseau :
+
+python manage.py simuler_appareil --url http://127.0.0.1:8000
+Le simulateur reste sur ton PC, seule la carte passe sur le téléphone.

@@ -1,0 +1,1508 @@
+(function () {
+  "use strict";
+
+  const carte = document.getElementById("carte");
+  const lieu = JSON.parse(document.getElementById("donnees-lieu").textContent);
+  const POSITION = [lieu.latitude, lieu.longitude];
+
+  // ===========================================================================
+  // 1. Mise en page : la carte occupe toute la zone visible (la vue « fenêtre »)
+  // ===========================================================================
+
+  const MARGE = 16;
+  const LARGEUR_PANNEAU = 360; // px : panneau de la fiche, à droite, sur grand écran
+  const GRAND_ECRAN = window.matchMedia("(min-width: 900px)");
+
+  // Zone réservée au disque : tout l'écran sur téléphone, à gauche du panneau sur grand écran.
+  // Le panneau garde sa place même fermé : le ciel ne bouge pas quand on ouvre la fiche.
+  function zone() {
+    const panneau = GRAND_ECRAN.matches ? LARGEUR_PANNEAU + 3 * MARGE : 0;
+    return { largeur: window.innerWidth - panneau, hauteur: window.innerHeight };
+  }
+
+  // Le canevas est un carré assez grand pour couvrir l'écran quelle que soit la direction
+  // regardée ; le conteneur #carte, lui, a exactement la taille de la zone visible.
+  function taille() {
+    const z = zone();
+    return Math.ceil(Math.hypot(z.largeur, z.hauteur)) + 2;
+  }
+
+  function placer() {
+    const z = zone();
+    carte.style.left = "0px";
+    carte.style.top = "0px";
+    carte.style.width = z.largeur + "px";
+    carte.style.height = z.hauteur + "px";
+    return taille();
+  }
+
+  // Remet le conteneur à la taille de la zone et centre le canevas dedans.
+  // Appelée après chaque dessin : la bibliothèque redimensionne le conteneur à sa façon.
+  function placerCanevas() {
+    const z = zone();
+    carte.style.width = z.largeur + "px";
+    carte.style.height = z.hauteur + "px";
+    const canevas = carte.querySelector("canvas");
+    if (!canevas) return;
+    const t = taille();
+    // Taille d'affichage = taille du dessin. Sur un écran haute densité (téléphone : ×2, ×3), la
+    // bibliothèque multiplie les pixels internes du canevas ; sans ces deux lignes, l'image
+    // s'affichait 2 ou 3 fois trop grande, le centre de la vue sortait de l'écran et les touchers
+    // tombaient à côté des astres.
+    canevas.style.width = t + "px";
+    canevas.style.height = t + "px";
+    canevas.style.position = "absolute";
+    canevas.style.left = Math.round((z.largeur - t) / 2) + "px";
+    canevas.style.top = Math.round((z.hauteur - t) / 2) + "px";
+  }
+
+  // ===========================================================================
+  // 2. L'horloge virtuelle : l'heure affichée par la carte. Elle suit le temps
+  //    réel (×1) ou s'accélère / se met en pause / saute, pour voir le ciel tourner.
+  // ===========================================================================
+
+  const horloge = {
+    virtuel: Date.now(), // l'instant affiché, en ms depuis 1970 (UTC)
+    vitesse: 1, // 0 = pause, 1 = temps réel, 60 = 1 min par seconde...
+    dernierTop: Date.now(),
+  };
+
+  const PERIODE_TIC = 100; // ms entre deux tics de l'horloge
+  const PERIODE_CARTE_DIRECT = 10000; // à ×1 le ciel bouge trop peu pour redessiner plus souvent
+  const PERIODE_CARTE_ACCELERE = 100;
+  const OBJETS_PERIMES_APRES = 5 * 60 * 1000; // ms virtuelles avant de recalculer planètes et Lune
+  const DELAI_MINI_REQUETES = 500; // ms réelles entre deux appels à l'API
+
+  let derniereMajCarte = 0;
+
+  function avancerHorloge() {
+    const top = Date.now();
+    let delta = top - horloge.dernierTop;
+    // Onglet resté en arrière-plan : on ne fait pas un énorme saut en accéléré
+    if (horloge.vitesse !== 1 && delta > 1000) delta = PERIODE_TIC;
+    horloge.virtuel += delta * horloge.vitesse;
+    horloge.dernierTop = top;
+  }
+
+  // Dit à d3-celestial de recalculer le ciel pour l'instant virtuel : la carte
+  // se recentre sur le zénith, les étoiles « tournent ».
+  function majCarte() {
+    Celestial.skyview({ date: new Date(horloge.virtuel) });
+    appliquerVue(); // la direction regardée (azimut, hauteur) tourne avec le ciel
+    derniereMajCarte = Date.now();
+  }
+
+  function enDirect() {
+    return horloge.vitesse === 1 && Math.abs(horloge.virtuel - Date.now()) < 2000;
+  }
+
+  function tic() {
+    avancerHorloge();
+    afficherHeure();
+    majFiche();
+    majBoussole();
+    if (horloge.vitesse !== 0) {
+      const periode = horloge.vitesse === 1 ? PERIODE_CARTE_DIRECT : PERIODE_CARTE_ACCELERE;
+      if (Date.now() - derniereMajCarte >= periode) majCarte();
+    }
+    if (objetsPerimes()) chargerObjets();
+    if (animerBras()) Celestial.redraw(); // le réticule glisse vers sa nouvelle position
+  }
+
+  // ===========================================================================
+  // 3. Affichage de l'heure et panneau de contrôle
+  // ===========================================================================
+
+  const fmtHeure = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: lieu.fuseau });
+  const fmtHeureSec = new Intl.DateTimeFormat("fr-FR", {
+    hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: lieu.fuseau,
+  });
+  const fmtDate = new Intl.DateTimeFormat("fr-FR", {
+    weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: lieu.fuseau,
+  });
+
+  const elBouton = document.getElementById("btn-temps");
+  const elHeure = document.getElementById("heure");
+  const elPanneau = document.getElementById("panneau-temps");
+  const elPanneauHeure = document.getElementById("panneau-heure");
+  const elPanneauDate = document.getElementById("panneau-date");
+
+  function afficherHeure() {
+    const d = new Date(horloge.virtuel);
+    elHeure.textContent = fmtHeure.format(d);
+    elBouton.classList.toggle("decale", !enDirect());
+    if (!elPanneau.hidden) {
+      elPanneauHeure.textContent = fmtHeureSec.format(d);
+      elPanneauDate.textContent = fmtDate.format(d);
+      elPanneau.querySelectorAll("[data-vitesse]").forEach(function (b) {
+        b.setAttribute("aria-pressed", String(Number(b.dataset.vitesse) === horloge.vitesse));
+      });
+    }
+  }
+
+  // --- Les panneaux du bas (temps, calques, recherche) : un seul ouvert à la fois.
+  // La fiche d'objet, elle, passe par selectionner().
+  const elBtnCalques = document.getElementById("btn-calques");
+  const elPanCalques = document.getElementById("panneau-calques");
+  const elBtnRecherche = document.getElementById("btn-recherche");
+  const elPanRecherche = document.getElementById("panneau-recherche");
+  const elChampRecherche = document.getElementById("recherche-champ");
+  const elListeRecherche = document.getElementById("recherche-liste");
+  const elBtnBoussole = document.getElementById("btn-boussole");
+  const elBoussole = document.getElementById("boussole");
+  const elBoussoleDirection = document.getElementById("boussole-direction");
+  const elBoussoleHauteur = document.getElementById("boussole-hauteur");
+  const elEtatBouton = document.getElementById("etat-appareil"); // la pastille, qui ouvre son panneau
+  const elPanAppareil = document.getElementById("panneau-appareil");
+
+  const calques = { constellations: true, illustrations: true, voieLactee: true, etiquettesEtoiles: true };
+  let viseurActif = false; // petit viseur au centre de la vue
+
+  // nom : "temps", "calques", "recherche", ou null pour tout fermer
+  function ouvrir(nom) {
+    [
+      ["temps", elPanneau, elBouton],
+      ["calques", elPanCalques, elBtnCalques],
+      ["recherche", elPanRecherche, elBtnRecherche],
+      ["appareil", elPanAppareil, elEtatBouton],
+    ].forEach(function (p) {
+      const ouvert = p[0] === nom;
+      p[1].hidden = !ouvert;
+      p[2].setAttribute("aria-expanded", String(ouvert));
+    });
+    majEtatPanneaux();
+  }
+
+  // Ouvre un panneau du bas, et ferme la fiche s'il y en a une
+  function ouvrirSeul(nom) {
+    ouvrir(nom);
+    if (selection !== null) selectionner(null);
+  }
+
+  // Sur téléphone, la pastille d'état se cache quand la fiche ou la recherche monte du bas
+  function majEtatPanneaux() {
+    document.body.classList.toggle("panneau-ouvert", selection !== null || !elPanRecherche.hidden);
+    // N'importe quel panneau en bas de l'écran (sur téléphone, les boutons de zoom se cachent)
+    document.body.classList.toggle("panneau-bas", selection !== null || !elPanneau.hidden ||
+      !elPanCalques.hidden || !elPanRecherche.hidden || !elPanAppareil.hidden);
+  }
+
+  function basculer(nom) {
+    const panneau = { temps: elPanneau, calques: elPanCalques, recherche: elPanRecherche, appareil: elPanAppareil }[nom];
+    if (panneau.hidden) ouvrirSeul(nom);
+    else ouvrir(null);
+  }
+
+  function basculerPanneau() {
+    basculer("temps");
+    afficherHeure();
+  }
+
+  elBouton.addEventListener("click", basculerPanneau);
+  elBtnCalques.addEventListener("click", function () {
+    basculer("calques");
+  });
+  elEtatBouton.addEventListener("click", function () {
+    basculer("appareil");
+    majPanneauAppareil();
+  });
+  elBtnRecherche.addEventListener("click", function () {
+    basculer("recherche");
+    if (!elPanRecherche.hidden) {
+      filtrerRecherche();
+      elChampRecherche.focus();
+    }
+  });
+
+  // Toucher le ciel ou la barre referme les panneaux du bas (sauf leurs propres boutons)
+  document.addEventListener("pointerdown", function (e) {
+    if (e.target.closest("#panneau-temps, #panneau-calques, #panneau-recherche, #panneau-appareil, #btn-temps, #btn-calques, #btn-recherche, #etat-appareil")) return;
+    if (!elPanneau.hidden || !elPanCalques.hidden || !elPanRecherche.hidden || !elPanAppareil.hidden) ouvrir(null);
+  });
+
+  // --- Calques : chaque case recharge la carte avec la nouvelle configuration -----
+  document.querySelectorAll("#panneau-calques [data-calque]").forEach(function (bouton) {
+    bouton.addEventListener("click", function () {
+      const nom = bouton.dataset.calque;
+      calques[nom] = !calques[nom];
+      bouton.setAttribute("aria-pressed", String(calques[nom]));
+      rechargerCarte();
+    });
+  });
+
+  // Redessine la carte avec la configuration courante, sans changer sa taille
+  function rechargerCarte() {
+    Celestial.reload(configCarte(tailleAffichee));
+    d3.select(window).on("resize", null); // la bibliothèque remet son gestionnaire : on le retire
+    appliquerVue(); // remet l'horizon droit après le rechargement
+    placerCanevas();
+  }
+
+  // --- Recherche d'un astre parmi ceux qui sont chargés ----------------------------
+  function normaliser(texte) {
+    return texte.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  }
+
+  function filtrerRecherche() {
+    const cherche = normaliser(elChampRecherche.value.trim());
+    const resultats = objets
+      .filter(function (o) { return normaliser(o.nom).indexOf(cherche) !== -1; })
+      .sort(function (a, b) { return a.nom.localeCompare(b.nom, "fr"); })
+      .slice(0, 50);
+    elListeRecherche.replaceChildren();
+    if (resultats.length === 0) {
+      const vide = document.createElement("li");
+      vide.className = "vide";
+      vide.textContent = objets.length ? "Aucun astre ne correspond." : "Chargement…";
+      elListeRecherche.appendChild(vide);
+      return;
+    }
+    // Construit avec createElement / textContent, jamais innerHTML
+    resultats.forEach(function (o) {
+      const li = document.createElement("li");
+      const bouton = document.createElement("button");
+      bouton.type = "button";
+      bouton.dataset.id = String(o.id);
+      const nom = document.createElement("span");
+      nom.textContent = o.nom;
+      const etat = document.createElement("span");
+      etat.className = "etat";
+      etat.textContent = o.elevation > 0 ? fmtNombre.format(o.elevation) + "°" : "sous l'horizon";
+      bouton.append(nom, etat);
+      li.appendChild(bouton);
+      elListeRecherche.appendChild(li);
+    });
+  }
+
+  elChampRecherche.addEventListener("input", filtrerRecherche);
+  elListeRecherche.addEventListener("click", function (e) {
+    const bouton = e.target.closest("button[data-id]");
+    if (!bouton) return;
+    const o = objets.find(function (obj) { return String(obj.id) === bouton.dataset.id; });
+    if (o) allerVers(o);
+  });
+
+  // Tourne la vue vers l'objet, puis le sélectionne (sa fiche s'ouvre)
+  function allerVers(o) {
+    fixerDirection(o.azimut, o.elevation);
+    appliquerVue();
+    majBoussole();
+    selectionner(o.id); // ferme les autres panneaux et redessine (halo)
+  }
+
+  // --- Direction regardée et viseur ------------------------------------------------
+  function majBoussole() {
+    const point = POINTS_CARDINAUX[Math.round(vue.azimut / 22.5) % 16];
+    elBoussoleDirection.textContent = point + " · " + (Math.round(vue.azimut) % 360) + "°";
+    elBoussoleHauteur.textContent = "hauteur " + Math.round(vue.hauteur) + "° · zoom ×" + vue.zoom.toFixed(1);
+  }
+
+  elBtnBoussole.addEventListener("click", function () {
+    viseurActif = !viseurActif;
+    elBtnBoussole.setAttribute("aria-pressed", String(viseurActif));
+    elBoussole.hidden = !viseurActif;
+    Celestial.redraw();
+  });
+
+  // Un toucher sur la direction recentre la vue sur le sud, face à l'horizon (la vue de départ)
+  elBoussole.addEventListener("click", function () {
+    vue.azimut = 180;
+    vue.hauteur = 0; // face à l'horizon
+    appliquerVue();
+    majBoussole();
+    Celestial.redraw();
+  });
+
+  elPanneau.addEventListener("click", function (e) {
+    const bouton = e.target.closest("button");
+    if (!bouton) return;
+    if (bouton.dataset.vitesse !== undefined) {
+      horloge.vitesse = Number(bouton.dataset.vitesse);
+      horloge.dernierTop = Date.now();
+    } else if (bouton.dataset.saut !== undefined) {
+      horloge.virtuel += Number(bouton.dataset.saut);
+      majCarte();
+    } else if (bouton.id === "btn-maintenant") {
+      horloge.virtuel = Date.now();
+      horloge.vitesse = 1;
+      horloge.dernierTop = Date.now();
+      majCarte();
+    }
+    afficherHeure();
+  });
+
+  // ===========================================================================
+  // 4. Nos objets (positions calculées par Skyfield côté serveur)
+  // ===========================================================================
+
+  let objets = [];
+  let instantObjets = null; // instant virtuel auquel les positions ont été calculées
+  let chargementEnCours = false;
+  let dernierChargement = 0;
+
+  // Style de dessin par catégorie. Les étoiles sont déjà sur la carte (et déjà
+  // nommées par la bibliothèque) : on se contente de les entourer.
+  const STYLES = {
+    planete: { forme: "disque", rayon: 5, couleur: "#ffd479", texte: "#ffe6ad", nom: true },
+    lune: { forme: "disque", rayon: 7, couleur: "#e8ecf5", texte: "#ffffff", nom: true },
+    etoile: { forme: "anneau", rayon: 8, couleur: "#7fb0ff", texte: "#a9c8ff", nom: false },
+    amas: { forme: "anneau", rayon: 8, couleur: "#b79cff", texte: "#cdbcff", nom: true },
+    satellite: { forme: "disque", rayon: 4, couleur: "#ff5a5a", texte: "#ff9a9a", nom: true },
+  };
+
+  function objetsPerimes() {
+    if (chargementEnCours || Date.now() - dernierChargement < DELAI_MINI_REQUETES) return false;
+    if (instantObjets === null) return true;
+    return Math.abs(horloge.virtuel - instantObjets) > OBJETS_PERIMES_APRES;
+  }
+
+  function chargerObjets() {
+    chargementEnCours = true;
+    dernierChargement = Date.now();
+    const cible = horloge.virtuel;
+    const url = carte.dataset.urlObjets + "?instant=" + encodeURIComponent(new Date(cible).toISOString());
+    fetch(url)
+      .then(function (reponse) {
+        if (!reponse.ok) throw new Error("HTTP " + reponse.status);
+        return reponse.json();
+      })
+      .then(function (donnees) {
+        objets = donnees.objets;
+        instantObjets = cible;
+        if (!elPanRecherche.hidden) filtrerRecherche(); // la liste de recherche suit les objets
+        Celestial.redraw();
+      })
+      .catch(function (erreur) {
+        console.warn("Objets indisponibles :", erreur);
+      })
+      .finally(function () {
+        chargementEnCours = false;
+      });
+  }
+
+  // Appelée par d3-celestial à chaque rafraîchissement de la carte.
+  // Les objets sous l'horizon sont dessinés AVANT le sol : celui-ci est translucide,
+  // donc on les voit faiblement à travers la terre (comme dans Sky Guide).
+  function dessinerObjets() {
+    const ctx = Celestial.context;
+    dessinerIllustrations(ctx); // la figure de la constellation regardée, en fond
+    dessinerConstellations(ctx); // avant le sol : atténués sous l'horizon, comme le reste
+    objets.forEach(function (o) {
+      if (o.elevation <= 0) dessinerObjet(ctx, o);
+    });
+    dessinerSol(ctx);
+    objets.forEach(function (o) {
+      if (o.elevation > 0) dessinerObjet(ctx, o);
+    });
+    dessinerHorizon(ctx);
+    if (viseurActif) dessinerViseur(ctx);
+    dessinerAppareil(ctx);
+  }
+
+  // --- Illustrations des constellations -------------------------------------------------
+  // Images de Johan Meuris (Stellarium, Licence Art Libre : mention dans le panneau des calques).
+  // Seule la constellation regardée apparaît : pleine opacité quand le centre de l'écran est près du
+  // centre de la figure, puis fondu jusqu'à son rayon (« centre » et « rayon » de illustrations.json,
+  // calculés à partir de l'image elle-même : taille de la figure dans le ciel).
+  // Chaque image est collée sur le ciel par 3 étoiles d'ancrage (transformation affine).
+  const OPACITE_ILLUSTRATION = 0.75;
+  const PART_PLEINE_OPACITE = 0.4; // en dessous de 40 % du rayon : opacité maximale
+  let illustrations = [];
+  fetch(carte.dataset.urlIllustrations)
+    .then(function (reponse) {
+      if (!reponse.ok) throw new Error("HTTP " + reponse.status);
+      return reponse.json();
+    })
+    .then(function (donnees) {
+      illustrations = donnees.illustrations.map(function (il) {
+        il.image = null; // chargée seulement quand on regarde la constellation
+        return il;
+      });
+      if (horlogeDemarree) Celestial.redraw();
+    })
+    .catch(function (erreur) {
+      console.warn("Illustrations indisponibles :", erreur);
+    });
+
+  // Distance angulaire (degrés) entre deux points [ascension droite, déclinaison]
+  function distanceAngulaire(a, b) {
+    const r = Math.PI / 180;
+    const c = Math.sin(a[1] * r) * Math.sin(b[1] * r) + Math.cos(a[1] * r) * Math.cos(b[1] * r) * Math.cos((a[0] - b[0]) * r);
+    return Math.acos(Math.max(-1, Math.min(1, c))) / r;
+  }
+
+  // Transformation affine qui envoie les 3 points de l'image {x, y} sur les 3 points de l'écran [u, v].
+  // Renvoie [a, b, c, d, e, f] pour ctx.transform (règle de Cramer sur deux systèmes 3×3).
+  function transformationAffine(src, dst) {
+    const p = src[0], q = src[1], r = src[2];
+    const det = p.x * (q.y - r.y) - q.x * (p.y - r.y) + r.x * (p.y - q.y);
+    if (Math.abs(det) < 1e-9) return null;
+    function resoudre(w0, w1, w2) { // w = A x + C y + E
+      const A = (w0 * (q.y - r.y) - w1 * (p.y - r.y) + w2 * (p.y - q.y)) / det;
+      const C = (p.x * (w1 - w2) - q.x * (w0 - w2) + r.x * (w0 - w1)) / det;
+      return [A, C, w0 - A * p.x - C * p.y];
+    }
+    const u = resoudre(dst[0][0], dst[1][0], dst[2][0]);
+    const v = resoudre(dst[0][1], dst[1][1], dst[2][1]);
+    return [u[0], v[0], u[1], v[1], u[2], v[2]];
+  }
+
+  function dessinerIllustrations(ctx) {
+    if (!calques.illustrations || illustrations.length === 0) return;
+    const centre = centreVue();
+    illustrations.forEach(function (il) {
+      const d = distanceAngulaire(centre, il.centre);
+      if (d >= il.rayon) return;
+      if (!il.image) {
+        il.image = new Image();
+        il.image.onload = function () { Celestial.redraw(); };
+        il.image.src = carte.dataset.dossierIllustrations + il.fichier;
+        return;
+      }
+      if (!il.image.complete || !il.image.naturalWidth) return;
+      const ecran = [];
+      for (let i = 0; i < 3; i++) {
+        const position = [il.ancrages[i].ra, il.ancrages[i].dec];
+        if (!Celestial.clip(position)) return; // une étoile d'ancrage hors de la vue
+        ecran.push(Celestial.mapProjection(position));
+      }
+      const t = transformationAffine(il.ancrages, ecran);
+      if (!t) return;
+      const proximite = Math.min(1, (1 - d / il.rayon) / (1 - PART_PLEINE_OPACITE));
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter"; // fond noir de l'image = transparent
+      ctx.globalAlpha = OPACITE_ILLUSTRATION * proximite;
+      ctx.transform(t[0], t[1], t[2], t[3], t[4], t[5]);
+      // Taille de référence des ancrages (le fichier peut être 2 ou 4 fois plus grand ou plus petit).
+      // Dessinée deux fois : en mode additif, la luminosité double (les images sont assez sombres).
+      ctx.drawImage(il.image, 0, 0, il.taille[0], il.taille[1]);
+      ctx.drawImage(il.image, 0, 0, il.taille[0], il.taille[1]);
+      ctx.restore();
+    });
+  }
+
+  // --- Noms des constellations : majuscules espacées, comme dans Sky Guide -----------
+  // Positions et noms français : constellations.json de d3-celestial (licence BSD), chargé une fois.
+  // Rang 1 et 2 : toujours affichés ; rang 3 (petites constellations) : à partir du zoom ×1,5.
+  let etiquettesConstellations = [];
+  const ESPACE_LETTRES = 3.2; // px entre deux lettres
+  fetch(carte.dataset.datapath + "constellations.json")
+    .then(function (reponse) {
+      if (!reponse.ok) throw new Error("HTTP " + reponse.status);
+      return reponse.json();
+    })
+    .then(function (donnees) {
+      etiquettesConstellations = donnees.features.map(function (f) {
+        return {
+          texte: (f.properties.fr || f.properties.name).toLocaleUpperCase("fr"),
+          position: f.geometry.coordinates, // [ascension droite entre -180° et 180°, déclinaison]
+          rang: Number(f.properties.rank),
+          largeurs: null, // largeur de chaque lettre, mesurée au premier dessin
+        };
+      });
+      if (horlogeDemarree) Celestial.redraw();
+    })
+    .catch(function (erreur) {
+      console.warn("Noms des constellations indisponibles :", erreur);
+    });
+
+  function dessinerConstellations(ctx) {
+    if (!calques.constellations || etiquettesConstellations.length === 0) return;
+    ctx.save();
+    ctx.font = "500 12px Helvetica, Arial, sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "rgba(170, 186, 220, 0.78)";
+    etiquettesConstellations.forEach(function (e) {
+      if (e.rang === 3 && vue.zoom < 1.5) return;
+      if (!Celestial.clip(e.position)) return;
+      const pt = Celestial.mapProjection(e.position);
+      const lettres = Array.from(e.texte);
+      if (!e.largeurs) e.largeurs = lettres.map(function (l) { return ctx.measureText(l).width; });
+      const total = e.largeurs.reduce(function (a, b) { return a + b; }, 0) + ESPACE_LETTRES * (lettres.length - 1);
+      let x = pt[0] - total / 2;
+      lettres.forEach(function (l, i) {
+        ctx.fillText(l, x, pt[1]);
+        x += e.largeurs[i] + ESPACE_LETTRES;
+      });
+    });
+    ctx.restore();
+  }
+
+  function dessinerObjet(ctx, o) {
+    const position = [o.ra, o.dec]; // ascension droite, déclinaison (degrés)
+    if (!Celestial.clip(position)) return;
+    const pt = Celestial.mapProjection(position);
+    const style = STYLES[o.categorie] || STYLES.etoile;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(pt[0], pt[1], style.rayon, 0, 2 * Math.PI);
+    ctx.lineWidth = 1.5;
+    if (style.forme === "disque") {
+      ctx.fillStyle = style.couleur;
+      ctx.fill();
+      ctx.strokeStyle = "#05070d";
+    } else {
+      ctx.strokeStyle = style.couleur;
+    }
+    ctx.stroke();
+    if (o.id === selection) {
+      // halo autour de l'objet sélectionné
+      ctx.beginPath();
+      ctx.arc(pt[0], pt[1], style.rayon + 7, 0, 2 * Math.PI);
+      ctx.strokeStyle = "#ffffff";
+      ctx.stroke();
+    }
+    if (pointage && pointage.commande && pointage.commande.objet.id === o.id) {
+      // l'objet que le bras vise : un anneau de la couleur du réticule
+      ctx.beginPath();
+      ctx.arc(pt[0], pt[1], style.rayon + 4, 0, 2 * Math.PI);
+      ctx.strokeStyle = COULEUR_BRAS;
+      ctx.stroke();
+    }
+    if (style.nom) {
+      ctx.font = "600 14px Helvetica, Arial, sans-serif";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "bottom";
+      const x = pt[0] + style.rayon + 4;
+      const y = pt[1] - style.rayon + 2;
+      ctx.lineJoin = "round";
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "rgba(5, 7, 13, 0.85)"; // contour sombre : le nom se lit sur les étoiles
+      ctx.strokeText(o.nom, x, y);
+      ctx.fillStyle = style.texte;
+      ctx.fillText(o.nom, x, y);
+    }
+    ctx.restore();
+  }
+
+  // Quand la carte est prête : premier chargement des objets, puis l'horloge démarre
+  let horlogeDemarree = false;
+  function carteprete() {
+    placerCanevas();
+    if (instantObjets === null) chargerObjets(); // un zoom redessine la carte sans refaire la requête
+    chargerPointage();
+    if (horlogeDemarree) return; // la carte peut être redessinée au redimensionnement
+    horlogeDemarree = true;
+    setInterval(chargerPointage, PERIODE_POINTAGE);
+    setInterval(tic, PERIODE_TIC);
+  }
+
+  // À déclarer AVANT Celestial.display : le callback est lancé quand la carte est prête
+  Celestial.add({ type: "raw", callback: carteprete, redraw: dessinerObjets });
+
+  // ===========================================================================
+  // 5. Sélection d'un objet et fiche
+  // ===========================================================================
+
+  const NOMS_CATEGORIES = {
+    etoile: "Étoile", planete: "Planète", lune: "Lune", amas: "Amas", satellite: "Satellite",
+  };
+  const POINTS_CARDINAUX = [
+    "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO",
+  ];
+  const RAYON_TOUCHE = 24; // px : distance maxi entre la souris et un objet pour le sélectionner
+  const RAYON_TOUCHE_DOIGT = 36; // px : un doigt est plus large qu'un curseur
+  const FICHE_PERIMEE_APRES = 6 * 3600 * 1000; // ms virtuelles
+
+  const fmtNombre = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
+  const fmtJour = new Intl.DateTimeFormat("en-CA", { timeZone: lieu.fuseau }); // AAAA-MM-JJ
+
+  const elFiche = document.getElementById("fiche");
+  const el = {
+    image: document.getElementById("fiche-image"),
+    nom: document.getElementById("fiche-nom"),
+    sousTitre: document.getElementById("fiche-sous-titre"),
+    hauteur: document.getElementById("fiche-hauteur"),
+    direction: document.getElementById("fiche-direction"),
+    lever: document.getElementById("fiche-lever"),
+    coucher: document.getElementById("fiche-coucher"),
+    noteHorizon: document.getElementById("fiche-note-horizon"),
+    courbe: document.getElementById("fiche-courbe"),
+    description: document.getElementById("fiche-description"),
+  };
+
+  let selection = null; // id de l'objet sélectionné (ou null)
+  let fiche = null; // réponse de /api/ciel/objets/<id>/
+  let instantFiche = null; // instant virtuel auquel la fiche a été calculée
+  let ficheEnCours = false;
+  let derniereDemandeFiche = 0;
+  let dernierRafraichissementFiche = 0;
+
+  // --- Toucher la carte : sélectionner l'objet le plus proche du doigt --------
+
+  function objetProche(px, py, rayon) {
+    let meilleur = null;
+    let dmin = rayon;
+    objets.forEach(function (o) {
+      const position = [o.ra, o.dec];
+      if (!Celestial.clip(position)) return;
+      const pt = Celestial.mapProjection(position);
+      const d = Math.hypot(pt[0] - px, pt[1] - py);
+      if (d < dmin) {
+        dmin = d;
+        meilleur = o;
+      }
+    });
+    return meilleur;
+  }
+
+  // On distingue un « toucher » d'un « glisser » (qui déplace la carte).
+  // On écoute tout le document : toucher le ciel vide, hors du disque, désélectionne.
+  const INTERFACE = "#fiche, #panneau-temps, #panneau-calques, #panneau-recherche, #panneau-appareil, #etat-appareil, #boussole, #zoom, #barre";
+  let depart = null;
+  document.addEventListener("pointerdown", function (e) {
+    if (e.isPrimary && !e.target.closest(INTERFACE)) depart = { x: e.clientX, y: e.clientY, t: Date.now() };
+  });
+  document.addEventListener("pointerup", function (e) {
+    if (!e.isPrimary || !depart) return;
+    const deplacement = Math.hypot(e.clientX - depart.x, e.clientY - depart.y);
+    const duree = Date.now() - depart.t;
+    depart = null;
+    // Un toucher bref et immobile. Le délai est large : le téléphone peut tarder à traiter le geste.
+    if (deplacement > (e.pointerType === "touch" ? 10 : 6) || duree > 800) return; // c'était un glisser
+    const canvas = carte.querySelector("canvas");
+    if (!canvas) return;
+    const zone = canvas.getBoundingClientRect();
+    const rayon = e.pointerType === "touch" ? RAYON_TOUCHE_DOIGT : RAYON_TOUCHE;
+    const o = objetProche(e.clientX - zone.left, e.clientY - zone.top, rayon);
+    selectionner(o ? o.id : null);
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") {
+      selectionner(null);
+      ouvrir(null);
+    }
+  });
+  document.getElementById("fiche-fermer").addEventListener("click", function () {
+    selectionner(null);
+  });
+
+  // La fiche cache le bas de l'écran : on remonte la carte pour que tout le disque
+  // reste visible et touchable au-dessus. (getBoundingClientRect tient compte du décalage.)
+
+  // --- Ouvrir / fermer la fiche ------------------------------------------------
+
+  function selectionner(id) {
+    selection = id;
+    fiche = null;
+    elFiche.hidden = id === null;
+    document.body.classList.toggle("fiche-ouverte", id !== null);
+    if (id !== null) {
+      ouvrir(null); // un seul panneau à la fois
+      remplirFiche();
+      chargerFiche();
+    }
+    majEtatPanneaux();
+    Celestial.redraw(); // le halo autour de l'objet apparaît / disparaît
+  }
+
+  function chargerFiche() {
+    ficheEnCours = true;
+    derniereDemandeFiche = Date.now();
+    const id = selection;
+    const cible = horloge.virtuel;
+    const url = carte.dataset.urlObjets + id + "/?instant=" + encodeURIComponent(new Date(cible).toISOString());
+    fetch(url)
+      .then(function (reponse) {
+        if (!reponse.ok) throw new Error("HTTP " + reponse.status);
+        return reponse.json();
+      })
+      .then(function (donnees) {
+        if (selection !== id) return; // l'utilisateur a changé d'objet entre-temps
+        fiche = donnees;
+        instantFiche = cible;
+        remplirFiche();
+      })
+      .catch(function (erreur) {
+        console.warn("Fiche indisponible :", erreur);
+      })
+      .finally(function () {
+        ficheEnCours = false;
+      });
+  }
+
+  // La fiche est calculée pour 24 h : on la recalcule quand elle est dépassée
+  function fichePerimee() {
+    if (!fiche || ficheEnCours || Date.now() - derniereDemandeFiche < DELAI_MINI_REQUETES) return false;
+    return (
+      Math.abs(horloge.virtuel - instantFiche) > FICHE_PERIMEE_APRES ||
+      fiche.levers_couchers.some(function (e) { return Date.parse(e.instant) < horloge.virtuel; })
+    );
+  }
+
+  // Appelée à chaque tic de l'horloge
+  function majFiche() {
+    if (selection === null) return;
+    if (fichePerimee()) chargerFiche();
+    if (Date.now() - dernierRafraichissementFiche >= 1000) remplirFiche();
+  }
+
+  // --- Contenu de la fiche -------------------------------------------------------
+
+  // Position à l'instant virtuel, interpolée entre les points de la trajectoire
+  function positionActuelle() {
+    const pts = fiche && fiche.trajectoire;
+    if (pts && pts.length > 1) {
+      const t0 = Date.parse(pts[0].instant);
+      const pas = Date.parse(pts[1].instant) - t0;
+      const x = (horloge.virtuel - t0) / pas;
+      const i = Math.floor(x);
+      if (i >= 0 && i < pts.length - 1) {
+        const f = x - i;
+        const a = pts[i];
+        const b = pts[i + 1];
+        const ecartAzimut = ((b.azimut - a.azimut + 540) % 360) - 180; // plus court chemin
+        return {
+          elevation: a.elevation + (b.elevation - a.elevation) * f,
+          azimut: (a.azimut + ecartAzimut * f + 360) % 360,
+        };
+      }
+    }
+    const o = objets.find(function (obj) { return obj.id === selection; });
+    return o ? { elevation: o.elevation, azimut: o.azimut } : null;
+  }
+
+  function heureEvenement(type) {
+    const evt = fiche && fiche.levers_couchers.find(function (e) { return e.evenement === type; });
+    if (!evt) return "—";
+    const d = new Date(evt.instant);
+    const demain = fmtJour.format(d) !== fmtJour.format(new Date(horloge.virtuel));
+    return fmtHeure.format(d) + (demain ? " (demain)" : "");
+  }
+
+  function remplirFiche() {
+    dernierRafraichissementFiche = Date.now();
+    const o = objets.find(function (obj) { return obj.id === selection; });
+    const nom = fiche ? fiche.nom : o ? o.nom : "";
+    const categorie = NOMS_CATEGORIES[fiche ? fiche.categorie : o && o.categorie] || "";
+    el.nom.textContent = nom;
+    const constellations = fiche && fiche.constellations.length ? " · " + fiche.constellations.join(", ") : "";
+    el.sousTitre.textContent = categorie + constellations;
+
+    const pos = positionActuelle();
+    if (pos) {
+      el.hauteur.textContent = fmtNombre.format(pos.elevation) + "°";
+      const point = POINTS_CARDINAUX[Math.round(pos.azimut / 22.5) % 16];
+      el.direction.textContent = point + " · " + (Math.round(pos.azimut) % 360) + "°";
+    }
+
+    el.lever.textContent = heureEvenement("lever");
+    el.coucher.textContent = heureEvenement("coucher");
+    const sansEvenement = fiche && fiche.levers_couchers.length === 0 && pos;
+    el.noteHorizon.hidden = !sansEvenement;
+    if (sansEvenement) {
+      el.noteHorizon.textContent =
+        pos.elevation > 0 ? "Reste au-dessus de l'horizon pendant 24 h." : "Reste sous l'horizon pendant 24 h.";
+    } else if (pos && pos.elevation <= 0) {
+      el.noteHorizon.hidden = false;
+      el.noteHorizon.textContent = "Sous l'horizon en ce moment.";
+    }
+
+    // Texte et image : toujours via textContent / src, jamais innerHTML
+    // (le contenu vient de l'admin, on ne le traite jamais comme du HTML)
+    el.description.textContent = fiche
+      ? fiche.description || "Description à venir."
+      : "";
+    if (fiche && fiche.image) {
+      el.image.src = fiche.image;
+      el.image.alt = fiche.nom;
+      el.image.hidden = false;
+    } else {
+      el.image.hidden = true;
+    }
+    tracerCourbe();
+    majBoutonPointer();
+  }
+
+  // Petite courbe « hauteur sur 24 h », avec un point pour l'instant actuel
+  function tracerCourbe() {
+    const NS = "http://www.w3.org/2000/svg";
+    const L = 300, H = 64, MARGE = 5;
+    el.courbe.replaceChildren();
+    const pts = fiche && fiche.trajectoire;
+    if (!pts || pts.length < 2) return;
+
+    const hauteurs = pts.map(function (p) { return p.elevation; });
+    const mini = Math.min(-10, Math.min.apply(null, hauteurs));
+    const maxi = Math.max(10, Math.max.apply(null, hauteurs));
+    const y = function (e) { return H - MARGE - ((e - mini) / (maxi - mini)) * (H - 2 * MARGE); };
+    const t0 = Date.parse(pts[0].instant);
+    const duree = Date.parse(pts[pts.length - 1].instant) - t0;
+    const x = function (ms) { return MARGE + Math.min(1, Math.max(0, (ms - t0) / duree)) * (L - 2 * MARGE); };
+
+    function ajouter(nom, attributs) {
+      const n = document.createElementNS(NS, nom);
+      Object.keys(attributs).forEach(function (k) { n.setAttribute(k, attributs[k]); });
+      el.courbe.appendChild(n);
+    }
+    ajouter("rect", { class: "sous-horizon", x: 0, y: y(0), width: L, height: H - y(0) });
+    ajouter("line", { class: "horizon", x1: 0, x2: L, y1: y(0), y2: y(0) });
+    ajouter("polyline", {
+      class: "courbe",
+      points: pts.map(function (p) { return x(Date.parse(p.instant)).toFixed(1) + "," + y(p.elevation).toFixed(1); }).join(" "),
+    });
+    const pos = positionActuelle();
+    if (pos) ajouter("circle", { class: "maintenant", cx: x(horloge.virtuel), cy: y(pos.elevation), r: 4 });
+  }
+
+  // ===========================================================================
+  // 6. L'appareil : pastille d'état, bouton « Pointer » et réticule sur la carte
+  // ===========================================================================
+
+  const PERIODE_POINTAGE = 1000; // ms entre deux lectures de l'état de l'appareil
+  const COULEUR_BRAS = "#5dffb0";
+  const NOMS_MODES = {
+    repos: "Au repos", deplacement: "En déplacement", suivi: "En suivi", erreur: "Erreur",
+  };
+
+  const elEtat = {
+    point: document.getElementById("etat-point"),
+    titre: document.getElementById("etat-titre"),
+    detail: document.getElementById("etat-detail"),
+  };
+  const elPointer = document.getElementById("btn-pointer");
+  const elNoteAppareil = document.getElementById("fiche-note-appareil");
+
+  let pointage = null; // dernière réponse de /api/pointage/
+  let injoignable = false; // le serveur ne répond pas
+  let pointageEnCours = false;
+  let envoiEnCours = false;
+  let messageErreur = "";
+  let finMessageErreur = 0;
+
+  // Position du réticule : la position affichée glisse vers la dernière position reçue,
+  // sinon il avancerait par bonds d'une seconde.
+  let bras = null; // { ra, dec } affichés
+  let brasDepart = null;
+  let brasArrivee = null;
+  let brasT0 = 0;
+
+  // --- Lecture de l'état -------------------------------------------------------
+
+  function chargerPointage() {
+    if (pointageEnCours || document.hidden) return;
+    pointageEnCours = true;
+    fetch(carte.dataset.urlPointage)
+      .then(function (reponse) {
+        if (!reponse.ok) throw new Error("HTTP " + reponse.status);
+        return reponse.json();
+      })
+      .then(recevoirPointage)
+      .catch(function (erreur) {
+        console.warn("État de l'appareil indisponible :", erreur);
+        injoignable = true;
+        bras = brasDepart = brasArrivee = null;
+        afficherEtat();
+        majBoutonPointer();
+        Celestial.redraw();
+      })
+      .finally(function () {
+        pointageEnCours = false;
+      });
+  }
+
+  // Ce qui change l'image de la carte (position du bras, cible). Sans changement, pas de redessin :
+  // sur téléphone, un redessin coûte cher et retarde les touchers.
+  function signaturePointage() {
+    const c = pointage && pointage.commande;
+    return (bras ? "bras" : "-") + "/" + (c ? c.objet.id : "-");
+  }
+
+  function recevoirPointage(donnees) {
+    const avant = signaturePointage();
+    pointage = donnees;
+    injoignable = false;
+    const a = donnees.appareil;
+    if (a && a.connecte && a.ra !== null) {
+      const arrivee = { ra: a.ra, dec: a.dec };
+      brasDepart = bras ? { ra: bras.ra, dec: bras.dec } : arrivee;
+      brasArrivee = arrivee;
+      brasT0 = Date.now();
+      if (!bras) bras = arrivee;
+    } else {
+      bras = brasDepart = brasArrivee = null; // hors ligne : pas de réticule
+    }
+    afficherEtat();
+    majBoutonPointer();
+    if (signaturePointage() !== avant) Celestial.redraw();
+  }
+
+  // Appelée à chaque tic : fait avancer le réticule. Renvoie true s'il a bougé.
+  function animerBras() {
+    if (!bras || !brasArrivee) return false;
+    const f = Math.min(1, (Date.now() - brasT0) / PERIODE_POINTAGE);
+    const dra = ((brasArrivee.ra - brasDepart.ra + 540) % 360) - 180; // plus court chemin en ra
+    const nouveau = {
+      ra: (brasDepart.ra + dra * f + 360) % 360,
+      dec: brasDepart.dec + (brasArrivee.dec - brasDepart.dec) * f,
+    };
+    const bouge = Math.abs(nouveau.ra - bras.ra) > 1e-4 || Math.abs(nouveau.dec - bras.dec) > 1e-4;
+    bras = nouveau;
+    return bouge;
+  }
+
+  // --- Pastille d'état (en haut de l'écran) ------------------------------------
+
+  function afficherEtat() {
+    const a = pointage && pointage.appareil;
+    const c = pointage && pointage.commande;
+    let niveau = "hors";
+    let titre;
+    const details = [];
+
+    if (injoignable) {
+      titre = "Serveur injoignable";
+    } else if (!pointage) {
+      titre = "Appareil…";
+    } else if (!a) {
+      titre = "Aucun appareil";
+    } else if (!a.connecte) {
+      titre = "Appareil hors ligne";
+      if (c) details.push("Cible : " + c.objet.nom);
+    } else {
+      niveau = a.mode === "erreur" ? "erreur" : "ok";
+      titre = "Appareil connecté";
+      details.push(NOMS_MODES[a.mode] || a.mode);
+      if (c) details.push(c.objet.nom);
+      if (c && pointage.ecart_deg !== null) details.push("écart " + fmtNombre.format(pointage.ecart_deg) + "°");
+      if (a.elevation !== null && a.elevation < 0) details.push("sous l'horizon");
+      if (a.batterie !== null) details.push(a.batterie + " %");
+    }
+
+    majPanneauAppareil();
+    elEtat.point.className = niveau === "hors" ? "" : niveau;
+    elEtat.titre.textContent = titre;
+    elEtat.detail.textContent = details.join(" · ");
+    elEtat.detail.hidden = details.length === 0;
+  }
+
+  // --- Panneau de l'appareil (ouvert en touchant la pastille) ---------------------
+
+  const elApp = {
+    etat: document.getElementById("app-etat"),
+    mode: document.getElementById("app-mode"),
+    batterie: document.getElementById("app-batterie"),
+    vu: document.getElementById("app-vu"),
+    cible: document.getElementById("app-cible"),
+    ecart: document.getElementById("app-ecart"),
+    note: document.getElementById("app-note"),
+    voir: document.getElementById("app-voir"),
+    arreter: document.getElementById("app-arreter"),
+  };
+
+  function depuis(iso) {
+    if (!iso) return "jamais";
+    const s = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000));
+    if (s < 60) return "il y a " + s + " s";
+    if (s < 3600) return "il y a " + Math.round(s / 60) + " min";
+    return "il y a " + Math.round(s / 3600) + " h";
+  }
+
+  function majPanneauAppareil() {
+    if (elPanAppareil.hidden) return; // rien à mettre à jour s'il est fermé
+    const a = pointage && pointage.appareil;
+    const c = pointage && pointage.commande;
+    elApp.etat.textContent = injoignable ? "Serveur injoignable" : !pointage ? "…" : !a ? "Aucun appareil" : a.connecte ? "Connecté" : "Hors ligne";
+    elApp.mode.textContent = a && a.mode ? NOMS_MODES[a.mode] || a.mode : "—";
+    elApp.batterie.textContent = a && a.batterie !== null ? a.batterie + " %" : "—";
+    elApp.vu.textContent = a ? depuis(a.derniere_vue) : "—";
+    elApp.cible.textContent = c ? c.objet.nom : "Aucune";
+    elApp.ecart.textContent = c && pointage.ecart_deg !== null ? fmtNombre.format(pointage.ecart_deg) + "°" : "—";
+    elApp.voir.hidden = !c;
+    elApp.arreter.hidden = !c;
+    elApp.arreter.disabled = envoiEnCours;
+    let note = "";
+    if (Date.now() < finMessageErreur) note = messageErreur;
+    else if (c && a && !a.connecte) note = "La commande attend que l'appareil soit en ligne.";
+    else if (!c && a) note = "Touche un astre puis « Pointer » pour viser.";
+    elApp.note.textContent = note;
+    elApp.note.hidden = note === "";
+  }
+
+  // « Voir la cible » : la vue se tourne vers l'astre visé et sa fiche s'ouvre
+  elApp.voir.addEventListener("click", function () {
+    const c = pointage && pointage.commande;
+    const o = c && objets.find(function (obj) { return obj.id === c.objet.id; });
+    if (o) allerVers(o);
+  });
+  elApp.arreter.addEventListener("click", function () {
+    if (!envoiEnCours) envoyer(carte.dataset.urlArret, null);
+  });
+
+  // --- Bouton « Pointer » de la fiche --------------------------------------------
+
+  function cookie(nom) {
+    const trouve = document.cookie.split("; ").find(function (c) { return c.startsWith(nom + "="); });
+    return trouve ? decodeURIComponent(trouve.split("=")[1]) : "";
+  }
+
+  // Les requêtes POST doivent présenter le jeton CSRF (cookie « csrftoken », déposé par la page)
+  function envoyer(url, corps) {
+    envoiEnCours = true;
+    majBoutonPointer();
+    majPanneauAppareil();
+    fetch(url, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": cookie("csrftoken") },
+      body: corps ? JSON.stringify(corps) : undefined,
+    })
+      .then(function (reponse) {
+        return reponse.json().catch(function () { return {}; }).then(function (donnees) {
+          if (reponse.status === 403) throw new Error("Session expirée : recharge la page.");
+          if (!reponse.ok) throw new Error(donnees.erreur || "Erreur " + reponse.status);
+          return donnees;
+        });
+      })
+      .then(recevoirPointage)
+      .catch(function (erreur) {
+        messageErreur = erreur instanceof TypeError ? "Serveur injoignable." : erreur.message;
+        finMessageErreur = Date.now() + 5000;
+      })
+      .finally(function () {
+        envoiEnCours = false;
+        majBoutonPointer();
+        majPanneauAppareil();
+      });
+  }
+
+  elPointer.addEventListener("click", function () {
+    if (selection === null || envoiEnCours) return;
+    const c = pointage && pointage.commande;
+    if (c && c.objet.id === selection) {
+      envoyer(carte.dataset.urlArret, null);
+    } else {
+      envoyer(carte.dataset.urlCommande, { objet_id: selection });
+    }
+  });
+
+  function majBoutonPointer() {
+    if (selection === null) return;
+    const a = pointage && pointage.appareil;
+    const c = pointage && pointage.commande;
+    const surSelection = Boolean(c && c.objet.id === selection);
+
+    elPointer.textContent = surSelection ? "Arrêter le pointage" : c ? "Pointer celui-ci à la place" : "Pointer";
+    elPointer.classList.toggle("arreter", surSelection);
+    elPointer.disabled = !a || envoiEnCours; // sans appareil enregistré, rien à commander
+
+    const phrases = [];
+    if (Date.now() < finMessageErreur) {
+      phrases.push(messageErreur);
+    } else if (injoignable) {
+      phrases.push("Serveur injoignable.");
+    } else if (!a) {
+      phrases.push("Aucun appareil enregistré (à créer dans l'administration).");
+    } else if (surSelection) {
+      let phrase = "Le bras suit cet objet";
+      if (!a.connecte) phrase += " dès que l'appareil est en ligne";
+      else if (pointage.ecart_deg !== null) phrase += " (écart " + fmtNombre.format(pointage.ecart_deg) + "°)";
+      phrases.push(phrase + ".");
+    } else if (c) {
+      phrases.push("Le bras pointe actuellement : " + c.objet.nom + ".");
+    } else {
+      phrases.push(a.connecte ? "Appareil connecté." : "Appareil hors ligne : la commande l'attendra.");
+    }
+    if (a && a.connecte) {
+      phrases.push(NOMS_MODES[a.mode] + (a.batterie !== null ? " · " + a.batterie + " %" : "") + ".");
+    }
+    const pos = positionActuelle();
+    if (pos && pos.elevation <= 0) phrases.push("Sous l'horizon : le bras pointera à travers la Terre.");
+    if (!enDirect()) phrases.push("Le bras suit le ciel en temps réel, pas l'heure affichée.");
+    elNoteAppareil.textContent = phrases.join(" ");
+  }
+
+  // --- Dessin sur la carte --------------------------------------------------------
+
+  // Petit viseur au centre de la vue : là où l'on regarde (le centre du disque, toujours)
+  function dessinerViseur(ctx) {
+    const pt = Celestial.mapProjection(centreVue());
+    ctx.save();
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.75)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(pt[0], pt[1], 5, 0, 2 * Math.PI);
+    [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) {
+      ctx.moveTo(pt[0] + d[0] * 9, pt[1] + d[1] * 9);
+      ctx.lineTo(pt[0] + d[0] * 14, pt[1] + d[1] * 14);
+    });
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Réticule à l'endroit où pointe le bras, et trait pointillé vers sa cible.
+  // Seulement en direct : le bras suit le ciel réel, pas l'heure virtuelle.
+  function dessinerAppareil(ctx) {
+    if (!bras || !enDirect() || !Celestial.clip([bras.ra, bras.dec])) return;
+    const pt = Celestial.mapProjection([bras.ra, bras.dec]);
+
+    const c = pointage && pointage.commande;
+    const cible = c && objets.find(function (o) { return o.id === c.objet.id; });
+    ctx.save();
+    ctx.strokeStyle = COULEUR_BRAS;
+    ctx.lineWidth = 2;
+
+    if (cible && Celestial.clip([cible.ra, cible.dec])) {
+      const t = Celestial.mapProjection([cible.ra, cible.dec]);
+      if (Math.hypot(t[0] - pt[0], t[1] - pt[1]) > 22) {
+        ctx.save();
+        ctx.globalAlpha = 0.6;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 5]);
+        ctx.beginPath();
+        ctx.moveTo(pt[0], pt[1]);
+        ctx.lineTo(t[0], t[1]);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    // Cercle et quatre repères, comme un viseur
+    ctx.beginPath();
+    ctx.arc(pt[0], pt[1], 11, 0, 2 * Math.PI);
+    ctx.stroke();
+    ctx.beginPath();
+    [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) {
+      ctx.moveTo(pt[0] + d[0] * 15, pt[1] + d[1] * 15);
+      ctx.lineTo(pt[0] + d[0] * 21, pt[1] + d[1] * 21);
+    });
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // ===========================================================================
+  // 7. La carte elle-même
+  // ===========================================================================
+
+  // ---------------------------------------------------------------------------
+  // La vue « fenêtre » : on regarde une direction du ciel, définie par son azimut
+  // (0 = nord, sens horaire) et sa hauteur au-dessus de l'horizon. Le ciel tourne,
+  // mais la direction reste fixe par rapport à l'horizon, comme quand on regarde par la fenêtre.
+  // ---------------------------------------------------------------------------
+
+  // Le regard est au centre de la sphère céleste : il peut tourner dans toutes les directions
+  // et zoomer. zoom = 1 : l'échelle de base (voir echelleVue).
+  const vue = { azimut: 180, hauteur: 0, zoom: 1 }; // vers le sud, face à l'horizon
+  const SENSIBILITE_VUE = 0.25; // degrés de vue par pixel glissé, à zoom 1
+  const ZOOM_MINI = 0.7;
+  const ZOOM_MAXI = 8;
+
+  // Fixe la direction regardée. L'azimut tourne sans limite ; la hauteur s'arrête juste avant
+  // le zénith et le nadir (au-delà, l'image se retournerait et l'horizon ne serait plus en bas).
+  const HAUTEUR_LIMITE = 89.5;
+  function fixerDirection(azimut, hauteur) {
+    vue.azimut = ((azimut % 360) + 360) % 360;
+    vue.hauteur = Math.max(-HAUTEUR_LIMITE, Math.min(HAUTEUR_LIMITE, hauteur));
+  }
+
+  // Temps sidéral local (degrés) : relie l'heure à la position du ciel
+  function tempsSideralLocal(ms) {
+    const jours = ms / 86400000 + 2440587.5 - 2451545.0; // jours depuis J2000
+    const tempsSideralGreenwich = 280.46061837 + 360.98564736629 * jours;
+    return (((tempsSideralGreenwich + lieu.longitude) % 360) + 360) % 360;
+  }
+
+  // Direction (azimut, hauteur) -> (ascension droite, déclinaison), en degrés, pour l'instant ms.
+  // Même calcul que ciel/astro.py (Skyfield), à 0,4° près : la différence vient de la précession
+  // depuis J2000, et elle est la même pour tous les objets, donc la vue reste cohérente avec eux.
+  function equatorialDepuis(azimut, hauteur, ms) {
+    const rad = Math.PI / 180;
+    const A = azimut * rad;
+    const h = hauteur * rad;
+    const phi = lieu.latitude * rad;
+    const sinDec = Math.sin(phi) * Math.sin(h) + Math.cos(phi) * Math.cos(h) * Math.cos(A);
+    const dec = Math.asin(Math.max(-1, Math.min(1, sinDec)));
+    const angleHoraire = Math.atan2(
+      -Math.sin(A) * Math.cos(h),
+      Math.cos(phi) * Math.sin(h) - Math.sin(phi) * Math.cos(h) * Math.cos(A)
+    );
+    const ra = (tempsSideralLocal(ms) - angleHoraire / rad + 720) % 360;
+    return [ra, dec / rad];
+  }
+
+  function centreVue() {
+    return equatorialDepuis(vue.azimut, vue.hauteur, horloge.virtuel);
+  }
+
+  // Angle parallactique (degrés) : l'angle entre la direction du pôle céleste et celle du zénith,
+  // vu depuis un point du ciel. La bibliothèque met toujours le pôle en haut de l'écran ; on tourne
+  // l'image de cet angle pour mettre le zénith en haut : l'horizon reste droit dans toutes les
+  // directions. Signe vérifié dans le navigateur (pente de l'horizon mesurée à 0° sur 8 directions).
+  function angleParallactique(ra, dec, ms) {
+    const rad = Math.PI / 180;
+    const H = (tempsSideralLocal(ms) - ra) * rad; // angle horaire
+    const d = dec * rad;
+    const phi = lieu.latitude * rad;
+    return Math.atan2(Math.sin(H), Math.tan(phi) * Math.cos(d) - Math.sin(d) * Math.cos(H)) / rad;
+  }
+
+  // Centre de la vue pour la bibliothèque : [ascension droite, déclinaison, rotation de l'image]
+  function centreEtRoulis() {
+    const c = centreVue();
+    return [c[0], c[1], angleParallactique(c[0], c[1], horloge.virtuel)];
+  }
+
+  function appliquerVue() {
+    Celestial.rotate({ center: centreEtRoulis() });
+  }
+
+  // Glisser le doigt (ou la souris) sur le ciel fait tourner la vue. Un simple toucher
+  // ne bouge rien (c'est la sélection). Le redessin est regroupé par image (requestAnimationFrame).
+  let glisse = false;
+  let derniere = null;
+  let redessinPrevu = false;
+  document.addEventListener("pointermove", function (e) {
+    if (!depart || !e.isPrimary || pointeurs.size > 1) return; // deux doigts : pincement, pas glissement
+    if (!glisse) {
+      if (Math.hypot(e.clientX - depart.x, e.clientY - depart.y) <= 6) return;
+      glisse = true;
+      derniere = { x: depart.x, y: depart.y };
+    }
+    const sensibilite = SENSIBILITE_VUE / vue.zoom; // à fort zoom, un glissement tourne moins
+    fixerDirection(vue.azimut - (e.clientX - derniere.x) * sensibilite, vue.hauteur - (e.clientY - derniere.y) * sensibilite);
+    derniere = { x: e.clientX, y: e.clientY };
+    if (!redessinPrevu) {
+      redessinPrevu = true;
+      requestAnimationFrame(function () {
+        redessinPrevu = false;
+        appliquerVue();
+        Celestial.redraw();
+      });
+    }
+  });
+  document.addEventListener("pointerup", function () {
+    glisse = false;
+  });
+
+  // --- Zoom : deux doigts (pincement), molette de souris, touches + et - -----------
+  const pointeurs = new Map(); // doigts posés sur l'écran : pointerId -> position
+  let pincement = null; // { distance, zoom } au début du pincement
+
+  function distancePointeurs() {
+    const [a, b] = Array.from(pointeurs.values());
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+
+  document.addEventListener("pointerdown", function (e) {
+    pointeurs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointeurs.size === 2) {
+      depart = null; // le premier doigt ne doit plus faire tourner la vue
+      glisse = false;
+      pincement = { distance: distancePointeurs(), zoom: vue.zoom };
+    }
+  });
+  document.addEventListener("pointermove", function (e) {
+    if (!pointeurs.has(e.pointerId)) return;
+    pointeurs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointeurs.size === 2 && pincement) {
+      changerZoom(pincement.zoom * distancePointeurs() / pincement.distance);
+    }
+  });
+  function finPointeur(e) {
+    pointeurs.delete(e.pointerId);
+    if (pointeurs.size < 2) pincement = null;
+  }
+  document.addEventListener("pointerup", finPointeur);
+  document.addEventListener("pointercancel", finPointeur);
+
+  carte.addEventListener("wheel", function (e) {
+    e.preventDefault(); // la molette zoome, elle ne fait pas défiler la page
+    changerZoom(vue.zoom * Math.exp(-e.deltaY * 0.0015));
+  }, { passive: false });
+
+  document.getElementById("zoom-plus").addEventListener("click", function () {
+    changerZoom(vue.zoom * 1.25);
+  });
+  document.getElementById("zoom-moins").addEventListener("click", function () {
+    changerZoom(vue.zoom / 1.25);
+  });
+  // Safari (iPhone) zoome la page entière sur un pincement : on le laisse à la carte
+  document.addEventListener("gesturestart", function (e) { e.preventDefault(); }, { passive: false });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "+" || e.key === "=") changerZoom(vue.zoom * 1.25);
+    if (e.key === "-") changerZoom(vue.zoom / 1.25);
+  });
+
+  // Le zoom passe par la bibliothèque : Celestial.zoomBy(facteur) multiplie l'échelle et redessine
+  // (rapide, et l'échelle survit aux rechargements). Le réglage « zoomlevel » de la configuration,
+  // lui, n'est lu qu'au premier affichage : le changer ensuite ne faisait rien.
+  let zoomPrevu = false;
+  function changerZoom(z) {
+    const nouveau = Math.max(ZOOM_MINI, Math.min(ZOOM_MAXI, z));
+    if (nouveau === vue.zoom) return;
+    vue.zoom = nouveau;
+    majBoussole();
+    if (zoomPrevu) return; // un seul redessin par image, même si le pincement envoie plus d'événements
+    zoomPrevu = true;
+    requestAnimationFrame(function () {
+      zoomPrevu = false;
+      Celestial.zoomBy(vue.zoom / Celestial.zoomBy()); // zoomBy() sans argument = zoom actuel
+      placerCanevas();
+    });
+  }
+
+  // Le sol : l'hémisphère centré sur le nadir (tout ce qui est sous l'horizon). La bibliothèque
+  // dessine son propre horizon dans un calque SVG caché sous le canevas, donc on le dessine nous-mêmes.
+  // d3 trace le cercle sur la sphère et le découpe à la limite de l'hémisphère visible : le tracé
+  // reste juste dans toutes les directions, y compris quand l'horizon passe par le centre de l'écran.
+  function dessinerSol(ctx) {
+    // 89,9° et pas 90° : un cercle de 90° coupe la sphère en deux moitiés égales, et d3 ne sait
+    // pas laquelle remplir. 0,1° d'écart, c'est moins d'un pixel.
+    const cercle = d3.geo.circle().origin(equatorialDepuis(0, -90, horloge.virtuel)).angle(89.9)();
+    const chemin = d3.geo.path().projection(Celestial.mapProjection).context(ctx);
+
+    ctx.save();
+    ctx.beginPath();
+    chemin(cercle);
+    ctx.fillStyle = "rgba(40, 50, 74, 0.62)"; // translucide : les astres sous l'horizon restent visibles
+    ctx.fill();
+
+    // Ligne d'horizon (le bord du cercle seulement, pas la limite de l'écran)
+    ctx.beginPath();
+    chemin({ type: "LineString", coordinates: cercle.coordinates[0] });
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = "#56658a";
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Points cardinaux sur l'horizon (N, E, S, O), là où l'horizon coupe le cercle de l'azimut
+  const POINTS_CARDINAUX_HORIZON = [["N", 0], ["E", 90], ["S", 180], ["O", 270]];
+  function dessinerHorizon(ctx) {
+    ctx.save();
+    ctx.font = "600 15px Helvetica, Arial, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.lineJoin = "round";
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(5, 7, 13, 0.9)";
+    ctx.fillStyle = "#d5dcec";
+    POINTS_CARDINAUX_HORIZON.forEach(function (point) {
+      const position = equatorialDepuis(point[1], 0, horloge.virtuel);
+      if (!Celestial.clip(position)) return;
+      const pt = Celestial.mapProjection(position);
+      ctx.strokeText(point[0], pt[0], pt[1]);
+      ctx.fillText(point[0], pt[0], pt[1]);
+    });
+    ctx.restore();
+  }
+
+  // La bibliothèque règle l'échelle sur la largeur du canevas (environ 0,00447 px par degré et
+  // par pixel de canevas, mesuré sur d3-celestial 0,7.35). On fixe plutôt l'échelle angulaire
+  // (pixels par degré) : le même champ de vision sur téléphone et sur bureau.
+  // Sur téléphone, le champ est plus serré (environ 70° de large) : les noms se lisent.
+  const PIXELS_PAR_DEGRE_VUE_BUREAU = 3.5;
+  const PIXELS_PAR_DEGRE_VUE_TELEPHONE = 5.5;
+  function echelleVue() {
+    return GRAND_ECRAN.matches ? PIXELS_PAR_DEGRE_VUE_BUREAU : PIXELS_PAR_DEGRE_VUE_TELEPHONE;
+  }
+  const ECHELLE_BIBLIOTHEQUE = 0.00447;
+  function configCarte(largeur) {
+    return {
+    zoomlevel: echelleVue() / (ECHELLE_BIBLIOTHEQUE * largeur), // échelle de base ; le zoom passe par zoomBy
+    // Sans cela, la bibliothèque grossit les étoiles et affiche de plus en plus de noms (souvent
+    // obscurs, qui se chevauchent) à mesure qu'on zoome.
+    adaptable: false,
+    container: "carte",
+    datapath: carte.dataset.datapath,
+    width: largeur,
+    projection: "stereographic", // vue « fenêtre » centrée sur la direction regardée
+    interactive: false, // on fait tourner la vue nous-mêmes (voir glisser, plus haut)
+    controls: false,
+    disableAnimations: true, // sinon chaque mise à jour du temps est « animée » et saccade
+
+    // Ciel vu du lieu d'observation, centré sur le zénith
+    location: true,
+    geopos: POSITION,
+    follow: "center",
+    center: centreEtRoulis(),
+    settimezone: false, // sinon la bibliothèque interroge un service externe
+
+    // Formulaire interne : présent mais caché (voir carte.css)
+    form: true,
+
+    stars: {
+      limit: 6,
+      size: 10, // disques plus gros : lisibles sur un petit écran
+      colors: true,
+      designation: false,
+      propername: calques.etiquettesEtoiles,
+      propernameType: "fr",
+      propernameLimit: 2.2,
+      propernameStyle: {
+        fill: "#e3e9f6",
+        font: "13px Helvetica, Arial, sans-serif",
+        align: "left",
+        baseline: "top",
+      },
+    },
+    dsos: { show: false },
+    planets: { show: false }, // on dessine les nôtres (calculées par Skyfield)
+    constellations: {
+      names: false, // nos propres noms, en majuscules espacées (voir dessinerConstellations)
+      namesType: "fr",
+      lines: calques.constellations,
+      nameStyle: {
+        fill: "#a3b2d6",
+        align: "center",
+        baseline: "middle",
+        font: [
+          "13px Helvetica, Arial, sans-serif",
+          "12px Helvetica, Arial, sans-serif",
+          "12px Helvetica, Arial, sans-serif",
+        ],
+      },
+      lineStyle: { stroke: "#8593b8", width: 1, opacity: 0.45 }, // discrètes : les étoiles d'abord
+    },
+    mw: { show: calques.voieLactee, style: { fill: "#aab4d4", opacity: 0.06 } },
+    lines: {
+      graticule: { show: false },
+      equatorial: { show: false },
+      ecliptic: { show: false },
+    },
+    background: { fill: "#05070d", opacity: 1, stroke: "#05070d", width: 0 },
+    horizon: { show: false }, // dessiné par nous-mêmes (voir dessinerSol)
+    daylight: { show: false },
+    };
+  }
+
+  // Dessine la carte à la taille de la zone, puis retire le gestionnaire de redimensionnement
+  // que la bibliothèque installe elle-même (on gère le redimensionnement nous-mêmes).
+  function afficherCarte() {
+    Celestial.display(configCarte(placer()));
+    d3.select(window).on("resize", null);
+    placerCanevas();
+  }
+
+  afficherCarte();
+
+  // ===========================================================================
+  // 8. Changement de taille / rotation de l'écran
+  // ===========================================================================
+
+  // Pas de rechargement de la page : on redessine la carte à la nouvelle taille,
+  // après une courte pause (le temps que la rotation de l'écran se termine).
+  let tailleAffichee = taille();
+  let minuteur = null;
+  window.addEventListener("resize", function () {
+    clearTimeout(minuteur);
+    minuteur = setTimeout(redessiner, 200);
+  });
+
+  function redessiner() {
+    const t = placer();
+    if (t === tailleAffichee) {
+      placerCanevas();
+      return;
+    }
+    tailleAffichee = t;
+    Celestial.resize({ width: t }); // nouvelle taille du canvas
+    Celestial.reload(configCarte(t)); // puis redessin complet, sans recharger la page
+    d3.select(window).on("resize", null);
+    placerCanevas();
+  }
+})();

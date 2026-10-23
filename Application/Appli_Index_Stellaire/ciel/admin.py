@@ -1,3 +1,13 @@
 from django.contrib import admin
+from .models import ObjetCeleste, Constellation
 
-# Register your models here.
+
+@admin.register(ObjetCeleste)
+class ObjetCelesteAdmin(admin.ModelAdmin):
+    list_display = ("nom", "categorie", "identifiant_skyfield")
+    list_filter = ("categorie",)
+
+
+@admin.register(Constellation)
+class ConstellationAdmin(admin.ModelAdmin):
+    filter_horizontal = ("etoiles",)
