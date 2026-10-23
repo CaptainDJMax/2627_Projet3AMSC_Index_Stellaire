@@ -1,0 +1,12 @@
+{
+  "nom": "Mars",
+  "categorie": "planete",
+  "identifiant_skyfield": "mars barycenter",
+  "description": "",
+  "sources": [],
+  "image": "",
+  "image_source": "",
+  "image_auteur": "",
+  "image_licence": "",
+  "constellations": []
+}

@@ -10,6 +10,7 @@ __pycache__/
 
 # Base de données locale Django
 db.sqlite3
+media/
 
 # Fichiers de référence téléchargés par Skyfield (éphémérides, catalogue)
 donnees_skyfield/

@@ -1,0 +1,14 @@
+{
+  "nom": "Aldébaran",
+  "categorie": "etoile",
+  "identifiant_skyfield": "hip:21421",
+  "description": "",
+  "sources": [],
+  "image": "",
+  "image_source": "",
+  "image_auteur": "",
+  "image_licence": "",
+  "constellations": [
+    "Taureau"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "nom": "Saturne",
+  "categorie": "planete",
+  "identifiant_skyfield": "saturn barycenter",
+  "description": "",
+  "sources": [],
+  "image": "",
+  "image_source": "",
+  "image_auteur": "",
+  "image_licence": "",
+  "constellations": []
+}

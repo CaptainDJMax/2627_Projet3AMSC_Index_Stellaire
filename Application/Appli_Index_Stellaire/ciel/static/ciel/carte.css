@@ -636,3 +636,21 @@ body {
 .credits a {
   color: inherit;
 }
+
+/* --- Crédit de l'image et sources, dans la fiche --------------------------------- */
+#fiche-credit,
+#fiche-sources {
+  margin: -6px 0 12px;
+  color: var(--texte-doux);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+#fiche-sources {
+  margin-top: -6px;
+}
+
+#fiche-credit a,
+#fiche-sources a {
+  color: inherit;
+}

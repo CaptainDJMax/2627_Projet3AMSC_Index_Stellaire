@@ -1,0 +1,12 @@
+{
+  "nom": "Mercure",
+  "categorie": "planete",
+  "identifiant_skyfield": "mercury",
+  "description": "",
+  "sources": [],
+  "image": "",
+  "image_source": "",
+  "image_auteur": "",
+  "image_licence": "",
+  "constellations": []
+}

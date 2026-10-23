@@ -1,0 +1,12 @@
+{
+  "nom": "Jupiter",
+  "categorie": "planete",
+  "identifiant_skyfield": "jupiter barycenter",
+  "description": "",
+  "sources": [],
+  "image": "",
+  "image_source": "",
+  "image_auteur": "",
+  "image_licence": "",
+  "constellations": []
+}

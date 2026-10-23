@@ -125,6 +125,13 @@ def detail_objet(request, objet_id):
             "categorie": objet.categorie,
             "description": objet.description,
             "image": objet.image.url if objet.image else None,
+            # Ajoutés pour le contenu (Partie 10) : crédit obligatoire de l'image et sources du texte
+            "image_credit": {
+                "source": objet.image_source,
+                "auteur": objet.image_auteur,
+                "licence": objet.image_licence,
+            } if objet.image else None,
+            "sources": [s.strip() for s in objet.sources.splitlines() if s.strip()],
             "constellations": [c.nom for c in objet.constellations.all()],
             "instant": instant.utc_iso(),
             "lieu": lieu,

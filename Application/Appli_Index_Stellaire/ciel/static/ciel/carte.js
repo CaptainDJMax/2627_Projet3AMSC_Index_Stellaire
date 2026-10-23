@@ -621,6 +621,8 @@
     noteHorizon: document.getElementById("fiche-note-horizon"),
     courbe: document.getElementById("fiche-courbe"),
     description: document.getElementById("fiche-description"),
+    credit: document.getElementById("fiche-credit"),
+    sources: document.getElementById("fiche-sources"),
   };
 
   let selection = null; // id de l'objet sélectionné (ou null)
@@ -813,8 +815,51 @@
     } else {
       el.image.hidden = true;
     }
+    remplirCredits();
     tracerCourbe();
     majBoutonPointer();
+  }
+
+  // Un lien seulement vers une adresse web (jamais « javascript: » ou autre) ; le texte via textContent
+  function lienExterne(adresse, texte) {
+    let url;
+    try {
+      url = new URL(adresse);
+    } catch (erreur) {
+      return null;
+    }
+    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+    const a = document.createElement("a");
+    a.href = url.href;
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.textContent = texte || url.hostname.replace(/^www\./, "");
+    return a;
+  }
+
+  // Crédit de l'image (obligatoire pour une image sous licence libre) et sources de la description
+  function remplirCredits() {
+    const credit = fiche && fiche.image && fiche.image_credit;
+    el.credit.replaceChildren();
+    el.credit.hidden = !credit;
+    if (credit) {
+      const morceaux = [credit.auteur, credit.licence].filter(Boolean).join(" · ");
+      el.credit.append("Image : " + morceaux);
+      const lien = lienExterne(credit.source, "source");
+      if (lien) el.credit.append(" · ", lien);
+    }
+    const sources = (fiche && fiche.sources) || [];
+    el.sources.replaceChildren();
+    el.sources.hidden = sources.length === 0;
+    if (sources.length) {
+      el.sources.append("Sources : ");
+      sources.forEach(function (adresse, i) {
+        const lien = lienExterne(adresse);
+        if (!lien) return;
+        if (el.sources.childNodes.length > 1) el.sources.append(", ");
+        el.sources.append(lien);
+      });
+    }
   }
 
   // Petite courbe « hauteur sur 24 h », avec un point pour l'instant actuel

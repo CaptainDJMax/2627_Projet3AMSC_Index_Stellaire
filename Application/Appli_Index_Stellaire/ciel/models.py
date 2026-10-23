@@ -24,6 +24,11 @@ class ObjetCeleste(models.Model):
     )
     description = models.TextField(blank=True)
     image = models.ImageField(upload_to="objets_celestes/", blank=True, null=True)
+    # Crédits de l'image (obligatoires dès qu'il y a une image : licence libre) et sources du texte
+    image_source = models.URLField("source de l'image", max_length=500, blank=True, default="")
+    image_auteur = models.CharField("auteur de l'image", max_length=200, blank=True, default="")
+    image_licence = models.CharField("licence de l'image", max_length=100, blank=True, default="")
+    sources = models.TextField("sources de la description", blank=True, default="", help_text="Une adresse par ligne.")
 
     def __str__(self):
         return self.nom

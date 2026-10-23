@@ -19,6 +19,7 @@ CLES_LISTE = {"id", "nom", "categorie", "elevation", "azimut", "ra", "dec", "vis
 CLES_DETAIL = {
     "id", "nom", "categorie", "description", "image", "constellations",
     "instant", "lieu", "position", "levers_couchers", "trajectoire",
+    "image_credit", "sources",  # ajoutés pour le contenu (crédits de l'image, sources du texte)
 }
 
 
@@ -144,3 +145,125 @@ class IllustrationsTests(TestCase):
             for a in il["ancrages"]:
                 self.assertTrue(-180 <= a["ra"] <= 360 and -90 <= a["dec"] <= 90, il["iau"])
                 self.assertTrue(0 <= a["x"] <= il["taille"][0] and 0 <= a["y"] <= il["taille"][1], il["iau"])
+
+
+class ContenuTests(TestCase):
+    """Commandes importer_contenu / exporter_contenu : le contenu partagé par Git (un fichier par astre)."""
+
+    def setUp(self):
+        import io
+        import tempfile
+
+        from django.test import override_settings
+        from PIL import Image
+
+        self._dossiers = tempfile.TemporaryDirectory()
+        racine = Path(self._dossiers.name)
+        self.contenu = racine / "contenu"
+        (self.contenu / "astres").mkdir(parents=True)
+        (self.contenu / "images").mkdir()
+        tampon = io.BytesIO()
+        Image.new("RGB", (8, 8), (200, 120, 40)).save(tampon, "PNG")
+        (self.contenu / "images" / "venus.png").write_bytes(tampon.getvalue())
+        self._media = override_settings(MEDIA_ROOT=str(racine / "media"))
+        self._media.enable()
+
+    def tearDown(self):
+        self._media.disable()
+        self._dossiers.cleanup()
+
+    def ecrire(self, nom_fichier, donnees):
+        (self.contenu / "astres" / nom_fichier).write_text(json.dumps(donnees, ensure_ascii=False), encoding="utf-8")
+
+    def importer(self):
+        import io
+
+        from django.core.management import call_command
+
+        sortie = io.StringIO()
+        call_command("importer_contenu", dossier=str(self.contenu), stdout=sortie)
+        return sortie.getvalue()
+
+    VENUS = {
+        "nom": "Vénus", "categorie": "planete", "identifiant_skyfield": "venus",
+        "description": "Deuxième planète.", "sources": ["https://fr.wikipedia.org/wiki/V%C3%A9nus_(plan%C3%A8te)"],
+        "image": "venus.png", "image_source": "https://images.nasa.gov/", "image_auteur": "NASA",
+        "image_licence": "Domaine public", "constellations": [],
+    }
+
+    def test_import_cree_puis_ne_change_rien(self):
+        self.ecrire("venus.json", self.VENUS)
+        self.ecrire("aldebaran.json", {"nom": "Aldébaran", "categorie": "etoile", "identifiant_skyfield": "hip:21421",
+                                       "constellations": ["Taureau"]})
+        sortie = self.importer()
+        self.assertIn("2 créés", sortie)
+        venus = ObjetCeleste.objects.get(nom="Vénus")
+        self.assertEqual(venus.image.name, "objets_celestes/venus.png")
+        self.assertTrue(Path(venus.image.path).is_file())
+        self.assertEqual(venus.image_licence, "Domaine public")
+        self.assertEqual([c.nom for c in ObjetCeleste.objects.get(nom="Aldébaran").constellations.all()], ["Taureau"])
+        # Un second import ne crée rien et ne modifie rien
+        self.assertIn("0 créés, 0 mis à jour, 2 inchangés", self.importer())
+        self.assertEqual(ObjetCeleste.objects.count(), 2)
+
+    def test_le_fichier_fait_foi(self):
+        self.ecrire("venus.json", self.VENUS)
+        self.importer()
+        self.ecrire("venus.json", {**self.VENUS, "description": "Texte corrigé."})
+        self.assertIn("1 mis à jour", self.importer())
+        self.assertEqual(ObjetCeleste.objects.get(nom="Vénus").description, "Texte corrigé.")
+
+    def test_image_sans_credit_refusee_et_rien_importe(self):
+        from django.core.management.base import CommandError
+
+        self.ecrire("venus.json", {**self.VENUS, "image_licence": ""})
+        self.ecrire("mars.json", {"nom": "Mars", "categorie": "planete", "identifiant_skyfield": "mars barycenter"})
+        with self.assertRaises(CommandError) as erreur:
+            self.importer()
+        self.assertIn("image_licence", str(erreur.exception))
+        self.assertEqual(ObjetCeleste.objects.count(), 0)  # tout ou rien
+
+    def test_noms_en_double_et_champs_inconnus_refuses(self):
+        from django.core.management.base import CommandError
+
+        self.ecrire("a.json", {"nom": "Mars", "categorie": "planete"})
+        self.ecrire("b.json", {"nom": "Mars", "categorie": "planete", "descritpion": "faute"})
+        with self.assertRaises(CommandError) as erreur:
+            self.importer()
+        self.assertIn("descritpion", str(erreur.exception))
+
+    def test_export_puis_reimport_identique(self):
+        import io
+
+        from django.core.management import call_command
+
+        self.ecrire("venus.json", self.VENUS)
+        self.importer()
+        sortie = io.StringIO()
+        call_command("exporter_contenu", dossier=str(self.contenu), stdout=sortie)
+        exporte = json.loads((self.contenu / "astres" / "venus.json").read_text(encoding="utf-8"))
+        self.assertEqual(exporte, self.VENUS)
+        # Exporter sans rien changer ne réécrit aucun fichier (pas de faux changement pour Git)
+        sortie = io.StringIO()
+        call_command("exporter_contenu", dossier=str(self.contenu), stdout=sortie)
+        self.assertIn("0 fichier(s) écrit(s)", sortie.getvalue())
+
+    def test_credit_dans_l_api(self):
+        self.ecrire("venus.json", self.VENUS)
+        self.importer()
+        venus = ObjetCeleste.objects.get(nom="Vénus")
+        donnees = self.client.get(f"/api/ciel/objets/{venus.id}/").json()
+        self.assertEqual(donnees["image_credit"], {"source": "https://images.nasa.gov/", "auteur": "NASA",
+                                                   "licence": "Domaine public"})
+        self.assertEqual(len(donnees["sources"]), 1)
+
+    def test_conflit_git_explique(self):
+        from django.core.management.base import CommandError
+
+        (self.contenu / "astres" / "mars.json").write_text(
+            '{\n  "nom": "Mars",\n<<<<<<< HEAD\n  "categorie": "planete"\n=======\n  "categorie": "planete"\n>>>>>>> abc\n}\n',
+            encoding="utf-8",
+        )
+        with self.assertRaises(CommandError) as erreur:
+            self.importer()
+        self.assertIn("conflit Git non résolu", str(erreur.exception))
