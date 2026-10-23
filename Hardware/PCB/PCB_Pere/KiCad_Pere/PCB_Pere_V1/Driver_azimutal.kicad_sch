@@ -3733,7 +3733,7 @@
 		)
 		(uuid "ace9da0c-1255-4273-814e-7785c9c8b7d2")
 	)
-	(hierarchical_label "BRB"
+	(hierarchical_label "BRA"
 		(shape output)
 		(at 186.69 96.52 0)
 		(effects
@@ -3799,7 +3799,7 @@
 		)
 		(uuid "f3b2e2b3-c5ed-4f32-aabb-345940dc8eb0")
 	)
-	(hierarchical_label "BRA"
+	(hierarchical_label "BRB"
 		(shape output)
 		(at 204.47 86.36 0)
 		(effects

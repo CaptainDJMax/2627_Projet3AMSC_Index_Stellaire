@@ -43,7 +43,7 @@
           "height": 1.6,
           "width": 1.6
         },
-        "silk_line_width": 0.1,
+        "silk_line_width": 0.15,
         "silk_text_italic": false,
         "silk_text_size_h": 1.0,
         "silk_text_size_v": 1.0,
@@ -63,7 +63,7 @@
           "min_clearance": 0.5,
           "min_island_area": 10.0,
           "min_thickness": 0.25,
-          "pad_connection": 1,
+          "pad_connection": 3,
           "remove_islands": 0,
           "thermal_relief_gap": 0.5,
           "thermal_relief_spoke_width": 0.5
@@ -174,9 +174,9 @@
         {
           "td_onpthpad": false,
           "td_onroundshapesonly": false,
-          "td_onsmdpad": false,
-          "td_ontrackend": true,
-          "td_onvia": true
+          "td_onsmdpad": true,
+          "td_ontrackend": false,
+          "td_onvia": false
         }
       ],
       "teardrop_parameters": [
@@ -489,12 +489,12 @@
       "missing_unit": "warning",
       "multiple_net_names": "warning",
       "net_not_bus_member": "warning",
-      "no_connect_connected": "warning",
+      "no_connect_connected": "error",
       "no_connect_dangling": "warning",
       "pin_not_connected": "error",
-      "pin_not_driven": "error",
+      "pin_not_driven": "warning",
       "pin_to_pin": "error",
-      "power_pin_not_driven": "error",
+      "power_pin_not_driven": "warning",
       "same_local_global_label": "warning",
       "similar_label_and_power": "warning",
       "similar_labels": "warning",
@@ -535,7 +535,7 @@
         "pcb_color": "rgba(0, 0, 0, 0.000)",
         "priority": 2147483647,
         "schematic_color": "rgba(0, 0, 0, 0.000)",
-        "track_width": 0.2,
+        "track_width": 0.3,
         "tuning_profile": "",
         "via_diameter": 0.6,
         "via_drill": 0.3,
@@ -730,7 +730,7 @@
         "uuid": "211fd2c7-a689-4f6d-9a31-462e9bb4f921"
       }
     ],
-    "used_designators": "#FLG1-4,L1-2,CN1,CN3-4,TP1-7,LED1-3,R1-21,C1-46,H1-2,X1-3,#PWR1-67,U1-7",
+    "used_designators": "#FLG1-4,L1-2,CN1-4,TP1-7,LED1-6,R1-24,C1-46,H1-2,X1-3,#PWR1-72,U1-7",
     "variants": []
   },
   "sheets": [

@@ -787,6 +787,160 @@
 			)
 			(embedded_fonts no)
 		)
+		(symbol "EasyEDA:0603WAF6800T5E"
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(in_pos_files yes)
+			(duplicate_pin_numbers_are_jumpers no)
+			(property "Reference" "R"
+				(at 0 5.08 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "0603WAF6800T5E"
+				(at 0 -5.08 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" "EasyEDA:R0603"
+				(at 0 -7.62 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Datasheet" "https://lcsc.com/product-detail/Chip-Resistor-Surface-Mount-UniOhm_680R-6800-1_C23228.html"
+				(at 0 -10.16 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Description" "680Ω (6800) ±1%"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Manufacturer" "UNI-ROYAL(厚声)"
+				(at 0 -12.7 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "MPN" "0603WAF6800T5E"
+				(at 0 -15.24 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "LCSC Part" "C23228"
+				(at 0 -17.78 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_keywords" "Resistors"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(symbol "0603WAF6800T5E_0_1"
+				(rectangle
+					(start -2.54 1.02)
+					(end 2.54 -1.02)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type background)
+					)
+				)
+				(pin input line
+					(at -5.08 0 0)
+					(length 2.54)
+					(name "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at 5.08 0 180)
+					(length 2.54)
+					(name "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
 		(symbol "EasyEDA:0603WAF9101T5E"
 			(exclude_from_sim no)
 			(in_bom yes)
@@ -1667,7 +1821,7 @@
 			)
 			(embedded_fonts no)
 		)
-		(symbol "EasyEDA:CL21B223KBANNNC"
+		(symbol "EasyEDA:CL10C220JB8NNNC"
 			(exclude_from_sim no)
 			(in_bom yes)
 			(on_board yes)
@@ -1683,7 +1837,7 @@
 					)
 				)
 			)
-			(property "Value" "CL21B223KBANNNC"
+			(property "Value" "CL10C220JB8NNNC"
 				(at 0 -5.08 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -1693,7 +1847,7 @@
 					)
 				)
 			)
-			(property "Footprint" "EasyEDA:C0805"
+			(property "Footprint" "EasyEDA:C0603"
 				(at 0 -7.62 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -1704,7 +1858,7 @@
 					)
 				)
 			)
-			(property "Datasheet" "https://lcsc.com/product-detail/Multilayer-Ceramic-Capacitors-MLCC-SMD-SMT_SAMSUNG_CL21B223KBANNNC_22nF-223-10-50V_C1729.html"
+			(property "Datasheet" "https://lcsc.com/product-detail/Multilayer-Ceramic-Capacitors-MLCC-SMD-SMT_SAMSUNG_CL10C220JB8NNNC_22pF-220-5-50V_C1653.html"
 				(at 0 -10.16 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -1715,7 +1869,7 @@
 					)
 				)
 			)
-			(property "Description" "22nF (223) ±10% 50V"
+			(property "Description" "22pF (220) ±5% 50V"
 				(at 0 0 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -1737,7 +1891,7 @@
 					)
 				)
 			)
-			(property "MPN" "CL21B223KBANNNC"
+			(property "MPN" "CL10C220JB8NNNC"
 				(at 0 -15.24 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -1748,7 +1902,7 @@
 					)
 				)
 			)
-			(property "LCSC Part" "C1729"
+			(property "LCSC Part" "C1653"
 				(at 0 -17.78 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -1770,10 +1924,10 @@
 					)
 				)
 			)
-			(symbol "CL21B223KBANNNC_0_1"
+			(symbol "CL10C220JB8NNNC_0_1"
 				(polyline
 					(pts
-						(xy -1.27 0) (xy -0.51 0)
+						(xy -0.51 0) (xy -2.54 0)
 					)
 					(stroke
 						(width 0)
@@ -1785,7 +1939,7 @@
 				)
 				(polyline
 					(pts
-						(xy -0.51 2.03) (xy -0.51 -2.03)
+						(xy -0.51 -2.03) (xy -0.51 2.03)
 					)
 					(stroke
 						(width 0)
@@ -1809,7 +1963,7 @@
 				)
 				(polyline
 					(pts
-						(xy 0.51 0) (xy 1.27 0)
+						(xy 2.54 0) (xy 0.51 0)
 					)
 					(stroke
 						(width 0)
@@ -1819,8 +1973,8 @@
 						(type none)
 					)
 				)
-				(pin input line
-					(at -3.81 0 0)
+				(pin unspecified line
+					(at -5.08 0 0)
 					(length 2.54)
 					(name "1"
 						(effects
@@ -1837,8 +1991,8 @@
 						)
 					)
 				)
-				(pin input line
-					(at 3.81 0 180)
+				(pin unspecified line
+					(at 5.08 0 180)
 					(length 2.54)
 					(name "2"
 						(effects
@@ -2212,6 +2366,221 @@
 					(at 5.08 0 180)
 					(length 1.27)
 					(name "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+		(symbol "EasyEDA:KT-0603R"
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(in_pos_files yes)
+			(duplicate_pin_numbers_are_jumpers no)
+			(property "Reference" "LED"
+				(at 0 3.81 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "KT-0603R"
+				(at 0 -6.35 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" "EasyEDA:LED-SMD_L1.6-W0.8-R-RD"
+				(at 0 -8.89 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Datasheet" "https://lcsc.com/product-detail/Light-Emitting-Diodes-LED_Red-LED-0603_C2286.html"
+				(at 0 -11.43 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Description" "0603"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Manufacturer" "KENTO"
+				(at 0 -13.97 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "MPN" "KT-0603R"
+				(at 0 -16.51 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "LCSC Part" "C2286"
+				(at 0 -19.05 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_keywords" "Light Emitting Diodes (LED)"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(symbol "KT-0603R_0_1"
+				(polyline
+					(pts
+						(xy -3.81 2.03) (xy -2.79 1.52) (xy -3.3 1.02) (xy -3.81 2.03)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type background)
+					)
+				)
+				(polyline
+					(pts
+						(xy -2.79 3.05) (xy -1.78 2.54) (xy -2.29 2.03) (xy -2.79 3.05)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type background)
+					)
+				)
+				(polyline
+					(pts
+						(xy -2.03 0.25) (xy -3.81 2.03)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy -1.27 0.76) (xy -1.27 -3.3)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy -1.02 1.27) (xy -2.79 3.05)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 1.27 -2.79) (xy -1.27 -1.27) (xy 1.27 0.51) (xy 1.27 -2.79)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type background)
+					)
+				)
+				(pin unspecified line
+					(at 5.08 -1.27 180)
+					(length 3.81)
+					(name "A"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin unspecified line
+					(at -5.08 -1.27 0)
+					(length 3.81)
+					(name "K"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -4560,10 +4929,22 @@
 		(uuid "0f5530ce-6cf1-40b3-8875-8c1c2c7b392c")
 	)
 	(junction
+		(at 107.95 104.14)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "14c985ac-d0b1-4fef-8780-f2b4d31a306c")
+	)
+	(junction
 		(at 57.15 45.72)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "1ea75655-42cd-45af-8323-d5c68395f84d")
+	)
+	(junction
+		(at 91.44 172.72)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "2c563c99-0204-48cd-9a54-97da5c67ccd9")
 	)
 	(junction
 		(at 74.93 104.14)
@@ -4632,7 +5013,7 @@
 		(uuid "5c0a28bd-486b-4d05-a0c7-67b5b4573818")
 	)
 	(junction
-		(at 107.95 162.56)
+		(at 114.3 162.56)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "715052c6-1672-492c-937d-860c68485b9a")
@@ -4746,10 +5127,22 @@
 		(uuid "d5cb360d-7c5c-456c-880d-21515d369dda")
 	)
 	(junction
+		(at 91.44 114.3)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "e295a47e-f79e-4986-ae66-cf63f7869f36")
+	)
+	(junction
 		(at 86.36 114.3)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "e33c0e71-2acc-4bed-ad02-d5b5b767c51b")
+	)
+	(junction
+		(at 107.95 162.56)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "e550f21d-8808-44df-85f0-e30ee1383a0d")
 	)
 	(junction
 		(at 234.95 105.41)
@@ -4782,30 +5175,10 @@
 		(uuid "f9962320-8461-4172-ba71-ea93009f668b")
 	)
 	(junction
-		(at 107.95 104.14)
+		(at 121.92 104.14)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "fb3df178-c455-4e58-8200-2978dfeda2ff")
-	)
-	(no_connect
-		(at 181.61 134.62)
-		(uuid "39a8a1ef-15dc-4f95-bc61-07fe0696d5db")
-	)
-	(no_connect
-		(at 181.61 142.24)
-		(uuid "64825ddd-56ac-4e74-a3aa-1a062a9f7757")
-	)
-	(no_connect
-		(at 181.61 137.16)
-		(uuid "96243914-398f-4481-80a0-d27be3573bef")
-	)
-	(no_connect
-		(at 181.61 144.78)
-		(uuid "b0f1a1d3-f4b6-4c90-b0fa-b5c3d92f815b")
-	)
-	(no_connect
-		(at 181.61 139.7)
-		(uuid "cfcb9bae-55b4-4dc6-96f2-5a7f28dde9a0")
 	)
 	(wire
 		(pts
@@ -4896,6 +5269,16 @@
 			(type default)
 		)
 		(uuid "134d1a4d-5cc9-4660-997a-96e9e673a22a")
+	)
+	(wire
+		(pts
+			(xy 105.41 162.56) (xy 107.95 162.56)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "183cde9a-6f84-4e4d-a0b8-6677d61a6a02")
 	)
 	(wire
 		(pts
@@ -5029,16 +5412,6 @@
 	)
 	(wire
 		(pts
-			(xy 107.95 162.56) (xy 110.49 162.56)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "37321207-c0f2-490b-9540-a364dee4a126")
-	)
-	(wire
-		(pts
 			(xy 41.91 165.1) (xy 45.72 165.1)
 		)
 		(stroke
@@ -5076,6 +5449,16 @@
 			(type default)
 		)
 		(uuid "4a8f7fd4-ce63-4cc7-abcf-c33d734a5e41")
+	)
+	(wire
+		(pts
+			(xy 107.95 104.14) (xy 127 104.14)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "4e8ed26c-9180-4865-9963-7723975e3be8")
 	)
 	(wire
 		(pts
@@ -5179,16 +5562,6 @@
 	)
 	(wire
 		(pts
-			(xy 91.44 162.56) (xy 91.44 163.83)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "6af21bb0-2a72-49ef-adba-16a23d80342f")
-	)
-	(wire
-		(pts
 			(xy 82.55 172.72) (xy 86.36 172.72)
 		)
 		(stroke
@@ -5209,23 +5582,13 @@
 	)
 	(wire
 		(pts
-			(xy 105.41 162.56) (xy 107.95 162.56)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "7541202b-570b-48e8-abd3-1f0a5b71884b")
-	)
-	(wire
-		(pts
 			(xy 181.61 50.8) (xy 200.66 50.8)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "77eec704-ea68-417f-b34a-85bdef540610")
+		(uuid "7ba340f6-5cdd-4bc3-a778-ad4704e10c66")
 	)
 	(wire
 		(pts
@@ -5256,16 +5619,6 @@
 			(type default)
 		)
 		(uuid "8708bdec-046e-493c-9ea2-9dea6fb9302a")
-	)
-	(wire
-		(pts
-			(xy 181.61 53.34) (xy 200.66 53.34)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "9100ce6f-1707-4ca5-a4a2-443886ea1ca4")
 	)
 	(wire
 		(pts
@@ -5319,13 +5672,13 @@
 	)
 	(wire
 		(pts
-			(xy 110.49 104.14) (xy 114.3 104.14)
+			(xy 181.61 53.34) (xy 200.66 53.34)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "9b2889fc-f1ac-4f3b-9879-cc77e1c98a75")
+		(uuid "9b908473-b72d-4562-8d67-e3dac66397a0")
 	)
 	(wire
 		(pts
@@ -5426,16 +5779,6 @@
 			(type default)
 		)
 		(uuid "af028b44-247b-4dd6-b399-5294876d9350")
-	)
-	(wire
-		(pts
-			(xy 107.95 104.14) (xy 110.49 104.14)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "b20b5766-25d0-40f1-8b3d-46254c2b20af")
 	)
 	(wire
 		(pts
@@ -5619,6 +5962,16 @@
 	)
 	(wire
 		(pts
+			(xy 107.95 162.56) (xy 114.3 162.56)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "ce671a12-9176-4c71-8bf1-4d1de321d69a")
+	)
+	(wire
+		(pts
 			(xy 76.2 66.04) (xy 83.82 66.04)
 		)
 		(stroke
@@ -5719,16 +6072,6 @@
 	)
 	(wire
 		(pts
-			(xy 110.49 162.56) (xy 114.3 162.56)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "e410d51f-c05d-4f03-a76c-067ed19fdf2a")
-	)
-	(wire
-		(pts
 			(xy 45.72 160.02) (xy 44.45 160.02)
 		)
 		(stroke
@@ -5787,35 +6130,15 @@
 		)
 		(uuid "fd1f3459-76b1-49d7-911b-c21b3ad24621")
 	)
-	(label "AZ_OA1"
-		(at 247.65 46.99 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "133d7259-d39a-47e8-a0d3-7a67a58ccab3")
-	)
-	(label "AZ_OB2"
-		(at 247.65 31.75 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "20e6d3f5-1bd2-4d25-a436-f179f8390338")
-	)
 	(label "AZ_OA2"
-		(at 247.65 41.91 0)
+		(at 248.92 115.57 0)
 		(effects
 			(font
 				(size 1.27 1.27)
 			)
 			(justify left bottom)
 		)
-		(uuid "2b2894b7-49ab-429c-b606-fbc04c6dcbb5")
+		(uuid "07203ad7-7c96-4f91-be39-6c3c083c97c2")
 	)
 	(label "FB_5V"
 		(at 81.28 114.3 180)
@@ -5837,15 +6160,15 @@
 		)
 		(uuid "3fa23d65-4dc5-4a56-a3ca-2b958b4a932b")
 	)
-	(label "EL_OB2"
-		(at 246.38 105.41 0)
+	(label "AZ_OB1"
+		(at 248.92 110.49 0)
 		(effects
 			(font
 				(size 1.27 1.27)
 			)
 			(justify left bottom)
 		)
-		(uuid "50f51ac0-9fad-4456-ae49-2e014739e1b2")
+		(uuid "51b5d85c-75f0-4824-8a74-fd4c36ea8734")
 	)
 	(label "STBY_Elevation"
 		(at 200.66 55.88 180)
@@ -5857,15 +6180,25 @@
 		)
 		(uuid "52d58aed-e8a6-44fa-a536-032931b5c88a")
 	)
-	(label "EL_OB1"
-		(at 246.38 110.49 0)
+	(label "AZ_OA1"
+		(at 248.92 120.65 0)
 		(effects
 			(font
 				(size 1.27 1.27)
 			)
 			(justify left bottom)
 		)
-		(uuid "89871a4e-0f11-44fe-b38e-5e522989a25a")
+		(uuid "5dc4bb2f-efab-49a4-84a8-3d93a2217d1a")
+	)
+	(label "AZ_OB2"
+		(at 248.92 105.41 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "75f4e0ca-4706-40a4-bd64-b61e53564d48")
 	)
 	(label "STBY_Elevation"
 		(at 181.61 132.08 0)
@@ -5877,25 +6210,25 @@
 		)
 		(uuid "904da068-41f5-47d3-803d-3ebc8bd70641")
 	)
-	(label "AZ_OB1"
-		(at 247.65 36.83 0)
+	(label "EL_OB1"
+		(at 250.19 36.83 0)
 		(effects
 			(font
 				(size 1.27 1.27)
 			)
 			(justify left bottom)
 		)
-		(uuid "a215d28b-e6c1-4b33-b3d6-35292eb2f247")
+		(uuid "989cea19-dfcf-4918-b46e-628f0933168e")
 	)
 	(label "EL_OA2"
-		(at 246.38 115.57 0)
+		(at 250.19 41.91 0)
 		(effects
 			(font
 				(size 1.27 1.27)
 			)
 			(justify left bottom)
 		)
-		(uuid "cd93ab90-ed7b-4862-87bd-d28b66cb0af7")
+		(uuid "acc4571d-1acb-4381-b7d9-1688f6bc0ff5")
 	)
 	(label "FB_3V3"
 		(at 44.45 160.02 180)
@@ -5907,16 +6240,6 @@
 		)
 		(uuid "d368e522-0bfb-4be5-af65-bd013a56645d")
 	)
-	(label "EL_OA1"
-		(at 246.38 120.65 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "dc4f05af-cc1c-4d20-9b16-4ba5434994cc")
-	)
 	(label "FB_5V"
 		(at 45.72 101.6 180)
 		(effects
@@ -5927,17 +6250,25 @@
 		)
 		(uuid "e7268214-dbd3-48cf-8f80-be27bd83d525")
 	)
-	(label "Cff à 22nf ou 2.2uF !?"
-		(at 106.68 92.71 0)
+	(label "EL_OB2"
+		(at 250.19 31.75 0)
 		(effects
 			(font
 				(size 1.27 1.27)
-				(thickness 0.254)
-				(bold yes)
 			)
 			(justify left bottom)
 		)
-		(uuid "eecba92b-527e-49c9-9ac5-c9b652285c2e")
+		(uuid "f0155b29-87b4-41bd-82eb-6390d9ba96d5")
+	)
+	(label "EL_OA1"
+		(at 250.19 46.99 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "febe6819-3bca-4d32-89ae-a2bf908e7068")
 	)
 	(symbol
 		(lib_id "power:GND")
@@ -6131,6 +6462,85 @@
 		)
 	)
 	(symbol
+		(lib_id "power:GND")
+		(at 181.61 134.62 90)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "041714a5-1422-4c76-9c7e-aace22be410a")
+		(property "Reference" "#PWR071"
+			(at 187.96 134.62 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "GND"
+			(at 185.42 134.6199 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" ""
+			(at 181.61 134.62 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 181.61 134.62 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 181.61 134.62 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "c98cd9e8-49b1-45dd-b3c2-05031fe235d7")
+		)
+		(instances
+			(project "PCB_Pere_V1"
+				(path "/211fd2c7-a689-4f6d-9a31-462e9bb4f921"
+					(reference "#PWR071")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "Connector:TestPoint")
 		(at 228.6 64.77 270)
 		(unit 1)
@@ -6210,8 +6620,8 @@
 		)
 	)
 	(symbol
-		(lib_id "power:+3V3")
-		(at 181.61 147.32 270)
+		(lib_id "power:GND")
+		(at 181.61 137.16 90)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -6220,9 +6630,9 @@
 		(in_pos_files yes)
 		(dnp no)
 		(fields_autoplaced yes)
-		(uuid "188d6284-c302-4d2f-9efe-b6d943ecfe64")
-		(property "Reference" "#PWR013"
-			(at 177.8 147.32 0)
+		(uuid "0f5725b3-99e8-400d-a85c-d9240f1243a5")
+		(property "Reference" "#PWR070"
+			(at 187.96 137.16 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6232,7 +6642,86 @@
 				)
 			)
 		)
-		(property "Value" "+3V3"
+		(property "Value" "GND"
+			(at 185.42 137.1599 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" ""
+			(at 181.61 137.16 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 181.61 137.16 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 181.61 137.16 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "f6c2a34f-1cd1-4d4d-b966-5600214bd826")
+		)
+		(instances
+			(project "PCB_Pere_V1"
+				(path "/211fd2c7-a689-4f6d-9a31-462e9bb4f921"
+					(reference "#PWR070")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 181.61 147.32 90)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "1c3445af-6d3b-4094-9598-a8f7bc8f6e58")
+		(property "Reference" "#PWR072"
+			(at 187.96 147.32 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "GND"
 			(at 185.42 147.3199 90)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6240,7 +6729,7 @@
 				(font
 					(size 1.27 1.27)
 				)
-				(justify left)
+				(justify right)
 			)
 		)
 		(property "Footprint" ""
@@ -6265,7 +6754,7 @@
 				)
 			)
 		)
-		(property "Description" "Power symbol creates a global label with name \"+3V3\""
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
 			(at 181.61 147.32 0)
 			(hide yes)
 			(show_name no)
@@ -6277,12 +6766,127 @@
 			)
 		)
 		(pin "1"
-			(uuid "8ceab40d-e868-4e54-a357-39bb4d41197f")
+			(uuid "07fd3d0b-d48a-487e-abd1-7c6cd02ffbed")
 		)
 		(instances
 			(project "PCB_Pere_V1"
 				(path "/211fd2c7-a689-4f6d-9a31-462e9bb4f921"
-					(reference "#PWR013")
+					(reference "#PWR072")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "EasyEDA:0603WAF6800T5E")
+		(at 107.95 157.48 90)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "1da2df68-24e4-43dd-abc8-4db3b62fb247")
+		(property "Reference" "R23"
+			(at 110.49 156.2099 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Value" "680"
+			(at 110.49 158.7499 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" "EasyEDA:R0603"
+			(at 115.57 157.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" "https://lcsc.com/product-detail/Chip-Resistor-Surface-Mount-UniOhm_680R-6800-1_C23228.html"
+			(at 118.11 157.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "680Ω (6800) ±1%"
+			(at 107.95 157.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "UNI-ROYAL(厚声)"
+			(at 120.65 157.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "MPN" "0603WAF6800T5E"
+			(at 123.19 157.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC Part" "C23228"
+			(at 125.73 157.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "d9066ce7-8d5e-436a-b3cf-fd88d0da31eb")
+		)
+		(pin "2"
+			(uuid "a5f80e8c-b33c-4369-b39d-dcb99189c36b")
+		)
+		(instances
+			(project "PCB_Pere_V1"
+				(path "/211fd2c7-a689-4f6d-9a31-462e9bb4f921"
+					(reference "R23")
 					(unit 1)
 				)
 			)
@@ -6397,6 +7001,120 @@
 			(project "PCB_Pere_V1"
 				(path "/211fd2c7-a689-4f6d-9a31-462e9bb4f921"
 					(reference "C23")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "EasyEDA:KT-0603R")
+		(at 113.03 153.67 180)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "1e82576b-fe09-4fba-a02d-559c5db52a90")
+		(property "Reference" "LED6"
+			(at 109.474 146.812 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Value" "Rouge"
+			(at 108.458 149.3521 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" "EasyEDA:LED-SMD_L1.6-W0.8-R-RD"
+			(at 113.03 144.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" "https://lcsc.com/product-detail/Light-Emitting-Diodes-LED_Red-LED-0603_C2286.html"
+			(at 113.03 142.24 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "0603"
+			(at 113.03 153.67 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "KENTO"
+			(at 113.03 139.7 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "MPN" "KT-0603R"
+			(at 113.03 137.16 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC Part" "C2286"
+			(at 113.03 134.62 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "62fd4a49-c0f8-44a4-91c3-fefdb7dbdd4e")
+		)
+		(pin "2"
+			(uuid "03c7865c-953d-489f-bba7-ca264de49117")
+		)
+		(instances
+			(project "PCB_Pere_V1"
+				(path "/211fd2c7-a689-4f6d-9a31-462e9bb4f921"
+					(reference "LED6")
 					(unit 1)
 				)
 			)
@@ -8055,7 +8773,7 @@
 	)
 	(symbol
 		(lib_id "power:+5V")
-		(at 114.3 104.14 270)
+		(at 127 104.14 270)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -8066,7 +8784,7 @@
 		(fields_autoplaced yes)
 		(uuid "45610dd9-2c21-4bc8-9d48-3d97dbebe3ec")
 		(property "Reference" "#PWR024"
-			(at 110.49 104.14 0)
+			(at 123.19 104.14 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -8077,7 +8795,7 @@
 			)
 		)
 		(property "Value" "+5V"
-			(at 118.11 104.1399 90)
+			(at 130.81 104.1399 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -8088,7 +8806,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 114.3 104.14 0)
+			(at 127 104.14 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -8099,7 +8817,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 114.3 104.14 0)
+			(at 127 104.14 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -8110,7 +8828,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"+5V\""
-			(at 114.3 104.14 0)
+			(at 127 104.14 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -8321,6 +9039,121 @@
 			(project "PCB_Pere_V1"
 				(path "/211fd2c7-a689-4f6d-9a31-462e9bb4f921"
 					(reference "R13")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "EasyEDA:CL10C220JB8NNNC")
+		(at 91.44 167.64 90)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "51bbb30b-89b3-42aa-9a5d-7533fb11f0b6")
+		(property "Reference" "C18"
+			(at 95.25 166.3699 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Value" "CL10C220JB8NNNC"
+			(at 95.25 168.9099 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" "EasyEDA:C0603"
+			(at 99.06 167.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" "https://lcsc.com/product-detail/Multilayer-Ceramic-Capacitors-MLCC-SMD-SMT_SAMSUNG_CL10C220JB8NNNC_22pF-220-5-50V_C1653.html"
+			(at 101.6 167.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "22pF (220) ±5% 50V"
+			(at 91.44 167.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "SAMSUNG(三星)"
+			(at 104.14 167.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "MPN" "CL10C220JB8NNNC"
+			(at 106.68 167.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC Part" "C1653"
+			(at 109.22 167.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "cb663a3e-480f-49ad-88ac-cce64367a6b2")
+		)
+		(pin "2"
+			(uuid "8531835f-4279-4d55-8ff3-2997a7019c2b")
+		)
+		(instances
+			(project "PCB_Pere_V1"
+				(path "/211fd2c7-a689-4f6d-9a31-462e9bb4f921"
+					(reference "C18")
 					(unit 1)
 				)
 			)
@@ -9143,6 +9976,85 @@
 		)
 	)
 	(symbol
+		(lib_id "power:+3V3")
+		(at 181.61 144.78 270)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "7744af81-d269-4618-b763-0f630a864f28")
+		(property "Reference" "#PWR06"
+			(at 177.8 144.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "+3V3"
+			(at 185.42 144.7799 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 181.61 144.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 181.61 144.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+3V3\""
+			(at 181.61 144.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "8edfe23e-18cd-4354-99f6-b0304bc1450a")
+		)
+		(instances
+			(project "PCB_Pere_V1"
+				(path "/211fd2c7-a689-4f6d-9a31-462e9bb4f921"
+					(reference "#PWR06")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "Connector:TestPoint")
 		(at 228.6 142.24 270)
 		(unit 1)
@@ -9222,8 +10134,8 @@
 		)
 	)
 	(symbol
-		(lib_id "power:PWR_FLAG")
-		(at 107.95 104.14 0)
+		(lib_id "power:+3V3")
+		(at 181.61 142.24 270)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -9232,9 +10144,9 @@
 		(in_pos_files yes)
 		(dnp no)
 		(fields_autoplaced yes)
-		(uuid "7e3117cb-ea85-43f3-9bb9-8fbfd0aaaae4")
-		(property "Reference" "#FLG02"
-			(at 107.95 102.235 0)
+		(uuid "7bde0ae2-fa77-4536-8ee6-8162119f9a7a")
+		(property "Reference" "#PWR07"
+			(at 177.8 142.24 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9244,18 +10156,19 @@
 				)
 			)
 		)
-		(property "Value" "PWR_FLAG"
-			(at 107.95 99.06 0)
+		(property "Value" "+3V3"
+			(at 185.42 142.2399 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
+				(justify left)
 			)
 		)
 		(property "Footprint" ""
-			(at 107.95 104.14 0)
+			(at 181.61 142.24 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9266,7 +10179,84 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 107.95 104.14 0)
+			(at 181.61 142.24 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+3V3\""
+			(at 181.61 142.24 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "e904a050-a633-4c54-a824-de1be213b8bc")
+		)
+		(instances
+			(project "PCB_Pere_V1"
+				(path "/211fd2c7-a689-4f6d-9a31-462e9bb4f921"
+					(reference "#PWR07")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:PWR_FLAG")
+		(at 121.92 104.14 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "7e3117cb-ea85-43f3-9bb9-8fbfd0aaaae4")
+		(property "Reference" "#FLG02"
+			(at 121.92 102.235 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "PWR_FLAG"
+			(at 127.762 101.346 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 121.92 104.14 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 121.92 104.14 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9277,7 +10267,7 @@
 			)
 		)
 		(property "Description" "Special symbol for telling ERC where power comes from"
-			(at 107.95 104.14 0)
+			(at 121.92 104.14 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9845,6 +10835,85 @@
 			(project "PCB_Pere_V1"
 				(path "/211fd2c7-a689-4f6d-9a31-462e9bb4f921"
 					(reference "#PWR045")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 118.11 93.98 90)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "8c1126aa-234a-473e-957d-bdbbe2b9490e")
+		(property "Reference" "#PWR052"
+			(at 124.46 93.98 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "GND"
+			(at 121.92 93.9799 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" ""
+			(at 118.11 93.98 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 118.11 93.98 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 118.11 93.98 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "ee49371e-653f-4095-a222-4aaeb4980e4f")
+		)
+		(instances
+			(project "PCB_Pere_V1"
+				(path "/211fd2c7-a689-4f6d-9a31-462e9bb4f921"
+					(reference "#PWR052")
 					(unit 1)
 				)
 			)
@@ -10484,7 +11553,6 @@
 		(on_board yes)
 		(in_pos_files yes)
 		(dnp no)
-		(fields_autoplaced yes)
 		(uuid "a58beb83-ff1a-4b9a-aafc-f46bb62ffe01")
 		(property "Reference" "C1"
 			(at 109.22 166.3699 0)
@@ -10498,7 +11566,7 @@
 			)
 		)
 		(property "Value" "C4532X7R1C336MT000N"
-			(at 109.22 168.9099 0)
+			(at 114.554 171.196 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -10669,8 +11737,8 @@
 		)
 	)
 	(symbol
-		(lib_id "EasyEDA:CL21B223KBANNNC")
-		(at 91.44 167.64 90)
+		(lib_id "EasyEDA:KT-0603R")
+		(at 113.03 95.25 180)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -10678,9 +11746,9 @@
 		(on_board yes)
 		(in_pos_files yes)
 		(dnp no)
-		(uuid "ac19ab53-db5e-4546-ba33-f6c7dd6220ad")
-		(property "Reference" "C21"
-			(at 93.218 166.624 90)
+		(uuid "ab67f475-f433-4fe8-bbb5-883cb6536121")
+		(property "Reference" "LED5"
+			(at 109.474 88.392 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -10690,8 +11758,8 @@
 				(justify right)
 			)
 		)
-		(property "Value" "22nF"
-			(at 93.218 168.656 90)
+		(property "Value" "Rouge"
+			(at 108.458 90.9321 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -10701,8 +11769,8 @@
 				(justify right)
 			)
 		)
-		(property "Footprint" "EasyEDA:C0805"
-			(at 99.06 167.64 0)
+		(property "Footprint" "EasyEDA:LED-SMD_L1.6-W0.8-R-RD"
+			(at 113.03 86.36 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -10712,8 +11780,8 @@
 				)
 			)
 		)
-		(property "Datasheet" "https://lcsc.com/product-detail/Multilayer-Ceramic-Capacitors-MLCC-SMD-SMT_SAMSUNG_CL21B223KBANNNC_22nF-223-10-50V_C1729.html"
-			(at 101.6 167.64 0)
+		(property "Datasheet" "https://lcsc.com/product-detail/Light-Emitting-Diodes-LED_Red-LED-0603_C2286.html"
+			(at 113.03 83.82 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -10723,8 +11791,8 @@
 				)
 			)
 		)
-		(property "Description" "22nF (223) ±10% 50V"
-			(at 91.44 167.64 0)
+		(property "Description" "0603"
+			(at 113.03 95.25 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -10734,8 +11802,8 @@
 				)
 			)
 		)
-		(property "Manufacturer" "SAMSUNG(三星)"
-			(at 104.14 167.64 0)
+		(property "Manufacturer" "KENTO"
+			(at 113.03 81.28 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -10745,8 +11813,8 @@
 				)
 			)
 		)
-		(property "MPN" "CL21B223KBANNNC"
-			(at 106.68 167.64 0)
+		(property "MPN" "KT-0603R"
+			(at 113.03 78.74 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -10756,8 +11824,8 @@
 				)
 			)
 		)
-		(property "LCSC Part" "C1729"
-			(at 109.22 167.64 0)
+		(property "LCSC Part" "C2286"
+			(at 113.03 76.2 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -10768,15 +11836,94 @@
 			)
 		)
 		(pin "1"
-			(uuid "d9adb7f2-4cb8-4ad0-accc-6e7fcaec128a")
+			(uuid "0d32838a-d4bd-40cc-9538-07e4c5fb6d08")
 		)
 		(pin "2"
-			(uuid "efc22971-d2ed-466d-aa16-5859ce9ef24e")
+			(uuid "cc40f6a1-8f8d-41e5-ad72-e191d9761055")
 		)
 		(instances
 			(project "PCB_Pere_V1"
 				(path "/211fd2c7-a689-4f6d-9a31-462e9bb4f921"
-					(reference "C21")
+					(reference "LED5")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 181.61 139.7 90)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "aea14b73-a328-47e1-aa94-8bcb4a60f41f")
+		(property "Reference" "#PWR069"
+			(at 187.96 139.7 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "GND"
+			(at 185.42 139.6999 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" ""
+			(at 181.61 139.7 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 181.61 139.7 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 181.61 139.7 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "23bb65e0-53a4-4779-ada9-e1ec3721ffde")
+		)
+		(instances
+			(project "PCB_Pere_V1"
+				(path "/211fd2c7-a689-4f6d-9a31-462e9bb4f921"
+					(reference "#PWR069")
 					(unit 1)
 				)
 			)
@@ -10856,120 +12003,6 @@
 			(project "PCB_Pere_V1"
 				(path "/211fd2c7-a689-4f6d-9a31-462e9bb4f921"
 					(reference "#PWR012")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "EasyEDA:CL21B223KBANNNC")
-		(at 91.44 109.22 90)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(uuid "b42fd209-0b9d-405e-9784-1491e05d2461")
-		(property "Reference" "C22"
-			(at 93.218 108.204 90)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-		)
-		(property "Value" "22nF"
-			(at 93.218 110.236 90)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-		)
-		(property "Footprint" "EasyEDA:C0805"
-			(at 99.06 109.22 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" "https://lcsc.com/product-detail/Multilayer-Ceramic-Capacitors-MLCC-SMD-SMT_SAMSUNG_CL21B223KBANNNC_22nF-223-10-50V_C1729.html"
-			(at 101.6 109.22 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "22nF (223) ±10% 50V"
-			(at 91.44 109.22 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Manufacturer" "SAMSUNG(三星)"
-			(at 104.14 109.22 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "MPN" "CL21B223KBANNNC"
-			(at 106.68 109.22 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "LCSC Part" "C1729"
-			(at 109.22 109.22 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "db6b0f6c-bf90-4d59-bd01-b115ec8fb02c")
-		)
-		(pin "2"
-			(uuid "2731b138-907c-4c10-b61b-7a3aad1a2e48")
-		)
-		(instances
-			(project "PCB_Pere_V1"
-				(path "/211fd2c7-a689-4f6d-9a31-462e9bb4f921"
-					(reference "C22")
 					(unit 1)
 				)
 			)
@@ -11785,6 +12818,121 @@
 		)
 	)
 	(symbol
+		(lib_id "EasyEDA:CL10C220JB8NNNC")
+		(at 91.44 109.22 90)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "ca7dbe08-d527-41e6-9a57-b0ffd98453c8")
+		(property "Reference" "C21"
+			(at 95.25 107.9499 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Value" "22pF"
+			(at 95.25 110.4899 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" "EasyEDA:C0603"
+			(at 99.06 109.22 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" "https://lcsc.com/product-detail/Multilayer-Ceramic-Capacitors-MLCC-SMD-SMT_SAMSUNG_CL10C220JB8NNNC_22pF-220-5-50V_C1653.html"
+			(at 101.6 109.22 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "22pF (220) ±5% 50V"
+			(at 91.44 109.22 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "SAMSUNG(三星)"
+			(at 104.14 109.22 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "MPN" "CL10C220JB8NNNC"
+			(at 106.68 109.22 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC Part" "C1653"
+			(at 109.22 109.22 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "e336ef57-cd59-46e4-ab0f-c6388cd0971c")
+		)
+		(pin "2"
+			(uuid "04ec04cf-719f-4e10-844b-e357652f3153")
+		)
+		(instances
+			(project "PCB_Pere_V1"
+				(path "/211fd2c7-a689-4f6d-9a31-462e9bb4f921"
+					(reference "C21")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "EasyEDA:0603WAF9101T5E")
 		(at 86.36 119.38 90)
 		(unit 1)
@@ -12326,6 +13474,85 @@
 		)
 	)
 	(symbol
+		(lib_id "power:GND")
+		(at 118.11 152.4 90)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "e6db2e82-da59-4dd8-bd59-85829e7a916b")
+		(property "Reference" "#PWR068"
+			(at 124.46 152.4 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "GND"
+			(at 121.92 152.3999 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" ""
+			(at 118.11 152.4 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 118.11 152.4 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 118.11 152.4 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "9ee9eee7-081f-4aa6-9ea5-7cd8ed082a03")
+		)
+		(instances
+			(project "PCB_Pere_V1"
+				(path "/211fd2c7-a689-4f6d-9a31-462e9bb4f921"
+					(reference "#PWR068")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "EasyEDA:C4532X7R1C336MT000N")
 		(at 110.49 109.22 0)
 		(unit 1)
@@ -12442,7 +13669,7 @@
 	)
 	(symbol
 		(lib_id "power:PWR_FLAG")
-		(at 107.95 162.56 0)
+		(at 114.3 162.56 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -12450,10 +13677,9 @@
 		(on_board yes)
 		(in_pos_files yes)
 		(dnp no)
-		(fields_autoplaced yes)
 		(uuid "ea4e5343-126b-41f4-bf1f-77501c54975c")
 		(property "Reference" "#FLG01"
-			(at 107.95 160.655 0)
+			(at 114.3 160.655 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -12464,7 +13690,7 @@
 			)
 		)
 		(property "Value" "PWR_FLAG"
-			(at 107.95 157.48 0)
+			(at 120.396 160.02 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -12474,7 +13700,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 107.95 162.56 0)
+			(at 114.3 162.56 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -12485,7 +13711,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 107.95 162.56 0)
+			(at 114.3 162.56 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -12496,7 +13722,7 @@
 			)
 		)
 		(property "Description" "Special symbol for telling ERC where power comes from"
-			(at 107.95 162.56 0)
+			(at 114.3 162.56 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -12513,6 +13739,121 @@
 			(project "PCB_Pere_V1"
 				(path "/211fd2c7-a689-4f6d-9a31-462e9bb4f921"
 					(reference "#FLG01")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "EasyEDA:0603WAF1001T5E")
+		(at 107.95 99.06 90)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "ee75978f-4fcb-4f24-b8d6-281c653885b5")
+		(property "Reference" "R22"
+			(at 110.49 97.7899 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Value" "1KΩ"
+			(at 110.49 100.3299 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" "EasyEDA:R0603"
+			(at 115.57 99.06 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" "https://lcsc.com/product-detail/Chip-Resistor-Surface-Mount-UniOhm_1KR-1001-1_C21190.html"
+			(at 118.11 99.06 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "1KΩ (1001) ±1%"
+			(at 107.95 99.06 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "UNI-ROYAL(厚声)"
+			(at 120.65 99.06 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "MPN" "0603WAF1001T5E"
+			(at 123.19 99.06 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC Part" "C21190"
+			(at 125.73 99.06 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "2"
+			(uuid "06f00edc-0b27-461c-aab8-21b42a9f6638")
+		)
+		(pin "1"
+			(uuid "759a2837-a46d-4765-b2f2-da01509f7565")
+		)
+		(instances
+			(project "PCB_Pere_V1"
+				(path "/211fd2c7-a689-4f6d-9a31-462e9bb4f921"
+					(reference "R22")
 					(unit 1)
 				)
 			)
@@ -13391,7 +14732,7 @@
 			)
 		)
 		(pin "UART_RX" input
-			(at 200.66 50.8 180)
+			(at 200.66 53.34 180)
 			(uuid "f3105238-399d-4358-b66c-072a0c3e8baf")
 			(effects
 				(font
@@ -13401,7 +14742,7 @@
 			)
 		)
 		(pin "UART_TX" output
-			(at 200.66 53.34 180)
+			(at 200.66 50.8 180)
 			(uuid "eebb8e9b-1245-4832-9526-09cb11337eba")
 			(effects
 				(font
