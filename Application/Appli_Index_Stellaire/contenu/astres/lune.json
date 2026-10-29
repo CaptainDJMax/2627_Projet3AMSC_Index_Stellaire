@@ -1,7 +1,7 @@
 {
   "nom": "Lune",
-  "categorie": "satellite",
-  "identifiant_skyfield": "",
+  "categorie": "lune",
+  "identifiant_skyfield": "moon",
   "description": "",
   "sources": [],
   "image": "",

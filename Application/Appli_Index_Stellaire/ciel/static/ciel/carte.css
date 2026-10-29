@@ -148,7 +148,7 @@ body {
   bottom: calc(18px + env(safe-area-inset-bottom));
   display: flex;
   justify-content: center;
-  gap: 14px;
+  gap: 12px; /* 5 boutons de 60 px : tient sur un écran de 360 px */
   pointer-events: none; /* seuls les boutons captent les touches */
 }
 
@@ -336,6 +336,59 @@ body {
   stroke-width: 1.5;
 }
 
+/* Partie 6.3 : prochains passages d'un satellite */
+#fiche-passages {
+  margin: 6px 0 12px;
+}
+
+#fiche-passages h3 {
+  margin: 0 0 6px;
+  color: var(--texte-doux);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+#fiche-liste-passages {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+#fiche-liste-passages li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  align-items: baseline;
+  padding: 6px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 14px;
+}
+
+#fiche-liste-passages .quand {
+  font-variant-numeric: tabular-nums;
+}
+
+#fiche-liste-passages .detail {
+  color: var(--texte-doux);
+  font-size: 13px;
+}
+
+#fiche-liste-passages .badge {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(93, 255, 176, 0.14);
+  color: #5dffb0;
+  font-size: 12px;
+}
+
+#fiche-aucun-passage {
+  margin: 0;
+  color: var(--texte-doux);
+  font-size: 13px;
+}
+
 #fiche-description {
   margin: 0 0 14px;
   color: #cbd3e6;
@@ -398,7 +451,8 @@ body {
 
 #btn-calques[aria-expanded="true"],
 #btn-recherche[aria-expanded="true"],
-#btn-boussole[aria-pressed="true"] {
+#btn-boussole[aria-pressed="true"],
+#btn-position[aria-pressed="true"] {
   border-color: var(--accent);
   color: var(--accent);
 }
@@ -529,8 +583,95 @@ body {
   font-size: 13px;
 }
 
+/* --- Partie 7 : événements (même place que la recherche) ------------------------ */
+#panneau-evenements {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(92px + env(safe-area-inset-bottom));
+  width: min(360px, calc(100vw - 32px));
+  max-height: min(62vh, 520px);
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 16px;
+  border-radius: 22px;
+}
+
+#panneau-evenements .titre-panneau:not(:first-child) {
+  margin-top: 14px;
+}
+
+.note-panneau {
+  margin: 0 0 6px;
+  color: var(--texte-doux);
+  font-size: 13px;
+}
+
+.liste-evenements {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.liste-evenements button {
+  display: grid;
+  grid-template-columns: 10px 1fr;
+  column-gap: 10px;
+  width: 100%;
+  padding: 9px 8px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--texte);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.liste-evenements button:hover,
+.liste-evenements button:focus-visible {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.liste-evenements .pastille {
+  grid-row: span 2;
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: #7fb0ff;
+}
+
+.liste-evenements .pastille.phase_lune,
+.liste-evenements .pastille.eclipse_lune,
+.liste-evenements .pastille.lune { background: #e8ecf5; }
+.liste-evenements .pastille.conjonction,
+.liste-evenements .pastille.planete { background: #ffd479; }
+.liste-evenements .pastille.passage { background: #ff5a5a; }
+.liste-evenements .pastille.essaim { background: #b79cff; }
+
+.liste-evenements .titre {
+  font-size: 15px;
+}
+
+.liste-evenements .detail {
+  color: var(--texte-doux);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
 /* --- Grand écran : la recherche prend la colonne de droite, comme la fiche ----- */
 @media (min-width: 900px) {
+  #panneau-evenements {
+    left: auto;
+    right: 16px;
+    top: 16px;
+    bottom: 16px;
+    width: 360px;
+    max-height: none;
+    transform: none;
+  }
+
   #panneau-recherche {
     left: auto;
     right: 16px;
@@ -721,4 +862,19 @@ body {
 #panneau-appareil button.large.secondaire {
   background: rgba(255, 255, 255, 0.06);
   color: var(--texte);
+}
+
+/* --- Partie 6.4 : message bref (position partagée ou refusée) --------------- */
+#message-eclair {
+  position: fixed;
+  left: 50%;
+  bottom: calc(92px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  max-width: min(320px, calc(100vw - 32px));
+  box-sizing: border-box;
+  padding: 10px 16px;
+  border-radius: 14px;
+  font-size: 13px;
+  text-align: center;
+  z-index: 5;
 }

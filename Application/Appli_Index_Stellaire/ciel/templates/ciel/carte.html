@@ -14,11 +14,13 @@
   <div id="carte"
        data-datapath="{% static 'ciel/vendor/d3-celestial/data/' %}"
        data-url-objets="{% url 'ciel:objets' %}"
+       data-url-evenements="{% url 'ciel:evenements' %}"
        data-url-pointage="{% url 'appareil:etat' %}"
        data-url-commande="{% url 'appareil:commande' %}"
        data-url-arret="{% url 'appareil:arret' %}"
        data-url-pilotage="{% url 'appareil:pilotage' %}"
        data-url-pilotage-fin="{% url 'appareil:pilotage_fin' %}"
+       data-url-lieu="{% url 'ciel:lieu' %}"
        data-url-illustrations="{% static 'ciel/constellations/illustrations.json' %}"
        data-dossier-illustrations="{% static 'ciel/constellations/illustrations/' %}"></div>
   <div id="celestial-form"></div>
@@ -87,6 +89,16 @@
     <ul id="recherche-liste"></ul>
   </div>
 
+  <!-- Partie 7 : ce qu'on peut voir ce soir et les jours suivants -->
+  <div id="panneau-evenements" class="verre" hidden>
+    <p class="titre-panneau">Ce soir</p>
+    <p id="soir-nuit" class="note-panneau"></p>
+    <ul id="soir-astres" class="liste-evenements"></ul>
+    <p class="titre-panneau">Les 7 prochains jours</p>
+    <ul id="evenements-liste" class="liste-evenements"></ul>
+    <p id="evenements-etat" class="note-panneau" hidden></p>
+  </div>
+
   <!-- Calques : ce qui apparaît sur la carte -->
   <div id="panneau-calques" class="verre" hidden>
     <p class="titre-panneau">Calques</p>
@@ -120,6 +132,11 @@
     </dl>
     <p id="fiche-note-horizon" hidden></p>
     <svg id="fiche-courbe" viewBox="0 0 300 64" role="img" aria-label="Hauteur de l'objet sur les 24 prochaines heures"></svg>
+    <section id="fiche-passages" hidden>
+      <h3>Prochains passages</h3>
+      <ol id="fiche-liste-passages"></ol>
+      <p id="fiche-aucun-passage" hidden>Aucun passage à plus de 10° dans les 48 h.</p>
+    </section>
     <p id="fiche-description"></p>
     <p id="fiche-sources" hidden></p>
     <button type="button" id="btn-pointer" class="large" disabled>Pointer</button>
@@ -147,12 +164,26 @@
         <circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/>
       </svg>
     </button>
+    <button type="button" id="btn-evenements" class="rond verre" aria-expanded="false" aria-controls="panneau-evenements" aria-label="Événements visibles">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 3.5c.6 3.9 2.6 5.9 6.5 6.5-3.9.6-5.9 2.6-6.5 6.5-.6-3.9-2.6-5.9-6.5-6.5 3.9-.6 5.9-2.6 6.5-6.5Z"/><path d="M18.5 15.5v4M16.5 17.5h4"/>
+      </svg>
+    </button>
     <button type="button" id="btn-boussole" class="rond verre" aria-pressed="false" aria-label="Afficher la direction regardée">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true">
         <circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5 5-2Z"/>
       </svg>
     </button>
+    <!-- Partie 6.4 : partager la position du navigateur, en secours tant que le robot n'a pas de GPS -->
+    <button type="button" id="btn-position" class="rond verre" aria-pressed="{{ lieu.partage|yesno:'true,false' }}" aria-label="Partager ma position">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 21s7-7.2 7-12a7 7 0 1 0-14 0c0 4.8 7 12 7 12Z"/><circle cx="12" cy="9" r="2.3"/>
+      </svg>
+    </button>
   </nav>
+
+  <!-- Partie 6.4 : message bref (position partagée ou refusée) -->
+  <p id="message-eclair" class="verre" role="status" hidden></p>
 
   {{ lieu|json_script:"donnees-lieu" }}
 

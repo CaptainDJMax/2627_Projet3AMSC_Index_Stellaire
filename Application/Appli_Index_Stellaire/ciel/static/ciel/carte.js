@@ -106,7 +106,8 @@
       if (Date.now() - derniereMajCarte >= periode) majCarte();
     }
     if (objetsPerimes()) chargerObjets();
-    if (animerBras()) Celestial.redraw(); // le réticule glisse vers sa nouvelle position
+    const brasBouge = animerBras(); // le réticule glisse vers sa nouvelle position
+    if (brasBouge || satellitesBougent()) Celestial.redraw(); // 6.3 : l'ISS avance sur la carte
   }
 
   // ===========================================================================
@@ -155,6 +156,8 @@
   const elEtatBouton = document.getElementById("etat-appareil"); // la pastille, qui ouvre son panneau
   const elPanAppareil = document.getElementById("panneau-appareil");
   const elPanCode = document.getElementById("panneau-code"); // Partie 5 : code de pilotage
+  const elBtnEvenements = document.getElementById("btn-evenements"); // Partie 7
+  const elPanEvenements = document.getElementById("panneau-evenements");
   const elCodeFormulaire = document.getElementById("code-formulaire");
   const elCodeChamp = document.getElementById("code-champ");
   const elCodeValider = document.getElementById("code-valider");
@@ -173,6 +176,7 @@
       ["recherche", elPanRecherche, elBtnRecherche],
       ["appareil", elPanAppareil, elEtatBouton],
       ["code", elPanCode, null],
+      ["evenements", elPanEvenements, elBtnEvenements],
     ].forEach(function (p) {
       const ouvert = p[0] === nom;
       p[1].hidden = !ouvert;
@@ -193,11 +197,15 @@
     document.body.classList.toggle("panneau-ouvert", selection !== null || !elPanRecherche.hidden);
     // N'importe quel panneau en bas de l'écran (sur téléphone, les boutons de zoom se cachent)
     document.body.classList.toggle("panneau-bas", selection !== null || !elPanneau.hidden ||
-      !elPanCalques.hidden || !elPanRecherche.hidden || !elPanAppareil.hidden || !elPanCode.hidden);
+      !elPanCalques.hidden || !elPanRecherche.hidden || !elPanAppareil.hidden || !elPanCode.hidden ||
+      !elPanEvenements.hidden);
   }
 
   function basculer(nom) {
-    const panneau = { temps: elPanneau, calques: elPanCalques, recherche: elPanRecherche, appareil: elPanAppareil }[nom];
+    const panneau = {
+      temps: elPanneau, calques: elPanCalques, recherche: elPanRecherche, appareil: elPanAppareil,
+      evenements: elPanEvenements,
+    }[nom];
     if (panneau.hidden) ouvrirSeul(nom);
     else ouvrir(null);
   }
@@ -225,8 +233,9 @@
 
   // Toucher le ciel ou la barre referme les panneaux du bas (sauf leurs propres boutons)
   document.addEventListener("pointerdown", function (e) {
-    if (e.target.closest("#panneau-temps, #panneau-calques, #panneau-recherche, #panneau-appareil, #panneau-code, #btn-temps, #btn-calques, #btn-recherche, #etat-appareil")) return;
-    if (!elPanneau.hidden || !elPanCalques.hidden || !elPanRecherche.hidden || !elPanAppareil.hidden || !elPanCode.hidden) ouvrir(null);
+    if (e.target.closest("#panneau-temps, #panneau-calques, #panneau-recherche, #panneau-appareil, #panneau-code, #panneau-evenements, #btn-temps, #btn-calques, #btn-recherche, #btn-evenements, #etat-appareil")) return;
+    if (!elPanneau.hidden || !elPanCalques.hidden || !elPanRecherche.hidden || !elPanAppareil.hidden || !elPanCode.hidden ||
+      !elPanEvenements.hidden) ouvrir(null);
   });
 
   // --- Calques : chaque case recharge la carte avec la nouvelle configuration -----
@@ -276,7 +285,8 @@
       nom.textContent = o.nom;
       const etat = document.createElement("span");
       etat.className = "etat";
-      etat.textContent = o.elevation > 0 ? fmtNombre.format(o.elevation) + "°" : "sous l'horizon";
+      const h = ici(o).elevation;
+      etat.textContent = h > 0 ? fmtNombre.format(h) + "°" : "sous l'horizon";
       bouton.append(nom, etat);
       li.appendChild(bouton);
       elListeRecherche.appendChild(li);
@@ -293,11 +303,147 @@
 
   // Tourne la vue vers l'objet, puis le sélectionne (sa fiche s'ouvre)
   function allerVers(o) {
-    fixerDirection(o.azimut, o.elevation);
-    appliquerVue();
-    majBoussole();
+    const p = ici(o);
+    viser(p.azimut, p.elevation, true);
     selectionner(o.id); // ferme les autres panneaux et redessine (halo)
   }
+
+  // Tourne la vue vers une direction. Avec une fiche ouverte sur téléphone (elle couvre la moitié
+  // basse de l'écran), on vise un peu en dessous pour que la cible apparaisse au quart supérieur.
+  function viser(azimut, elevation, avecFiche) {
+    const decalage = GRAND_ECRAN.matches || !avecFiche ? 0 : (window.innerHeight * 0.25) / (echelleVue() * vue.zoom);
+    fixerDirection(azimut, elevation - decalage);
+    appliquerVue();
+    majBoussole();
+  }
+
+  // --- Partie 7 : événements visibles à l'œil nu -------------------------------------------
+  const elSoirNuit = document.getElementById("soir-nuit");
+  const elSoirAstres = document.getElementById("soir-astres");
+  const elListeEvenements = document.getElementById("evenements-liste");
+  const elEtatEvenements = document.getElementById("evenements-etat");
+  const EVENEMENTS_PERIMES_APRES = 10 * 60 * 1000; // ms virtuelles
+  let evenements = null; // dernière réponse de /api/ciel/evenements/
+  let instantEvenements = null;
+  let evenementsEnCours = false;
+
+  function chargerEvenements() {
+    if (evenementsEnCours) return;
+    if (evenements && Math.abs(horloge.virtuel - instantEvenements) < EVENEMENTS_PERIMES_APRES) return;
+    evenementsEnCours = true;
+    const cible = horloge.virtuel;
+    elEtatEvenements.hidden = false;
+    elEtatEvenements.textContent = "Calcul en cours…";
+    fetch(carte.dataset.urlEvenements + "?jours=7&instant=" + encodeURIComponent(new Date(cible).toISOString()))
+      .then(function (reponse) {
+        if (!reponse.ok) throw new Error("HTTP " + reponse.status);
+        return reponse.json();
+      })
+      .then(function (donnees) {
+        evenements = donnees;
+        instantEvenements = cible;
+        afficherEvenements();
+      })
+      .catch(function (erreur) {
+        console.warn("Événements indisponibles :", erreur);
+        elEtatEvenements.textContent = "Événements indisponibles pour le moment.";
+      })
+      .finally(function () {
+        evenementsEnCours = false;
+      });
+  }
+
+  function quand(iso) {
+    const d = new Date(iso);
+    return fmtJourCourt.format(d) + " · " + fmtHeure.format(d);
+  }
+
+  function versOu(direction) {
+    if (!direction) return "";
+    return direction.elevation > 0
+      ? "vers " + POINTS_CARDINAUX[Math.round(direction.azimut / 22.5) % 16] + ", à " + Math.round(direction.elevation) + "°"
+      : "sous l'horizon";
+  }
+
+  function detailEvenement(e) {
+    const morceaux = [quand(e.instant)];
+    if (e.type === "passage") {
+      morceaux.push("max " + Math.round(e.hauteur_max) + "°",
+        pointCardinal(e.azimut_lever) + " → " + pointCardinal(e.azimut_coucher));
+    } else if (e.type === "essaim") {
+      morceaux.push("jusqu'à " + e.zhr + " par heure", "radiant " + versOu(e.direction));
+      if (e.lune_genante) morceaux.push("Lune gênante");
+    } else {
+      morceaux.push(versOu(e.direction));
+    }
+    return morceaux.join(" · ");
+  }
+
+  // Une ligne cliquable : pastille de couleur, titre, détail. Toujours textContent, jamais innerHTML.
+  function ligneEvenement(classe, titre, detail, action) {
+    const li = document.createElement("li");
+    const bouton = document.createElement("button");
+    bouton.type = "button";
+    const pastille = document.createElement("span");
+    pastille.className = "pastille " + classe;
+    const t = document.createElement("span");
+    t.className = "titre";
+    t.textContent = titre;
+    const d = document.createElement("span");
+    d.className = "detail";
+    d.textContent = detail;
+    bouton.append(pastille, t, d);
+    bouton.addEventListener("click", action);
+    li.appendChild(bouton);
+    return li;
+  }
+
+  function afficherEvenements() {
+    const soir = evenements.ce_soir;
+    elSoirNuit.textContent = soir.debut_nuit
+      ? "Nuit de " + fmtHeure.format(new Date(soir.debut_nuit)) + " à " + fmtHeure.format(new Date(soir.fin_nuit)) + "."
+      : "Pas de nuit dans les 24 prochaines heures.";
+    elSoirAstres.replaceChildren();
+    soir.astres.forEach(function (a) {
+      const o = objets.find(function (obj) { return obj.id === a.objet_id; });
+      const detail = fmtHeure.format(new Date(a.de)) + " → " + fmtHeure.format(new Date(a.a)) +
+        " · max " + Math.round(a.hauteur_max) + "° " + versOu(a.direction).replace(/, à .*/, "");
+      elSoirAstres.appendChild(ligneEvenement(o ? o.categorie : "planete", a.nom, detail, function () {
+        voirMoment(a.instant, a.direction, a.objet_id);
+      }));
+    });
+    elListeEvenements.replaceChildren();
+    evenements.evenements.forEach(function (e) {
+      elListeEvenements.appendChild(ligneEvenement(e.type, e.titre, detailEvenement(e), function () {
+        voirMoment(e.instant, e.direction, e.objet_id);
+      }));
+    });
+    elEtatEvenements.hidden = evenements.evenements.length > 0;
+    elEtatEvenements.textContent = "Rien de remarquable ces 7 prochains jours.";
+  }
+
+  // Aller au moment de l'événement : l'heure de la carte saute, la vue se tourne vers lui et la
+  // fiche de l'astre s'ouvre. « Revenir à maintenant » (panneau du temps) ramène au direct.
+  function voirMoment(instantIso, direction, objetId) {
+    horloge.virtuel = Date.parse(instantIso);
+    horloge.vitesse = 1;
+    horloge.dernierTop = Date.now();
+    instantObjets = null; // positions à recalculer pour ce moment
+    majCarte();
+    afficherHeure();
+    if (direction) viser(direction.azimut, direction.elevation, objetId !== null);
+    if (objetId !== null) selectionner(objetId);
+    else ouvrir(null);
+    chargerObjets();
+  }
+
+  elBtnEvenements.addEventListener("click", function () {
+    basculer("evenements");
+    if (!elPanEvenements.hidden) {
+      if (evenements) afficherEvenements();
+      chargerEvenements();
+    }
+  });
 
   // --- Direction regardée et viseur ------------------------------------------------
   function majBoussole() {
@@ -359,6 +505,64 @@
     satellite: { forme: "disque", rayon: 4, couleur: "#ff5a5a", texte: "#ff9a9a", nom: true },
   };
 
+  // Partie 6.3 : position d'un objet à l'instant affiché. Un satellite arrive avec son trajet
+  // (`trace` : 12 min, un point toutes les 15 s) ; on interpole : il avance sur la carte sans
+  // redemander sa position au serveur. Les autres astres bougent trop peu pour cela.
+  function ici(o) {
+    const tr = o.trace;
+    if (tr && tr.points.length > 1) {
+      const x = (horloge.virtuel - Date.parse(tr.debut)) / (tr.pas_s * 1000);
+      const i = Math.floor(x);
+      if (i >= 0 && i < tr.points.length - 1) {
+        const f = x - i;
+        const a = tr.points[i];
+        const b = tr.points[i + 1];
+        const angle = function (u, v) { return (u + (((v - u + 540) % 360) - 180) * f + 360) % 360; };
+        return { ra: angle(a[0], b[0]), dec: a[1] + (b[1] - a[1]) * f, elevation: a[2] + (b[2] - a[2]) * f, azimut: angle(a[3], b[3]) };
+      }
+    }
+    return o;
+  }
+
+  // Le trajet d'un satellite sélectionné ou visé : pointillés vers l'avant (où il va),
+  // trait fin vers l'arrière (d'où il vient), atténué sous l'horizon.
+  function dessinerTrace(ctx, o, couleur) {
+    const tr = o.trace;
+    const maintenant = (horloge.virtuel - Date.parse(tr.debut)) / (tr.pas_s * 1000);
+    ctx.save();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = couleur;
+    let precedent = null;
+    tr.points.forEach(function (p, i) {
+      const position = [p[0], p[1]];
+      const pt = Celestial.clip(position) ? Celestial.mapProjection(position) : null;
+      if (pt && precedent) {
+        ctx.beginPath();
+        ctx.setLineDash(i > maintenant ? [5, 5] : []);
+        ctx.globalAlpha = (p[2] > 0 ? 0.9 : 0.35) * (i > maintenant ? 1 : 0.45);
+        ctx.moveTo(precedent[0], precedent[1]);
+        ctx.lineTo(pt[0], pt[1]);
+        ctx.stroke();
+      }
+      precedent = pt;
+    });
+    ctx.restore();
+  }
+
+  // Appelée à chaque tic : faut-il redessiner pour faire avancer un satellite ?
+  // Seulement s'il s'est déplacé d'au moins 1,5 px à l'écran (le redessin coûte cher sur téléphone).
+  const DEPLACEMENT_MINI_PX = 1.5;
+  function satellitesBougent() {
+    return objets.some(function (o) {
+      if (!o.trace || !o.ecran) return false;
+      const p = ici(o);
+      const position = [p.ra, p.dec];
+      if (!Celestial.clip(position)) return false;
+      const pt = Celestial.mapProjection(position);
+      return Math.hypot(pt[0] - o.ecran[0], pt[1] - o.ecran[1]) >= DEPLACEMENT_MINI_PX;
+    });
+  }
+
   function objetsPerimes() {
     if (chargementEnCours || Date.now() - dernierChargement < DELAI_MINI_REQUETES) return false;
     if (instantObjets === null) return true;
@@ -397,11 +601,11 @@
     dessinerIllustrations(ctx); // la figure de la constellation regardée, en fond
     dessinerConstellations(ctx); // avant le sol : atténués sous l'horizon, comme le reste
     objets.forEach(function (o) {
-      if (o.elevation <= 0) dessinerObjet(ctx, o);
+      if (ici(o).elevation <= 0) dessinerObjet(ctx, o);
     });
     dessinerSol(ctx);
     objets.forEach(function (o) {
-      if (o.elevation > 0) dessinerObjet(ctx, o);
+      if (ici(o).elevation > 0) dessinerObjet(ctx, o);
     });
     dessinerHorizon(ctx);
     if (viseurActif) dessinerViseur(ctx);
@@ -539,10 +743,15 @@
   }
 
   function dessinerObjet(ctx, o) {
-    const position = [o.ra, o.dec]; // ascension droite, déclinaison (degrés)
+    const p = ici(o);
+    const position = [p.ra, p.dec]; // ascension droite, déclinaison (degrés)
+    const vise = pointage && pointage.commande && pointage.commande.objet.id === o.id;
+    const style = STYLES[o.categorie] || STYLES.etoile;
+    if (o.trace && (o.id === selection || vise)) dessinerTrace(ctx, o, style.couleur);
+    o.ecran = null;
     if (!Celestial.clip(position)) return;
     const pt = Celestial.mapProjection(position);
-    const style = STYLES[o.categorie] || STYLES.etoile;
+    o.ecran = pt; // dernière position dessinée (pour savoir quand un satellite a bougé)
 
     ctx.save();
     ctx.beginPath();
@@ -563,7 +772,7 @@
       ctx.strokeStyle = "#ffffff";
       ctx.stroke();
     }
-    if (pointage && pointage.commande && pointage.commande.objet.id === o.id) {
+    if (vise) {
       // l'objet que le bras vise : un anneau de la couleur du réticule
       ctx.beginPath();
       ctx.arc(pt[0], pt[1], style.rayon + 4, 0, 2 * Math.PI);
@@ -629,6 +838,9 @@
     coucher: document.getElementById("fiche-coucher"),
     noteHorizon: document.getElementById("fiche-note-horizon"),
     courbe: document.getElementById("fiche-courbe"),
+    passages: document.getElementById("fiche-passages"),
+    listePassages: document.getElementById("fiche-liste-passages"),
+    aucunPassage: document.getElementById("fiche-aucun-passage"),
     description: document.getElementById("fiche-description"),
     credit: document.getElementById("fiche-credit"),
     sources: document.getElementById("fiche-sources"),
@@ -647,7 +859,8 @@
     let meilleur = null;
     let dmin = rayon;
     objets.forEach(function (o) {
-      const position = [o.ra, o.dec];
+      const p = ici(o);
+      const position = [p.ra, p.dec];
       if (!Celestial.clip(position)) return;
       const pt = Celestial.mapProjection(position);
       const d = Math.hypot(pt[0] - px, pt[1] - py);
@@ -661,7 +874,7 @@
 
   // On distingue un « toucher » d'un « glisser » (qui déplace la carte).
   // On écoute tout le document : toucher le ciel vide, hors du disque, désélectionne.
-  const INTERFACE = "#fiche, #panneau-temps, #panneau-calques, #panneau-recherche, #panneau-appareil, #panneau-code, #etat-appareil, #boussole, #zoom, #barre";
+  const INTERFACE = "#fiche, #panneau-temps, #panneau-calques, #panneau-recherche, #panneau-appareil, #panneau-code, #panneau-evenements, #etat-appareil, #boussole, #zoom, #barre";
   let depart = null;
   document.addEventListener("pointerdown", function (e) {
     if (e.isPrimary && !e.target.closest(INTERFACE)) depart = { x: e.clientX, y: e.clientY, t: Date.now() };
@@ -755,6 +968,8 @@
 
   // Position à l'instant virtuel, interpolée entre les points de la trajectoire
   function positionActuelle() {
+    const sat = objets.find(function (obj) { return obj.id === selection && obj.trace; });
+    if (sat) return ici(sat); // 6.3 : un satellite va trop vite pour la courbe à 10 min
     const pts = fiche && fiche.trajectoire;
     if (pts && pts.length > 1) {
       const t0 = Date.parse(pts[0].instant);
@@ -825,8 +1040,57 @@
       el.image.hidden = true;
     }
     remplirCredits();
+    const passages = fiche && fiche.passages;
+    // 6.3 : pour un satellite, la liste des passages remplace la courbe (style : `hidden` ne marche pas sur un SVG)
+    el.courbe.style.display = passages ? "none" : "";
+    if (passages) remplirPassages(passages); else el.passages.hidden = true;
     tracerCourbe();
     majBoutonPointer();
+  }
+
+  // Partie 6.3 : prochains passages d'un satellite (au moins 10° de hauteur, 48 h)
+  const fmtJourCourt = new Intl.DateTimeFormat("fr-FR", {
+    weekday: "short", day: "numeric", month: "short", timeZone: lieu.fuseau,
+  });
+  const NB_PASSAGES_AFFICHES = 6;
+  let signaturePassages = "";
+
+  function pointCardinal(azimut) {
+    return azimut === null ? "?" : POINTS_CARDINAUX[Math.round(azimut / 22.5) % 16];
+  }
+
+  function remplirPassages(passages) {
+    const avenir = passages.filter(function (p) {
+      return !p.coucher || Date.parse(p.coucher) > horloge.virtuel;
+    }).slice(0, NB_PASSAGES_AFFICHES);
+    el.passages.hidden = false;
+    const signature = avenir.map(function (p) { return p.culmination; }).join("|");
+    if (signature === signaturePassages) return; // rien de nouveau : on ne reconstruit pas la liste
+    signaturePassages = signature;
+    el.listePassages.replaceChildren();
+    el.aucunPassage.hidden = avenir.length > 0;
+    // Construit avec createElement / textContent, jamais innerHTML
+    avenir.forEach(function (p) {
+      const li = document.createElement("li");
+      const debut = p.lever && Date.parse(p.lever) > horloge.virtuel ? new Date(p.lever) : null; // null : en cours
+      const quand = document.createElement("span");
+      quand.className = "quand";
+      quand.textContent = debut
+        ? fmtJourCourt.format(debut) + " · " + fmtHeure.format(debut) + (p.coucher ? " → " + fmtHeure.format(new Date(p.coucher)) : "")
+        : "En cours" + (p.coucher ? " · jusqu'à " + fmtHeure.format(new Date(p.coucher)) : "");
+      const detail = document.createElement("span");
+      detail.className = "detail";
+      detail.textContent = "max " + Math.round(p.hauteur_max) + "° · " +
+        pointCardinal(p.azimut_lever) + " → " + pointCardinal(p.azimut_coucher);
+      li.append(quand, detail);
+      if (p.visible) {
+        const badge = document.createElement("span");
+        badge.className = "badge";
+        badge.textContent = "visible à l'œil nu";
+        li.append(badge);
+      }
+      el.listePassages.appendChild(li);
+    });
   }
 
   // Un lien seulement vers une adresse web (jamais « javascript: » ou autre) ; le texte via textContent
@@ -1429,8 +1693,7 @@
       derniere = { x: depart.x, y: depart.y };
     }
     const sensibilite = SENSIBILITE_VUE / vue.zoom; // à fort zoom, un glissement tourne moins
-    // Axe vertical inversé : glisser vers le bas fait regarder vers le haut, et inversement.
-    fixerDirection(vue.azimut - (e.clientX - derniere.x) * sensibilite, vue.hauteur + (e.clientY - derniere.y) * sensibilite);
+    fixerDirection(vue.azimut - (e.clientX - derniere.x) * sensibilite, vue.hauteur - (e.clientY - derniere.y) * sensibilite);
     derniere = { x: e.clientX, y: e.clientY };
     if (!redessinPrevu) {
       redessinPrevu = true;
@@ -1647,6 +1910,69 @@
   }
 
   afficherCarte();
+
+  // ===========================================================================
+  // Partie 6.4 : partager la position du navigateur
+  // (secours tant que le robot n'a pas encore de GPS à lui, ou qu'aucun robot n'est connecté)
+  // ===========================================================================
+
+  const elBtnPosition = document.getElementById("btn-position");
+  const elMessageEclair = document.getElementById("message-eclair");
+  let messageEclairMinuteur = null;
+
+  function messageEclair(texte, duree_ms) {
+    clearTimeout(messageEclairMinuteur);
+    elMessageEclair.textContent = texte;
+    elMessageEclair.hidden = false;
+    messageEclairMinuteur = setTimeout(function () { elMessageEclair.hidden = true; }, duree_ms || 5000);
+  }
+
+  elBtnPosition.addEventListener("click", function () {
+    if (elBtnPosition.getAttribute("aria-pressed") === "true") {
+      // Déjà partagée : un deuxième clic la retire
+      posterJson(carte.dataset.urlLieu, { partager: false })
+        .then(function (r) {
+          if (r.statut !== 200) { messageEclair("Serveur injoignable."); return; }
+          messageEclair("Position du navigateur retirée.");
+          window.location.reload(); // reprend le lieu par défaut (ou le GPS du robot)
+        })
+        .catch(function () { messageEclair("Serveur injoignable."); });
+      return;
+    }
+    if (!("geolocation" in navigator)) {
+      messageEclair("La géolocalisation n'est pas proposée par ce navigateur.");
+      return;
+    }
+    messageEclair("Localisation en cours…", 15000);
+    navigator.geolocation.getCurrentPosition(
+      function (position) {
+        const corps = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          altitude_m: position.coords.altitude || 0,
+        };
+        posterJson(carte.dataset.urlLieu, corps)
+          .then(function (r) {
+            if (r.statut !== 200) {
+              messageEclair((r.donnees && r.donnees.erreur) || "Position refusée par le serveur.");
+              return;
+            }
+            messageEclair("Position partagée : la carte se recharge…");
+            window.location.reload(); // tout le calcul (vue, objets, fuseau) repart du bon lieu
+          })
+          .catch(function () { messageEclair("Serveur injoignable."); });
+      },
+      function (erreur) {
+        const messages = {
+          1: "Permission refusée : autorise la localisation dans les réglages du navigateur.",
+          2: "Position indisponible.",
+          3: "Délai dépassé.",
+        };
+        messageEclair(messages[erreur.code] || "Impossible d'obtenir la position.");
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  });
 
   // ===========================================================================
   // 8. Changement de taille / rotation de l'écran

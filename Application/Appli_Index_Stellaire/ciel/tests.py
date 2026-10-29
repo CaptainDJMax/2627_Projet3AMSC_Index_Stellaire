@@ -20,6 +20,7 @@ CLES_DETAIL = {
     "id", "nom", "categorie", "description", "image", "constellations",
     "instant", "lieu", "position", "levers_couchers", "trajectoire",
     "image_credit", "sources",  # ajoutés pour le contenu (crédits de l'image, sources du texte)
+    "passages",  # Partie 6.3 : prochains passages d'un satellite (None pour les autres astres)
 }
 
 
@@ -84,6 +85,7 @@ class ApiCielTests(TestCase):
         self.assertEqual(reponse.status_code, 200)
         d = reponse.json()
         self.assertEqual(CLES_DETAIL, set(d))
+        self.assertIsNone(d["passages"])  # 6.3 : seulement pour un satellite
         self.assertEqual(d["nom"], "Jupiter")
         self.assertEqual(d["description"], "Géante gazeuse.")
         self.assertIsNone(d["image"])
@@ -268,3 +270,45 @@ class ContenuTests(TestCase):
         with self.assertRaises(CommandError) as erreur:
             self.importer()
         self.assertIn("conflit Git non résolu", str(erreur.exception))
+
+
+class LieuPartageTests(TestCase):
+    """Partie 6.4 : position partagée par le navigateur, en secours du lieu par défaut."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.jupiter = ObjetCeleste.objects.create(
+            nom="Jupiter", categorie="planete", identifiant_skyfield="jupiter barycenter"
+        )
+
+    def _poster(self, corps):
+        return self.client.post("/api/ciel/lieu/", corps, content_type="application/json")
+
+    def test_partager_puis_utilisee_par_la_carte(self):
+        reponse = self._poster({"latitude": -33.9, "longitude": 18.4, "altitude_m": 10})
+        self.assertEqual(reponse.status_code, 200)
+        self.assertEqual(
+            reponse.json()["lieu"], {"latitude": -33.9, "longitude": 18.4, "altitude_m": 10}
+        )
+        lieu = self.client.get("/api/ciel/objets/").json()["lieu"]
+        self.assertEqual(lieu, {"latitude": -33.9, "longitude": 18.4, "altitude_m": 10})
+
+    def test_retirer(self):
+        self._poster({"latitude": -33.9, "longitude": 18.4, "altitude_m": 10})
+        reponse = self._poster({"partager": False})
+        self.assertEqual(reponse.status_code, 200)
+        self.assertIsNone(reponse.json()["lieu"])
+        from django.conf import settings
+        self.assertEqual(self.client.get("/api/ciel/objets/").json()["lieu"], settings.LIEU_PAR_DEFAUT)
+
+    def test_coordonnees_hors_limites_refusees(self):
+        reponse = self._poster({"latitude": 120, "longitude": 18.4})
+        self.assertEqual(reponse.status_code, 400)
+
+    def test_corps_invalide_refuse(self):
+        reponse = self._poster({"longitude": 18.4})  # latitude manquante
+        self.assertEqual(reponse.status_code, 400)
+
+    def test_sans_position_partagee_le_lieu_par_defaut_est_utilise(self):
+        from django.conf import settings
+        self.assertEqual(self.client.get("/api/ciel/objets/").json()["lieu"], settings.LIEU_PAR_DEFAUT)

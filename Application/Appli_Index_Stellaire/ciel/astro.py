@@ -157,3 +157,99 @@ def levers_couchers(identifiant, latitude, longitude, altitude_m=0,
 def instant_depuis(dt):
     """datetime avec fuseau -> instant Skyfield."""
     return _timescale().from_datetime(dt)
+
+
+# --- Partie 6.3 : l'ISS sur la carte et ses passages -------------------------------------------
+
+def est_satellite(identifiant):
+    return satellites.numero_de(identifiant) is not None
+
+
+def trace_satellite(identifiant, latitude, longitude, altitude_m=0, instant=None,
+                    avant_min=2, apres_min=10, pas_s=15):
+    """Trajet du satellite autour de l'instant, pour la carte : {debut (UTC), pas_s, points}
+    avec points = [[ra, dec, elevation, azimut], ...] (degrés, J2000), de instant - avant_min
+    à instant + apres_min. Le navigateur interpole entre deux points : le satellite avance
+    sur la carte sans redemander sa position au serveur."""
+    ts = _timescale()
+    instant = instant if instant is not None else ts.now()
+    n = int((avant_min + apres_min) * 60 / pas_s) + 1
+    debut = ts.tt_jd(instant.tt - avant_min / 1440.0)
+    instants = ts.tt_jd(debut.tt + np.arange(n) * pas_s / 86400.0)
+    position = _vu_du_lieu(identifiant, latitude, longitude, altitude_m, instants)
+    ra, dec, _ = position.radec()
+    elevation, azimut, _ = position.altaz()
+    return {
+        "debut": debut.utc_iso(),
+        "pas_s": pas_s,
+        "points": [
+            [round(float(r), 3), round(float(d), 3), round(float(e), 2), round(float(a), 2)]
+            for r, d, e, a in zip(ra._degrees, dec.degrees, elevation.degrees, azimut.degrees)
+        ],
+    }
+
+
+def passages(identifiant, latitude, longitude, altitude_m=0, debut=None, duree_h=48, hauteur_mini=10):
+    """Passages du satellite au-dessus de l'horizon : liste de dicts {lever, culmination, coucher
+    (UTC ; un passage en cours a son vrai lever, dans le passé ; coucher None s'il finit après
+    la fenêtre),
+    hauteur_max, azimut_lever, azimut_coucher, visible}. Seuls les passages qui montent à
+    hauteur_mini degrés ou plus sont gardés (plus bas, on ne le voit pas derrière les obstacles).
+    visible : satellite éclairé par le Soleil pendant que le ciel est noir (Soleil à plus de 6°
+    sous l'horizon) au moment de la culmination, donc visible à l'œil nu."""
+    ts = _timescale()
+    debut = debut if debut is not None else ts.now()
+    fin = ts.tt_jd(debut.tt + duree_h / 24.0)
+    sat = _satellite(identifiant)
+    if sat is None:
+        return []
+    topos = wgs84.latlon(latitude, longitude, elevation_m=altitude_m)
+    # On cherche depuis 30 min plus tôt : un passage en cours (au plus une quinzaine de minutes)
+    # a ainsi son vrai lever ; les passages déjà finis sont retirés plus bas.
+    avant = ts.tt_jd(debut.tt - 30 / 1440.0)
+    temps, types = sat.find_events(topos, avant, fin, altitude_degrees=0.0)
+
+    # Regrouper les événements : lever (0), culmination(s) (1), coucher (2)
+    groupes, courant = [], None
+    for t, y in zip(temps, types):
+        if y == 0:
+            courant = {"lever": t, "culminations": [], "coucher": None}
+            groupes.append(courant)
+        else:
+            if courant is None:  # passage déjà commencé au début de la fenêtre
+                courant = {"lever": None, "culminations": [], "coucher": None}
+                groupes.append(courant)
+            if y == 1:
+                courant["culminations"].append(t)
+            else:
+                courant["coucher"] = t
+                courant = None
+
+    vu = sat - topos
+    terre_lieu = _ephemerides()["earth"] + topos
+    soleil = _ephemerides()["sun"]
+    resultat = []
+    for g in groupes:
+        if not g["culminations"] or (g["coucher"] is not None and g["coucher"].tt < debut.tt):
+            continue
+        hauteurs = [vu.at(t).altaz()[0].degrees for t in g["culminations"]]
+        i = int(np.argmax(hauteurs))
+        if hauteurs[i] < hauteur_mini:
+            continue
+        culmination = g["culminations"][i]
+        hauteur_soleil = terre_lieu.at(culmination).observe(soleil).apparent().altaz()[0].degrees
+        eclaire = bool(sat.at(culmination).is_sunlit(_ephemerides()))
+
+        def azimut(t):
+            return None if t is None else round(float(vu.at(t).altaz()[1].degrees), 1)
+
+        resultat.append({
+            "lever": g["lever"].utc_iso() if g["lever"] is not None else None,
+            "culmination": culmination.utc_iso(),
+            "coucher": g["coucher"].utc_iso() if g["coucher"] is not None else None,
+            "hauteur_max": round(float(hauteurs[i]), 1),
+            "azimut_lever": azimut(g["lever"]),
+            "azimut_coucher": azimut(g["coucher"]),
+            "visible": bool(eclaire and hauteur_soleil < -6),
+        })
+    return resultat

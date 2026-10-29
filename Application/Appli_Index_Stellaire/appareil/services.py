@@ -11,15 +11,18 @@ from ciel.astro import altaz, radec_depuis_altaz, trajectoire
 from .models import Appareil, Commande
 
 
-def lieu_observation(appareil=None):
-    """Où se trouve le bras : la position GPS qu'il a rapportée (Partie 6.2), sinon le lieu
-    par défaut des réglages. Indispensable pour l'ISS : 10 km d'écart = 1,5° d'erreur."""
+def lieu_observation(appareil=None, secours=None):
+    """Où se trouve le bras : la position GPS qu'il a rapportée (Partie 6.2), sinon `secours`
+    (la position partagée par un navigateur, Partie 6.4), sinon le lieu par défaut des réglages.
+    Indispensable pour l'ISS : 10 km d'écart = 1,5° d'erreur."""
     if appareil is not None and appareil.latitude is not None and appareil.longitude is not None:
         return {
             "latitude": appareil.latitude,
             "longitude": appareil.longitude,
             "altitude_m": appareil.altitude_m if appareil.altitude_m is not None else 0,
         }
+    if secours is not None:
+        return secours
     return settings.LIEU_PAR_DEFAUT
 
 
@@ -43,12 +46,12 @@ def arreter(appareil):
     appareil.commandes.filter(active=True).update(active=False)
 
 
-def cible_de(commande, instant=None):
+def cible_de(commande, instant=None, secours=None):
     """Où doit pointer le bras maintenant pour viser l'objet de la commande.
 
     L'élévation peut être négative : le bras est une structure ouverte, il sait
     pointer à travers la Terre (objets de l'autre côté du globe)."""
-    lieu = lieu_observation(commande.appareil)
+    lieu = lieu_observation(commande.appareil, secours)
     elevation, azimut = altaz(
         commande.objet.identifiant_skyfield,
         lieu["latitude"], lieu["longitude"], lieu["altitude_m"],
@@ -104,12 +107,12 @@ def trajectoire_pour_appareil(commande, debut, heures=DUREE_TRAJECTOIRE_H):
     }
 
 
-def position_ciel_du_bras(appareil):
+def position_ciel_du_bras(appareil, secours=None):
     """Où pointe le bras, en coordonnées du ciel (ra, dec) : de quoi le dessiner sur la carte.
     None tant que l'appareil n'a jamais rapporté sa position."""
     if appareil.azimut is None or appareil.elevation is None:
         return None
-    lieu = lieu_observation(appareil)
+    lieu = lieu_observation(appareil, secours)
     ra, dec = radec_depuis_altaz(
         appareil.azimut, appareil.elevation, lieu["latitude"], lieu["longitude"], lieu["altitude_m"]
     )

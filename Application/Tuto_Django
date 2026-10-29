@@ -5308,5 +5308,261 @@ git commit -m "Partie 6 : trajectoire 48 h, ISS (TLE + SGP4), position GPS de l'
 git push
 ```
 
-Tu peux maintenant supprimer `A_FAIRE_PARTIE_6.md` : son contenu est consigné ci-dessus.
+## Partie 6.3 : l'ISS sur la carte
+
+Livrée dans un zip combiné 6.1+6.2+6.3 qui a remplacé l'archive précédente (installé directement,
+sans que je m'en rende compte sur le coup — d'où le doublon avec l'entrée ci-dessus). Ce que ça
+ajoute :
+
+- l'ISS avance toute seule sur la carte entre deux rafraîchissements : `liste_objets` renvoie, pour
+  un satellite seulement, un champ `trace` (trajet de 2 min avant à 10 min après l'instant, un
+  point toutes les 15 s, en `ra`/`dec`/`elevation`/`azimut`) que le navigateur interpole ;
+- un pointillé dessine ce trajet quand l'ISS est sélectionnée ou visée ;
+- sa fiche liste les **prochains passages** (48 h, au moins 10° de hauteur) : lever, culmination,
+  coucher, hauteur maximale, et « visible à l'œil nu » (satellite éclairé par le Soleil, ciel déjà
+  noir) ;
+- sur téléphone, choisir un astre dans la recherche le place au-dessus de la fiche plutôt que dessous.
+
+### `ciel/astro.py` : trajet court et passages
+
+```python
+def trace_satellite(identifiant, latitude, longitude, altitude_m=0, instant=None,
+                    avant_min=2, apres_min=10, pas_s=15):
+    """Trajet du satellite autour de l'instant, pour la carte : {debut (UTC), pas_s, points}
+    avec points = [[ra, dec, elevation, azimut], ...] (degrés, J2000), de instant - avant_min
+    à instant + apres_min. Le navigateur interpole entre deux points : le satellite avance
+    sur la carte sans redemander sa position au serveur."""
+    ts = _timescale()
+    instant = instant if instant is not None else ts.now()
+    n = int((avant_min + apres_min) * 60 / pas_s) + 1
+    debut = ts.tt_jd(instant.tt - avant_min / 1440.0)
+    instants = ts.tt_jd(debut.tt + np.arange(n) * pas_s / 86400.0)
+    position = _vu_du_lieu(identifiant, latitude, longitude, altitude_m, instants)
+    ra, dec, _ = position.radec()
+    elevation, azimut, _ = position.altaz()
+    return {
+        "debut": debut.utc_iso(),
+        "pas_s": pas_s,
+        "points": [
+            [round(float(r), 3), round(float(d), 3), round(float(e), 2), round(float(a), 2)]
+            for r, d, e, a in zip(ra._degrees, dec.degrees, elevation.degrees, azimut.degrees)
+        ],
+    }
+
+
+def passages(identifiant, latitude, longitude, altitude_m=0, debut=None, duree_h=48, hauteur_mini=10):
+    """Passages du satellite au-dessus de l'horizon : liste de dicts {lever, culmination, coucher
+    (UTC ; un passage en cours a son vrai lever, dans le passé ; coucher None s'il finit après
+    la fenêtre), hauteur_max, azimut_lever, azimut_coucher, visible}. Seuls les passages qui
+    montent à hauteur_mini degrés ou plus sont gardés (plus bas, on ne le voit pas derrière les
+    obstacles). visible : satellite éclairé par le Soleil pendant que le ciel est noir (Soleil à
+    plus de 6° sous l'horizon) au moment de la culmination, donc visible à l'œil nu."""
+```
+
+(Le corps complet calcule les événements avec `sat.find_events`, regroupe lever/culmination(s)/coucher
+par passage, et teste l'éclairement avec la position du Soleil à la culmination — voir le fichier.)
+
+### Contrat d'API
+
+- `GET /api/ciel/objets/` : chaque objet garde `{id, nom, categorie, elevation, azimut, ra, dec, visible}`,
+  plus `trace` pour un satellite seulement (absent sinon).
+- `GET /api/ciel/objets/<id>/` : gagne le champ `passages` (liste, vide ou `None` selon la logique
+  ci-dessus pour un non-satellite).
+
+### Testé
+
+```
+python manage.py test        # 88 tests OK
+python manage.py runserver
+python manage.py simuler_appareil --lieu 45.764 4.8357 170
+```
+Sur le téléphone (**Ctrl+F5**) : recherche « ISS » ; la fiche liste les prochains passages et un
+trajet en pointillés rouges part de l'ISS. Avec le panneau du temps (+1 h, ×60), en arrivant sur un
+passage, l'ISS file sur la carte ; une planète garde sa courbe habituelle.
+
+## Partie 6.4 : partager la position du navigateur
+
+Après la 6.2 (GPS du robot) et la 6.3 (ISS sur la carte), question posée en discutant de
+`LIEU_PAR_DEFAUT` (resté à Paris) : pour l'ISS, 10 km d'écart = 1,5° d'erreur, donc autant utiliser
+une vraie position plutôt qu'une valeur figée dans `settings.py`. Décidé ensemble :
+- **le robot, s'il est connecté et a un GPS, est toujours prioritaire** (c'est lui qui pointe) ;
+- **sinon**, un bouton dans la barre permet de **partager la position du navigateur** (API
+  Geolocation), gardée côté serveur le temps de la session ;
+- **sinon**, `LIEU_PAR_DEFAUT` (Paris) reste le filet de sécurité.
+
+Rien de tout ça ne vient d'un zip : écrit directement dans cette session, avec des tests.
+
+### 1. `ciel/lieu.py` (nouveau fichier) : la priorité robot > navigateur > réglages
+
+```python
+"""Partie 6.4 : le lieu à utiliser pour les calculs du ciel et du pointage, par ordre de
+préférence :
+
+1. Le robot, s'il est connecté et a rapporté sa position GPS (Partie 6.2) ;
+2. La position partagée par ce navigateur (bouton « Partager ma position »), gardée en session ;
+3. Le lieu par défaut des réglages (LIEU_PAR_DEFAUT).
+
+Un seul navigateur peut partager sa position à la fois (projet mono-utilisateur, comme le
+pilotage, Partie 5). Elle n'est jamais envoyée au robot : elle sert seulement de secours, pour
+viser correctement avant que le GPS de l'appareil n'ait un point.
+"""
+
+from django.conf import settings
+
+CLE_SESSION = "lieu_partage"
+DUREE_S = 12 * 3600  # une position de téléphone vieillit vite (le porteur se déplace)
+
+
+def lieu_partage(request):
+    """{latitude, longitude, altitude_m} partagé par ce navigateur, ou None."""
+    return request.session.get(CLE_SESSION)
+
+
+def definir_partage(request, latitude, longitude, altitude_m):
+    request.session[CLE_SESSION] = {
+        "latitude": latitude, "longitude": longitude, "altitude_m": altitude_m,
+    }
+    request.session.set_expiry(DUREE_S)
+
+
+def retirer_partage(request):
+    request.session.pop(CLE_SESSION, None)
+
+
+def lieu_courant(request):
+    """Lieu pour les calculs du ciel (carte, fiches, événements) : robot connecté avec GPS,
+    sinon position partagée par ce navigateur, sinon LIEU_PAR_DEFAUT."""
+    from appareil.services import appareil_principal, lieu_observation  # import tardif : évite que `ciel` dépende d'`appareil` au chargement des apps
+
+    appareil = appareil_principal()
+    if appareil is not None and appareil.connecte and appareil.latitude is not None:
+        return lieu_observation(appareil)
+    partage = lieu_partage(request)
+    if partage is not None:
+        return partage
+    return settings.LIEU_PAR_DEFAUT
+```
+
+`ciel` ne dépendait jusqu'ici que de lui-même (c'est `appareil` qui dépend de `ciel`). Pour éviter
+d'inverser cette dépendance au chargement des apps, l'import d'`appareil.services` se fait à
+l'intérieur de la fonction, pas en haut du fichier.
+
+### 2. `ciel/views.py` : `liste_objets`, `detail_objet`, `evenements` et `carte` utilisent `lieu_courant`
+
+```python
+from .lieu import definir_partage, lieu_courant, lieu_partage, retirer_partage
+...
+def liste_objets(request):
+    lieu = lieu_courant(request)   # au lieu de settings.LIEU_PAR_DEFAUT
+...
+def carte(request):
+    lieu = {**lieu_courant(request), "fuseau": settings.TIME_ZONE, "partage": lieu_partage(request) is not None}
+    return render(request, "ciel/carte.html", {"lieu": lieu})
+
+
+@require_POST
+def partager_lieu(request):
+    """POST {"latitude": .., "longitude": .., "altitude_m": ..} ou {"partager": false}."""
+    try:
+        corps = json.loads(request.body or b"{}")
+        if not isinstance(corps, dict):
+            raise ValueError("corps")
+    except ValueError:
+        return JsonResponse({"erreur": "Corps JSON invalide."}, status=400)
+
+    if corps.get("partager") is False:
+        retirer_partage(request)
+        return JsonResponse({"lieu": None})
+
+    try:
+        latitude = float(corps["latitude"])
+        longitude = float(corps["longitude"])
+        altitude_m = float(corps.get("altitude_m") or 0)
+    except (KeyError, TypeError, ValueError):
+        return JsonResponse(
+            {"erreur": 'Corps JSON attendu : {"latitude": .., "longitude": .., "altitude_m": ..}.'},
+            status=400,
+        )
+    if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+        return JsonResponse({"erreur": "Coordonnées hors limites."}, status=400)
+
+    definir_partage(request, latitude, longitude, altitude_m)
+    return JsonResponse({"lieu": lieu_partage(request)})
+```
+
+URL : `path("lieu/", views.partager_lieu, name="lieu")` dans `ciel/urls.py`.
+
+### 3. `appareil/services.py` et `appareil/views.py` : secours côté pointage aussi
+
+`lieu_observation(appareil=None, secours=None)` accepte maintenant un `secours`, utilisé si
+l'appareil n'a pas (encore) de GPS. `cible_de` et `position_ciel_du_bras` le reçoivent en
+paramètre, et `_etat(appareil, secours=None)` dans `appareil/views.py` le passe depuis
+`ciel.lieu.lieu_partage(request)` (seulement côté web : la trajectoire longue téléchargée par le
+robot, authentifiée par jeton, n'a pas de session navigateur à consulter).
+
+### 4. Interface (`carte.html`, `carte.js`, `carte.css`)
+
+- Un bouton rond de plus dans la barre, `#btn-position` (icône punaise de localisation),
+  `aria-pressed` reflète si ce navigateur partage déjà sa position (rendu depuis `lieu.partage`
+  côté serveur).
+- Clic : si déjà partagée, un second clic la retire (`POST /api/ciel/lieu/ {"partager": false}`)
+  puis recharge la page. Sinon, `navigator.geolocation.getCurrentPosition(...)` ; en cas de succès,
+  envoie `{latitude, longitude, altitude_m}` puis recharge la page — **tout repart d'un rendu
+  serveur propre** (vue initiale, fuseau, objets) plutôt que de essayer de modifier en direct
+  la vue déjà calculée, pour ne pas risquer de casser la géométrie soigneusement réglée en 3.5.2.
+- Erreurs (permission refusée, position indisponible, délai dépassé, serveur injoignable) affichées
+  5 à 15 s dans un petit message flottant (`#message-eclair`), nouveau et réutilisable pour d'autres
+  messages brefs plus tard.
+
+### À savoir
+
+- **Geolocation API et HTTPS** : la plupart des navigateurs (Chrome, Safari) **refusent la
+  géolocalisation sur une origine non sécurisée**. Testée en local (`127.0.0.1` ou `localhost`), ça
+  marche. **Depuis le téléphone, sur l'adresse réseau en HTTP simple (`http://192.168.x.x:8000/`),
+  le bouton risque de ne rien faire ou d'échouer silencieusement** selon le navigateur — c'est la
+  même limite que celle déjà notée pour les PWA et notifications, qui attend le HTTPS (Partie 12).
+  À vérifier directement sur le téléphone : si ça ne marche pas, ce n'est pas un bug du code.
+- **La position partagée vit en session** (cookie, 12 h) : elle est propre à CE navigateur. Un autre
+  appareil qui ouvre la page ne la voit pas et doit partager la sienne ou utiliser le lieu par défaut.
+- **Dès que le robot a un vrai GPS, il reprend la main automatiquement** : `lieu_courant` et
+  `lieu_observation` réévaluent la priorité à chaque requête, rien à faire manuellement.
+
+### Testé
+
+```
+python manage.py test        # 112 tests OK (8 nouveaux : ciel.LieuPartageTests, appareil.LieuSecoursTests)
+python manage.py runserver
+```
+`127.0.0.1:8000` dans un navigateur de bureau : bouton position → autorisation du navigateur →
+page rechargée avec `lieu.partage = true` et la carte centrée sur la position donnée par le
+navigateur (vérifiable en comparant au `lieu` renvoyé par `/api/ciel/objets/`).
+
+### Au passage, rattrapé dans le même commit
+
+En regardant `git status` avant de committer, plusieurs fichiers déjà sur le disque (et déjà utilisés
+par l'appli qui tournait, tests compris) n'avaient en fait jamais été committés :
+- **La 6.3 au complet** (`ciel/astro.py` : `trace_satellite`, `passages`, `est_satellite` ; les tests
+  associés dans `ciel/test_satellites.py`). Le commit « Partie 6 » précédent, fait avant que ce
+  contenu n'existe sur le disque, ne les avait donc pas pris.
+- **`ciel/evenements.py` et `ciel/test_evenements.py`** (Partie 7, « ce qu'on peut voir ce soir et
+  les jours suivants ») : déjà importés par `ciel/views.py` (`from . import evenements as
+  calcul_evenements`) et câblés sur `/api/ciel/evenements/`, donc indispensables pour que l'appli
+  démarre — mais la Partie 7 elle-même (son `A_FAIRE_PARTIE_7.md`) n'a pas encore été traitée ni
+  journalisée ici, ce sera une prochaine étape.
+- **`contenu/astres/lune.json`** : corrigé (catégorie « lune », `identifiant_skyfield: "moon"`) — le
+  bug signalé à la fin de la Partie 6 est réglé, la Lune apparaît de nouveau sur la carte.
+
+Tout ça est inclus dans le commit ci-dessous pour que le dépôt reste cohérent (un clone frais doit
+pouvoir démarrer sans `ImportError`), sans que ce soit à proprement parler du travail de la 6.4.
+
+### Envoyer
+
+```
+git add ciel appareil contenu
+git commit -m "Partie 6.4 : partager la position du navigateur ; rattrape la 6.3 et les fichiers de la Partie 7"
+git push
+```
+
+Tu peux maintenant supprimer `A_FAIRE_PARTIE_6.md` : son contenu (6.1 à 6.4) est consigné ci-dessus.
+`A_FAIRE_PARTIE_7.md` reste pour l'instant : la Partie 7 n'a pas encore été traitée.
 

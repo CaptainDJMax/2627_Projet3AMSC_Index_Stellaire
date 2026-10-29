@@ -9,6 +9,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from ciel.astro import instant_depuis, maintenant
+from ciel.lieu import lieu_partage
 from ciel.models import ObjetCeleste
 
 from . import pilotage, services
@@ -167,8 +168,10 @@ def trajectoire_appareil(request):
 # ===========================================================================
 
 
-def _etat(appareil):
-    """Ce que l'interface affiche : l'appareil, la commande en cours, l'écart."""
+def _etat(appareil, secours=None):
+    """Ce que l'interface affiche : l'appareil, la commande en cours, l'écart.
+    `secours` (Partie 6.4) : position partagée par ce navigateur, utilisée tant que le robot
+    n'a pas encore de GPS à lui — jamais à la place d'un GPS déjà rapporté."""
     if appareil is None:
         return {"appareil": None, "commande": None, "ecart_deg": None}
 
@@ -177,7 +180,7 @@ def _etat(appareil):
     ecart = None
     if commande is not None:
         try:
-            cible = services.cible_de(commande)
+            cible = services.cible_de(commande, secours=secours)
         except (KeyError, ValueError):
             cible = None
         resume_commande = {
@@ -193,7 +196,7 @@ def _etat(appareil):
                 2,
             )
 
-    ciel = services.position_ciel_du_bras(appareil)
+    ciel = services.position_ciel_du_bras(appareil, secours=secours)
     return {
         "appareil": {
             "nom": appareil.nom,
@@ -213,7 +216,7 @@ def _etat(appareil):
 
 def _reponse_etat(request, appareil):
     """L'état du pointage, plus le champ « pilotage » (ce navigateur peut-il piloter le bras ?)."""
-    return JsonResponse({**_etat(appareil), "pilotage": pilotage.etat(request)})
+    return JsonResponse({**_etat(appareil, secours=lieu_partage(request)), "pilotage": pilotage.etat(request)})
 
 
 @require_GET

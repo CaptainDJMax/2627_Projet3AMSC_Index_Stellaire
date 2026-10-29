@@ -1,3 +1,4 @@
+import json
 import logging
 from datetime import datetime, timezone
 
@@ -5,9 +6,14 @@ from django.conf import settings
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import ensure_csrf_cookie
-from django.views.decorators.http import require_GET
+from django.views.decorators.http import require_GET, require_POST
 
-from .astro import altaz, instant_depuis, levers_couchers, maintenant, radec, trajectoire
+from .astro import (
+    altaz, est_satellite, instant_depuis, levers_couchers, maintenant, passages, radec,
+    trace_satellite, trajectoire,
+)
+from . import evenements as calcul_evenements
+from .lieu import definir_partage, lieu_courant, lieu_partage, retirer_partage
 from .models import ObjetCeleste
 
 logger = logging.getLogger(__name__)
@@ -38,7 +44,7 @@ def _instant_demande(request):
 @require_GET
 def liste_objets(request):
     """Positions des objets calculables, à l'instant demandé (ou maintenant)."""
-    lieu = settings.LIEU_PAR_DEFAUT
+    lieu = lieu_courant(request)
     try:
         instant = _instant_demande(request)  # même instant pour tous les objets
     except ValueError:
@@ -56,6 +62,11 @@ def liste_objets(request):
             ra, dec = radec(
                 ident, lieu["latitude"], lieu["longitude"], lieu["altitude_m"], instant
             )
+            # Partie 6.3 : un satellite bouge vite ; son trajet sur 12 min permet au navigateur
+            # de le faire avancer entre deux chargements
+            trace = trace_satellite(
+                ident, lieu["latitude"], lieu["longitude"], lieu["altitude_m"], instant
+            ) if est_satellite(ident) else None
         except (KeyError, ValueError):
             # Un identifiant faux ne doit pas casser toute la carte
             logger.warning(
@@ -64,18 +75,19 @@ def liste_objets(request):
                 ident,
             )
             continue
-        objets.append(
-            {
-                "id": objet.id,
-                "nom": objet.nom,
-                "categorie": objet.categorie,
-                "elevation": round(elevation, 2),
-                "azimut": round(azimut, 2),
-                "ra": round(ra, 4),
-                "dec": round(dec, 4),
-                "visible": elevation > 0,
-            }
-        )
+        donnees = {
+            "id": objet.id,
+            "nom": objet.nom,
+            "categorie": objet.categorie,
+            "elevation": round(elevation, 2),
+            "azimut": round(azimut, 2),
+            "ra": round(ra, 4),
+            "dec": round(dec, 4),
+            "visible": elevation > 0,
+        }
+        if trace is not None:
+            donnees["trace"] = trace  # satellites seulement
+        objets.append(donnees)
 
     return JsonResponse(
         {"instant": instant.utc_iso(), "lieu": lieu, "objets": objets},
@@ -107,13 +119,15 @@ def detail_objet(request, objet_id):
     duree = _entier(request, "duree", 24, 1, 72)
     pas = _entier(request, "pas", 10, 1, 60)
 
-    lieu = settings.LIEU_PAR_DEFAUT
+    lieu = lieu_courant(request)
     lat, lon, alt = lieu["latitude"], lieu["longitude"], lieu["altitude_m"]
 
     try:
         elevation, azimut = altaz(ident, lat, lon, alt, instant)
         evenements = levers_couchers(ident, lat, lon, alt, instant, duree)
         points = trajectoire(ident, lat, lon, alt, instant, duree, pas)
+        # Partie 6.3 : prochains passages (48 h) pour un satellite, None pour les autres astres
+        prochains = passages(ident, lat, lon, alt, instant) if est_satellite(ident) else None
     except (KeyError, ValueError):
         logger.warning("Identifiant Skyfield invalide pour %r : %r", objet.nom, ident)
         return JsonResponse({"erreur": "Identifiant de calcul invalide."}, status=404)
@@ -142,6 +156,43 @@ def detail_objet(request, objet_id):
             },
             "levers_couchers": evenements,
             "trajectoire": points,
+            "passages": prochains,  # Partie 6.3
+        },
+        json_dumps_params={"ensure_ascii": False},
+    )
+
+
+@require_GET
+def evenements(request):
+    """Partie 7 : ce qu'on peut voir à l'œil nu. ?instant=<ISO 8601> (défaut : maintenant),
+    ?jours=1..31 (défaut 7). Réponse : {instant, jours, lieu, ce_soir, evenements[]}."""
+    try:
+        instant = _instant_demande(request)
+    except ValueError:
+        return JsonResponse(
+            {"erreur": "Paramètre 'instant' invalide (ISO 8601, 1950-2049)."}, status=400
+        )
+    try:
+        jours = int(request.GET.get("jours", 7))
+    except ValueError:
+        return JsonResponse({"erreur": "Paramètre 'jours' invalide (entier de 1 à 31)."}, status=400)
+    jours = max(1, min(31, jours))
+
+    lieu = lieu_courant(request)
+    lat, lon, alt = lieu["latitude"], lieu["longitude"], lieu["altitude_m"]
+    objets = [
+        (o.id, o.nom, o.identifiant_skyfield, o.categorie)
+        for o in ObjetCeleste.objects.exclude(identifiant_skyfield="").order_by("nom")
+    ]
+    # « Ce soir » : la Lune et les planètes (les étoiles sont toujours là, elles n'en sont pas)
+    soir = [o[:3] for o in objets if o[3] in ("planete", "lune")]
+    return JsonResponse(
+        {
+            "instant": instant.utc_iso(),
+            "jours": jours,
+            "lieu": lieu,
+            "ce_soir": calcul_evenements.ce_soir(soir, lat, lon, alt, instant),
+            "evenements": calcul_evenements.evenements(objets, lat, lon, alt, instant, jours),
         },
         json_dumps_params={"ensure_ascii": False},
     )
@@ -150,5 +201,37 @@ def detail_objet(request, objet_id):
 @ensure_csrf_cookie  # dépose le cookie CSRF dont le JavaScript aura besoin pour ses requêtes POST
 def carte(request):
     """Page principale : la carte du ciel."""
-    lieu = {**settings.LIEU_PAR_DEFAUT, "fuseau": settings.TIME_ZONE}
+    lieu = {**lieu_courant(request), "fuseau": settings.TIME_ZONE, "partage": lieu_partage(request) is not None}
     return render(request, "ciel/carte.html", {"lieu": lieu})
+
+
+@require_POST
+def partager_lieu(request):
+    """Partie 6.4 : ce navigateur partage sa position (bouton « Partager ma position »), ou la
+    retire. POST {"latitude": .., "longitude": .., "altitude_m": ..} ou {"partager": false}.
+    Ne touche pas le GPS du robot : sert seulement de secours tant qu'il n'en a pas."""
+    try:
+        corps = json.loads(request.body or b"{}")
+        if not isinstance(corps, dict):
+            raise ValueError("corps")
+    except ValueError:
+        return JsonResponse({"erreur": "Corps JSON invalide."}, status=400)
+
+    if corps.get("partager") is False:
+        retirer_partage(request)
+        return JsonResponse({"lieu": None})
+
+    try:
+        latitude = float(corps["latitude"])
+        longitude = float(corps["longitude"])
+        altitude_m = float(corps.get("altitude_m") or 0)
+    except (KeyError, TypeError, ValueError):
+        return JsonResponse(
+            {"erreur": 'Corps JSON attendu : {"latitude": .., "longitude": .., "altitude_m": ..}.'},
+            status=400,
+        )
+    if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+        return JsonResponse({"erreur": "Coordonnées hors limites."}, status=400)
+
+    definir_partage(request, latitude, longitude, altitude_m)
+    return JsonResponse({"lieu": lieu_partage(request)})

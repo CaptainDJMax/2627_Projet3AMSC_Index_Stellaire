@@ -452,6 +452,47 @@ class LieuGpsTests(TestCase):
         self.assertAlmostEqual(d["points"][0][0], azimut, places=1)
 
 
+class LieuSecoursTests(TestCase):
+    """Partie 6.4 : position partagée par le navigateur, utilisée tant que le robot n'a pas de GPS."""
+
+    LYON = {"latitude": 45.764, "longitude": 4.8357, "altitude_m": 170.0}
+    CAPE_TOWN = {"latitude": -33.9, "longitude": 18.4, "altitude_m": 10.0}
+
+    def setUp(self):
+        self.appareil = Appareil.objects.create()
+        self.jupiter = ObjetCeleste.objects.create(
+            nom="Jupiter", categorie="planete", identifiant_skyfield="jupiter barycenter"
+        )
+
+    def partager(self, lieu):
+        return self.client.post("/api/ciel/lieu/", lieu, content_type="application/json")
+
+    def test_secours_utilise_sans_gps_robot(self):
+        self.assertEqual(
+            services.lieu_observation(self.appareil, secours=self.CAPE_TOWN), self.CAPE_TOWN
+        )
+
+    def test_gps_robot_prioritaire_sur_le_secours(self):
+        self.appareil.latitude, self.appareil.longitude, self.appareil.altitude_m = (
+            self.LYON["latitude"], self.LYON["longitude"], self.LYON["altitude_m"]
+        )
+        self.appareil.save()
+        self.assertEqual(
+            services.lieu_observation(self.appareil, secours=self.CAPE_TOWN), self.LYON
+        )
+
+    def test_position_partagee_utilisee_par_le_pointage_sans_gps_robot(self):
+        self.partager(self.CAPE_TOWN)
+        services.definir_cible(self.appareil, self.jupiter)
+        cible = self.client.get("/api/pointage/").json()["commande"]["cible"]
+        elevation, azimut = altaz(
+            "jupiter barycenter", self.CAPE_TOWN["latitude"], self.CAPE_TOWN["longitude"],
+            self.CAPE_TOWN["altitude_m"],
+        )
+        self.assertAlmostEqual(cible["azimut"], azimut, places=1)
+        self.assertAlmostEqual(cible["elevation"], elevation, places=1)
+
+
 class TrajectoireSatelliteTests(DossierTleTemporaire, TestCase):
     """Partie 6.2 : pour l'ISS, la trajectoire porte le TLE et des points toutes les 5 s sur 6 h."""
 

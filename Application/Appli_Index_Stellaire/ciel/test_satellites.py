@@ -175,3 +175,75 @@ class CarteSansTleTests(DossierTleTemporaire, TestCase):
         with patch("ciel.satellites._telecharger", return_value=fabriquer_tle()):
             objets = self.client.get("/api/ciel/objets/").json()["objets"]
         self.assertEqual([(o["nom"], o["categorie"]) for o in objets], [("ISS", "satellite")])
+
+
+class IssSurLaCarteTests(DossierTleTemporaire, TestCase):
+    """Partie 6.3 : trajet de l'ISS dans la liste des objets, passages dans sa fiche."""
+
+    LIEU = (48.8566, 2.3522, 35)
+
+    def setUp(self):
+        super().setUp()
+        self.epoque = datetime.now(timezone.utc).replace(microsecond=0)
+        patcher = patch("ciel.satellites._telecharger", return_value=fabriquer_tle(self.epoque))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.iss = ObjetCeleste.objects.create(nom="ISS", categorie="satellite", identifiant_skyfield="sat:25544")
+        ObjetCeleste.objects.create(nom="Jupiter", categorie="planete", identifiant_skyfield="jupiter barycenter")
+        self.instant = self.epoque + timedelta(hours=1)
+
+    def test_trace_dans_la_liste(self):
+        d = self.client.get("/api/ciel/objets/", {"instant": self.instant.isoformat()}).json()
+        par_nom = {o["nom"]: o for o in d["objets"]}
+        self.assertNotIn("trace", par_nom["Jupiter"])  # seulement les satellites
+        trace = par_nom["ISS"]["trace"]
+        self.assertEqual({"debut", "pas_s", "points"}, set(trace))
+        self.assertEqual(trace["pas_s"], 15)
+        self.assertEqual(len(trace["points"]), 49)  # de -2 min à +10 min
+        debut = datetime.fromisoformat(trace["debut"].replace("Z", "+00:00"))
+        self.assertAlmostEqual((self.instant - debut).total_seconds(), 120, delta=1)
+        # Le point de l'instant demandé (le 9e) est la position de l'objet
+        ra, dec, elevation, azimut = trace["points"][8]
+        self.assertAlmostEqual(ra, par_nom["ISS"]["ra"], delta=0.01)
+        self.assertAlmostEqual(dec, par_nom["ISS"]["dec"], delta=0.01)
+        self.assertAlmostEqual(elevation, par_nom["ISS"]["elevation"], delta=0.01)
+
+    def test_passages_dans_la_fiche(self):
+        d = self.client.get(f"/api/ciel/objets/{self.iss.id}/", {"instant": self.instant.isoformat()}).json()
+        self.assertIsInstance(d["passages"], list)
+        self.assertGreater(len(d["passages"]), 2)
+        cles = {"lever", "culmination", "coucher", "hauteur_max", "azimut_lever", "azimut_coucher", "visible"}
+        for p in d["passages"]:
+            with self.subTest(passage=p["culmination"]):
+                self.assertEqual(cles, set(p))
+                self.assertGreaterEqual(p["hauteur_max"], 10)
+                self.assertIsInstance(p["visible"], bool)
+                if p["lever"] and p["coucher"]:
+                    self.assertLess(p["lever"], p["culmination"])
+                    self.assertLess(p["culmination"], p["coucher"])
+                # À la culmination, la hauteur calculée à part est bien la hauteur maximale annoncée
+                t = astro.instant_depuis(datetime.fromisoformat(p["culmination"].replace("Z", "+00:00")))
+                self.assertAlmostEqual(astro.altaz("sat:25544", *self.LIEU, t)[0], p["hauteur_max"], delta=0.2)
+        culminations = [p["culmination"] for p in d["passages"]]
+        self.assertEqual(culminations, sorted(culminations))
+
+    def test_passage_visible_seulement_de_nuit(self):
+        ts = astro._timescale()
+        terre_lieu = astro._ephemerides()["earth"] + astro.wgs84.latlon(*self.LIEU[:2], elevation_m=self.LIEU[2])
+        for p in astro.passages("sat:25544", *self.LIEU, astro.instant_depuis(self.instant)):
+            if not p["visible"]:
+                continue
+            t = ts.from_datetime(datetime.fromisoformat(p["culmination"].replace("Z", "+00:00")))
+            soleil = terre_lieu.at(t).observe(astro._ephemerides()["sun"]).apparent().altaz()[0].degrees
+            self.assertLess(soleil, -6)
+
+
+    def test_passage_en_cours_garde_son_lever(self):
+        premier = astro.passages("sat:25544", *self.LIEU, astro.instant_depuis(self.instant))[0]
+        culmination = datetime.fromisoformat(premier["culmination"].replace("Z", "+00:00"))
+        pendant = astro.passages("sat:25544", *self.LIEU, astro.instant_depuis(culmination))
+        self.assertEqual(pendant[0]["lever"], premier["lever"])  # lever dans le passé : passage en cours
+        self.assertIsNotNone(pendant[0]["azimut_lever"])
+        apres = astro.passages("sat:25544", *self.LIEU,
+                               astro.instant_depuis(datetime.fromisoformat(premier["coucher"].replace("Z", "+00:00")) + timedelta(minutes=1)))
+        self.assertNotEqual(apres[0]["culmination"], premier["culmination"])  # passage fini : retiré
