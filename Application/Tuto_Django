@@ -5779,3 +5779,108 @@ git push
 
 Tu peux supprimer `A_FAIRE_PARTIE_8.md` : son contenu est consigné ci-dessus.
 
+## Partie 8.4 : cible personnalisée (appui long) et filtres
+
+Posée par-dessus la Partie 8 (pas de migration à faire à la main au-delà de celle fournie).
+
+**Pointer n'importe quel point du ciel (F18)** : un appui long (~0,5 s, sans bouger) ouvre le
+panneau « Point du ciel » (hauteur, direction, coordonnées, constellation, visibilité ce soir).
+« Pointer ici » envoie le bras sur ce point (code de pilotage demandé comme d'habitude). Le point
+tourne avec le ciel ; sous l'horizon, le bras pointe à travers la Terre. Croix dorée pour le point
+affiché, anneau vert + nom pour le point visé.
+
+**Filtres (F36) + recherche qui les suit (F12)** dans le panneau des calques : par catégorie
+(Planètes et Lune / Étoiles / Satellites) et par magnitude limite des étoiles de fond (4/5/6).
+Gardés dans le navigateur (`localStorage`).
+
+### `appareil/models.py` : `Commande` sans objet, avec des coordonnées
+
+```python
+class Commande(models.Model):
+    """... Partie 8.4 (F18) : sans objet, la cible est un point fixe du ciel donné par ses
+    coordonnées (ra, dec) ; il tourne avec le ciel, comme une étoile, et peut être sous
+    l'horizon (le bras pointe alors à travers la Terre)."""
+    objet = models.ForeignKey(ObjetCeleste, ..., null=True, blank=True)
+    ra = models.FloatField(null=True, blank=True)
+    dec = models.FloatField(null=True, blank=True)
+    nom_cible = models.CharField(max_length=60, blank=True, default="")
+
+    class Meta:
+        constraints = [
+            # Soit un objet, soit des coordonnées (point du ciel)
+            models.CheckConstraint(
+                condition=Q(objet__isnull=False) | (Q(ra__isnull=False) & Q(dec__isnull=False)),
+                name="objet_ou_coordonnees",
+            ),
+            ...
+        ]
+
+    @property
+    def identifiant(self):
+        """Ce que ciel.astro sait calculer : celui de l'objet, ou « radec:RA,DEC » pour un point."""
+```
+
+Migration `0003_cible_personnalisee`.
+
+### `ciel/views.py` : nouvelle vue `point`
+
+```python
+@require_GET
+def point(request):
+    """Partie 8.4 : où se trouve un point du ciel (?ra=0..360&dec=-90..90, ?instant facultatif).
+    Réponse : {ra, dec, instant, elevation, azimut, visible, constellation_iau, ce_soir}."""
+```
+URL : `path("point/", views.point, name="point")`.
+
+### `appareil/views.py` : `definir_commande` accepte un point sans objet
+
+```python
+if "objet_id" not in corps and "ra" in corps:
+    # Partie 8.4 (F18) : un point du ciel {"ra": 0..360, "dec": -90..90, "nom": facultatif}
+    ra = _nombre(corps, "ra", -360, 360)
+    dec = _nombre(corps, "dec", -90, 90)
+    ...
+    services.definir_point(appareil, ra, dec, nom.strip())
+```
+Pour l'équipe robot : `commande.objet` vaut `{"id": null, "nom": "Point du ciel"}` et un nouveau
+champ `commande.coordonnees` vaut `{"ra", "dec"}` (null pour un astre de la base) — **ne pas se
+servir de `objet.id`** côté firmware, seulement de `nom` pour l'affichage. Le reste (cible,
+trajectoire) ne change pas.
+
+### Testé
+
+```
+python manage.py migrate              # 0003
+python manage.py test                 # 130 tests OK attendus par l'archive ; 138 avec la 6.4 réintégrée
+python manage.py runserver 0.0.0.0:8000
+```
+Sur le téléphone (Ctrl+F5) : appui long sur le ciel → « Pointer ici » → code ; puis les filtres
+dans les calques.
+
+### ⚠️ Écrasée une troisième fois : la Partie 6.4, réintégrée de nouveau
+
+Même cause que les deux fois précédentes : l'archive remplace entièrement `appareil/models.py`,
+`appareil/services.py`, `appareil/views.py`, `appareil/tests.py`, `ciel/views.py`, `ciel/urls.py`,
+`ciel/templates/ciel/carte.html`, `ciel/static/ciel/carte.js`/`carte.css`, qui portent justement le
+bouton de position partagée, le paramètre `secours`, et l'inversion du glisser. Tout a été
+réappliqué (code + 8 tests), 138 tests OK au final.
+
+**À partir de maintenant** : avant de traiter un nouveau `A_FAIRE_PARTIE_*.md`, toujours vérifier
+avec `grep -c "btn-position" ciel/static/ciel/carte.js` et `grep -c "secours" appareil/services.py`
+si ces deux ajouts ont survécu au remplacement, et les refaire sinon (voir les Parties 6.4, 8 et
+8.4 ci-dessus pour le code exact à chaque fois). **Mieux encore** : il faudrait que qui prépare les
+archives les intègre une bonne fois dans sa version de référence (le code est stable et testé
+depuis la 6.4), pour que cette réintégration manuelle n'ait plus jamais à se refaire.
+
+### Envoyer
+
+```
+git add appareil ciel
+git commit -m "Partie 8.4 : cible personnalisée (appui long) et filtres des astres"
+git push
+```
+
+(Déjà fait dans cette session, avec la réintégration de la 6.4 dans le même commit.)
+
+Tu peux supprimer `A_FAIRE_PARTIE_8_4.md` : son contenu est consigné ci-dessus.
+
