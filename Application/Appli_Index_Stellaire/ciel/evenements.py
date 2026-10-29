@@ -13,8 +13,11 @@ Chaque événement : {type, titre, instant, objet_id, direction{azimut, elevatio
 propres à son type. `instant` est le meilleur moment pour regarder ; `direction` où regarder.
 """
 
+import math
+
 import numpy as np
 from skyfield import almanac, eclipselib
+from skyfield.searchlib import find_maxima
 from skyfield.api import Star, wgs84
 from skyfield.framelib import ecliptic_J2000_frame
 
@@ -29,6 +32,9 @@ ECART_PLANETES = 3.0
 PAS_MIN = 10  # minutes, pour « ce soir », les essaims et les rapprochements affinés
 DUREE_PASSAGES_MAX_J = 7  # au-delà de 7 jours de l'époque du TLE, un passage annoncé serait faux
 HAUTEUR_MINI_PASSAGE = 20.0  # dans la liste des événements : les beaux passages seulement
+
+# Les « principaux » : mis en avant dans l'appli (badge « à ne pas manquer »)
+IMPORTANTS = {"eclipse_lune", "eclipse_soleil", "opposition"}
 
 NOMS_PHASES = ["Nouvelle Lune", "Premier quartier", "Pleine Lune", "Dernier quartier"]
 NOMS_ECLIPSES = {1: "partielle", 2: "totale"}  # 0 = par la pénombre : à peine visible, ignorée
@@ -314,6 +320,184 @@ def passages_visibles(satellites_base, lat, lon, alt, debut, fin):
     return evenements
 
 
+# --- Partie 8.2 : éclipses de Soleil, oppositions, élongations, occultations, saisons ----------
+
+RAYON_SOLEIL_KM = 696_000.0
+RAYON_LUNE_KM = 1_737.4
+PLANETES_EXTERIEURES = [("Mars", "mars barycenter"), ("Jupiter", "jupiter barycenter"), ("Saturne", "saturn barycenter")]
+PLANETES_INTERIEURES = [("Mercure", "mercury"), ("Vénus", "venus")]
+NOMS_SAISONS = ["Équinoxe de printemps", "Solstice d'été", "Équinoxe d'automne", "Solstice d'hiver"]
+
+
+def _id_de(objets, identifiant):
+    return next((o[0] for o in objets if o[2] == identifiant), None)
+
+
+def eclipses_soleil(lat, lon, alt, debut, fin):
+    """Éclipses de Soleil vues d'ici : à chaque nouvelle Lune, on cherche (pas d'une minute,
+    Soleil levé) si les disques de la Lune et du Soleil se recouvrent. `magnitude` : part du
+    diamètre du Soleil couverte au maximum (1 = totale). Jamais regarder le Soleil sans
+    lunettes d'éclipse : rappelé dans le titre côté appli."""
+    ts = _ts()
+    temps, phases = almanac.find_discrete(ts.tt_jd(debut.tt - 0.3), ts.tt_jd(fin.tt + 0.3), almanac.moon_phases(_eph()))
+    lieu = _eph()["earth"] + wgs84.latlon(lat, lon, elevation_m=alt)
+    evenements = []
+    for t, phase in zip(temps, phases):
+        if phase != 0:
+            continue
+        fenetre = _instants(ts.tt_jd(t.tt - 0.25), ts.tt_jd(t.tt + 0.25), 1)
+        soleil = lieu.at(fenetre).observe(_eph()["sun"]).apparent()
+        lune = lieu.at(fenetre).observe(_eph()["moon"]).apparent()
+        ecart = soleil.separation_from(lune).radians
+        r_s = np.arcsin(RAYON_SOLEIL_KM / soleil.distance().km)
+        r_l = np.arcsin(RAYON_LUNE_KM / lune.distance().km)
+        hauteur = soleil.altaz()[0].degrees
+        couvert = (ecart < r_s + r_l) & (hauteur > 0)
+        if not couvert.any():
+            continue
+        k = int(np.argmin(np.where(couvert, ecart, np.inf)))
+        magnitude = float((r_s[k] + r_l[k] - ecart[k]) / (2 * r_s[k]))
+        if ecart[k] <= abs(r_l[k] - r_s[k]):
+            genre = "totale" if r_l[k] > r_s[k] else "annulaire"
+        else:
+            genre = "partielle"
+        if not debut.tt <= fenetre[k].tt <= fin.tt:
+            continue
+        indices = np.nonzero(couvert)[0]
+        evenements.append({
+            "type": "eclipse_soleil",
+            "titre": f"Éclipse de Soleil {genre}",
+            "instant": fenetre[k].utc_iso(),
+            "debut": fenetre[int(indices[0])].utc_iso(),
+            "fin": fenetre[int(indices[-1])].utc_iso(),
+            "magnitude": round(min(magnitude, 1.0), 2),
+            "important": True,
+            "objet_id": None,
+            "direction": {"azimut": round(float(soleil.altaz()[1].degrees[k]), 1), "elevation": round(float(hauteur[k]), 1)},
+        })
+    return evenements
+
+
+def oppositions(objets, lat, lon, alt, debut, fin):
+    """Opposition d'une planète extérieure : face au Soleil, au plus près et au plus brillant,
+    visible toute la nuit. Le moment donné est minuit environ (au plus haut) la nuit de l'opposition."""
+    evenements = []
+    for nom, ident in PLANETES_EXTERIEURES:
+        temps, valeurs = almanac.find_discrete(debut, fin, almanac.oppositions_conjunctions(_eph(), _eph()[ident]))
+        for t, v in zip(temps, valeurs):
+            if v != 1:
+                continue
+            meilleur = ce_soir([(None, nom, ident)], lat, lon, alt, _ts().tt_jd(t.tt - 0.5))["astres"]
+            moment = _ts().tt_jd(_jd(meilleur[0]["instant"])) if meilleur else t
+            evenements.append({
+                "type": "opposition",
+                "titre": f"Opposition de {nom}",
+                "instant": moment.utc_iso(),
+                "opposition": t.utc_iso(),
+                "important": True,
+                "objet_id": _id_de(objets, ident),
+                "direction": _direction(ident, lat, lon, alt, moment),
+            })
+    return evenements
+
+
+def elongations(objets, lat, lon, alt, debut, fin):
+    """Plus grande élongation de Mercure ou Vénus : au plus loin du Soleil, le meilleur moment
+    pour la voir (à l'est du Soleil : le soir ; à l'ouest : le matin)."""
+    ts = _ts()
+    terre = _eph()["earth"]
+    evenements = []
+    for nom, ident in PLANETES_INTERIEURES:
+        def elongation(t):
+            e = terre.at(t)
+            return e.observe(_eph()["sun"]).separation_from(e.observe(_eph()[ident])).degrees
+        elongation.step_days = 5
+        temps, valeurs = find_maxima(debut, fin, elongation)
+        for t, angle in zip(temps, valeurs):
+            e = terre.at(t)
+            lon_soleil = e.observe(_eph()["sun"]).frame_latlon(ecliptic_J2000_frame)[1].degrees
+            lon_planete = e.observe(_eph()[ident]).frame_latlon(ecliptic_J2000_frame)[1].degrees
+            soir = bool(((lon_planete - lon_soleil) % 360) < 180)  # à l'est du Soleil
+            # Meilleur moment : 45 min après le coucher du Soleil (ou avant son lever)
+            jour = ts.tt_jd(math.floor(t.tt - 0.5) + 0.5)
+            lieu = wgs84.latlon(lat, lon, elevation_m=alt)
+            f = almanac.sunrise_sunset(_eph(), lieu)
+            tt, vv = almanac.find_discrete(jour, ts.tt_jd(jour.tt + 1.5), f)
+            choix = [x for x, v in zip(tt, vv) if bool(v) != soir]  # coucher (v=0) le soir, lever (1) le matin
+            moment = ts.tt_jd(choix[0].tt + (0.03125 if soir else -0.03125)) if choix else t
+            evenements.append({
+                "type": "elongation",
+                "titre": f"{nom} au plus loin du Soleil ({round(float(angle))}°, {'le soir' if soir else 'le matin'})",
+                "instant": moment.utc_iso(),
+                "elongation": round(float(angle), 1),
+                "soir": soir,
+                "important": False,
+                "objet_id": _id_de(objets, ident),
+                "direction": _direction(ident, lat, lon, alt, moment),
+            })
+    return evenements
+
+
+def occultations(objets, lat, lon, alt, debut, fin):
+    """La Lune passe devant une planète ou une étoile de la base, visible d'ici (de nuit, Lune
+    levée). On repère les rapprochements à moins de 1,5° (pas d'une heure), puis on affine à la minute."""
+    ts = _ts()
+    lieu_topo = wgs84.latlon(lat, lon, elevation_m=alt)
+    instants = _instants(debut, fin, 60)
+    lune_h = astro._vu_du_lieu("moon", lat, lon, alt, instants)
+    evenements = []
+    for objet_id, nom, ident, categorie in objets:
+        if categorie not in ("planete", "etoile") or satellites.numero_de(ident) is not None:
+            continue
+        try:
+            ecart = lune_h.separation_from(astro._vu_du_lieu(ident, lat, lon, alt, instants)).degrees
+        except (KeyError, ValueError):
+            continue
+        proches = np.nonzero(ecart < 1.5)[0]
+        dernier = -999
+        for k in proches:
+            if k - dernier < 12:  # même rapprochement (il dure quelques heures) : déjà examiné
+                continue
+            dernier = int(k)
+            fenetre = _instants(ts.tt_jd(instants[k].tt - 0.15), ts.tt_jd(instants[k].tt + 0.15), 1)
+            lune = astro._vu_du_lieu("moon", lat, lon, alt, fenetre)
+            astre = astro._vu_du_lieu(ident, lat, lon, alt, fenetre)
+            sep = lune.separation_from(astre).radians
+            r_l = np.arcsin(RAYON_LUNE_KM / lune.distance().km)
+            cache = (sep < r_l) & (lune.altaz()[0].degrees > 5) & (_hauteur_soleil(lieu_topo, fenetre) < SOLEIL_NUIT)
+            if not cache.any():
+                continue
+            indices = np.nonzero(cache)[0]
+            t = fenetre[int(indices[0])]
+            evenements.append({
+                "type": "occultation",
+                "titre": f"La Lune cache {nom}",
+                "instant": t.utc_iso(),  # disparition derrière la Lune
+                "fin": fenetre[int(indices[-1])].utc_iso(),  # réapparition (ou fin de visibilité)
+                "important": categorie == "planete",
+                "objet_id": objet_id,
+                "direction": _direction(ident, lat, lon, alt, t),
+            })
+    return evenements
+
+
+def saisons(lat, lon, alt, debut, fin):
+    temps, valeurs = almanac.find_discrete(debut, fin, almanac.seasons(_eph()))
+    nord = lat >= 0
+    return [
+        {
+            "type": "saison",
+            # Dans l'hémisphère sud, les saisons sont inversées
+            "titre": NOMS_SAISONS[int(v) if nord else (int(v) + 2) % 4],
+            "instant": t.utc_iso(),
+            "important": False,
+            "objet_id": None,
+            "direction": None,
+        }
+        for t, v in zip(temps, valeurs)
+    ]
+
+
 # --- Tout ensemble -----------------------------------------------------------------------------
 
 def evenements(objets, lat, lon, alt, debut, jours):
@@ -329,5 +513,13 @@ def evenements(objets, lat, lon, alt, debut, jours):
         + essaims(lat, lon, alt, debut, fin)
         + eclipses_lune(lat, lon, alt, debut, fin, lune_id)
         + passages_visibles(sats, lat, lon, alt, debut, fin)
+        + eclipses_soleil(lat, lon, alt, debut, fin)
+        + oppositions(objets, lat, lon, alt, debut, fin)
+        + elongations(objets, lat, lon, alt, debut, fin)
+        + occultations(objets, lat, lon, alt, debut, fin)
+        + saisons(lat, lon, alt, debut, fin)
     )
+    for e in liste:
+        e.setdefault("important", e["type"] in IMPORTANTS or (e["type"] == "essaim" and e.get("zhr", 0) >= 50))
+        e.setdefault("source", "calcul")  # Partie 8.3 : « NOAA SWPC », « COBS »... pour les sources externes
     return sorted(liste, key=lambda e: e["instant"])

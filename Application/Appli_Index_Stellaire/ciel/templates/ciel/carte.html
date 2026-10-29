@@ -94,9 +94,11 @@
     <p class="titre-panneau">Ce soir</p>
     <p id="soir-nuit" class="note-panneau"></p>
     <ul id="soir-astres" class="liste-evenements"></ul>
-    <p class="titre-panneau">Les 7 prochains jours</p>
+    <p class="titre-panneau">Les 30 prochains jours</p>
     <ul id="evenements-liste" class="liste-evenements"></ul>
     <p id="evenements-etat" class="note-panneau" hidden></p>
+    <!-- Partie 8.3 : d'où viennent les événements (mention obligatoire pour COBS) -->
+    <p id="evenements-sources" class="credits"></p>
   </div>
 
   <!-- Calques : ce qui apparaît sur la carte -->
@@ -130,6 +132,14 @@
       <div><dt>Lever</dt><dd id="fiche-lever">—</dd></div>
       <div><dt>Coucher</dt><dd id="fiche-coucher">—</dd></div>
     </dl>
+    <!-- Partie 8.1 : la fiche complétée -->
+    <dl id="fiche-plus">
+      <div><dt>Magnitude</dt><dd id="fiche-magnitude">—</dd></div>
+      <div><dt>Distance</dt><dd id="fiche-distance">—</dd></div>
+      <div id="ligne-eclairement" hidden><dt>Éclairée</dt><dd id="fiche-eclairement">—</dd></div>
+      <div class="pleine-largeur"><dt>Coordonnées (J2000)</dt><dd id="fiche-coordonnees">—</dd></div>
+    </dl>
+    <p id="fiche-ce-soir" hidden></p>
     <p id="fiche-note-horizon" hidden></p>
     <svg id="fiche-courbe" viewBox="0 0 300 64" role="img" aria-label="Hauteur de l'objet sur les 24 prochaines heures"></svg>
     <section id="fiche-passages" hidden>

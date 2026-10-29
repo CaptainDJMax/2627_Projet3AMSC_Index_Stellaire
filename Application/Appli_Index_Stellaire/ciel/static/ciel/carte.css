@@ -281,13 +281,33 @@ body {
   font-size: 14px;
 }
 
-#fiche-infos {
+#fiche-infos,
+#fiche-plus {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px 16px;
   margin: 0 0 10px;
 }
 
+/* Partie 8.1 : infos secondaires, un peu plus petites */
+#fiche-plus dd {
+  font-size: 15px !important;
+}
+
+#fiche-plus .pleine-largeur {
+  grid-column: 1 / -1;
+}
+
+#fiche-ce-soir {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+#fiche-plus dt,
 #fiche-infos dt {
   color: var(--texte-doux);
   font-size: 12px;
@@ -295,6 +315,7 @@ body {
   text-transform: uppercase;
 }
 
+#fiche-plus dd,
 #fiche-infos dd {
   margin: 2px 0 0;
   font-size: 17px;
@@ -455,6 +476,21 @@ body {
 #btn-position[aria-pressed="true"] {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+/* --- Partie 6.4 : message bref (position partagée ou refusée) --------------- */
+#message-eclair {
+  position: fixed;
+  left: 50%;
+  bottom: calc(92px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  max-width: min(320px, calc(100vw - 32px));
+  box-sizing: border-box;
+  padding: 10px 16px;
+  border-radius: 14px;
+  font-size: 13px;
+  text-align: center;
+  z-index: 5;
 }
 
 /* --- Calques et recherche : panneaux du bas (téléphone) --------------------- */
@@ -649,6 +685,38 @@ body {
 .liste-evenements .pastille.planete { background: #ffd479; }
 .liste-evenements .pastille.passage { background: #ff5a5a; }
 .liste-evenements .pastille.essaim { background: #b79cff; }
+.liste-evenements .pastille.eclipse_soleil,
+.liste-evenements .pastille.saison { background: #ffb347; }
+.liste-evenements .pastille.opposition,
+.liste-evenements .pastille.elongation,
+.liste-evenements .pastille.occultation { background: #ffd479; }
+.liste-evenements .pastille.aurore { background: #5dffb0; }
+.liste-evenements .pastille.comete { background: #9fe7ff; }
+
+/* Partie 8.2 : les « principaux » événements */
+.liste-evenements .important .titre {
+  font-weight: 600;
+}
+
+.liste-evenements .badge-important {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(255, 212, 121, 0.16);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 500;
+  vertical-align: 2px;
+}
+
+.liste-evenements .jour {
+  margin: 10px 0 2px;
+  padding-left: 8px;
+  color: var(--texte-doux);
+  font-size: 12px;
+  text-transform: capitalize;
+}
 
 .liste-evenements .titre {
   font-size: 15px;
@@ -862,19 +930,4 @@ body {
 #panneau-appareil button.large.secondaire {
   background: rgba(255, 255, 255, 0.06);
   color: var(--texte);
-}
-
-/* --- Partie 6.4 : message bref (position partagée ou refusée) --------------- */
-#message-eclair {
-  position: fixed;
-  left: 50%;
-  bottom: calc(92px + env(safe-area-inset-bottom));
-  transform: translateX(-50%);
-  max-width: min(320px, calc(100vw - 32px));
-  box-sizing: border-box;
-  padding: 10px 16px;
-  border-radius: 14px;
-  font-size: 13px;
-  text-align: center;
-  z-index: 5;
 }

@@ -21,6 +21,8 @@ CLES_DETAIL = {
     "instant", "lieu", "position", "levers_couchers", "trajectoire",
     "image_credit", "sources",  # ajoutés pour le contenu (crédits de l'image, sources du texte)
     "passages",  # Partie 6.3 : prochains passages d'un satellite (None pour les autres astres)
+    # Partie 8.1 : fiche complétée
+    "magnitude", "ra", "dec", "constellation_iau", "distance_km", "distance_al", "eclairement", "ce_soir",
 }
 
 
@@ -86,6 +88,14 @@ class ApiCielTests(TestCase):
         d = reponse.json()
         self.assertEqual(CLES_DETAIL, set(d))
         self.assertIsNone(d["passages"])  # 6.3 : seulement pour un satellite
+        # 8.1 : Jupiter brille entre -2,9 et -1,6, à 590 à 970 millions de km
+        self.assertTrue(-3 < d["magnitude"] < -1.5)
+        self.assertTrue(5.8e8 < d["distance_km"] < 9.7e8)
+        self.assertIsNone(d["distance_al"])
+        self.assertIsNone(d["eclairement"])
+        self.assertTrue(0 <= d["ra"] < 360 and -30 < d["dec"] < 30)  # près de l'écliptique
+        self.assertRegex(d["constellation_iau"], r"^[A-Z][a-z]{1,2}$")
+        self.assertEqual({"debut_nuit", "fin_nuit", "visible"}, set(d["ce_soir"]))
         self.assertEqual(d["nom"], "Jupiter")
         self.assertEqual(d["description"], "Géante gazeuse.")
         self.assertIsNone(d["image"])

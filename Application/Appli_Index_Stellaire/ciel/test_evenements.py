@@ -11,7 +11,7 @@ Les dates de référence viennent de sources extérieures, pas de notre propre c
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from . import astro, evenements
 from .models import ObjetCeleste
@@ -161,13 +161,20 @@ class ApiEvenementsTests(DossierTleTemporaire, TestCase):
             ObjetCeleste.objects.create(nom=nom, categorie=cat, identifiant_skyfield=ident)
         ObjetCeleste.objects.create(nom="Véga", categorie="etoile", identifiant_skyfield="hip:91262")
         ObjetCeleste.objects.create(nom="ISS", categorie="satellite", identifiant_skyfield="sat:25544")
-        patcher = patch("ciel.satellites._telecharger", side_effect=OSError("pas de réseau en test"))
-        patcher.start()
-        self.addCleanup(patcher.stop)
+        for cible in ("ciel.satellites._telecharger", "ciel.sources_externes._telecharger"):
+            patcher = patch(cible, side_effect=OSError("pas de réseau en test"))
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        reglage = override_settings(DOSSIER_SOURCES_EXTERNES=self._dossier.name)
+        reglage.enable()
+        self.addCleanup(reglage.disable)
 
     def test_contrat(self):
         d = self.client.get(self.URL, {"instant": "2026-08-25T00:00:00Z"}).json()
-        self.assertEqual({"instant", "jours", "lieu", "ce_soir", "evenements"}, set(d))
+        self.assertEqual({"instant", "jours", "lieu", "ce_soir", "evenements", "sources"}, set(d))  # sources : 8.3
+        for s in d["sources"]:
+            self.assertEqual({"nom", "page", "licence", "etat", "age_h"}, set(s))
+        self.assertEqual(d["sources"][0]["etat"], "ok")  # le calcul interne marche toujours
         self.assertEqual(d["jours"], 7)
         self.assertEqual({"debut_nuit", "fin_nuit", "astres"}, set(d["ce_soir"]))
         for a in d["ce_soir"]["astres"]:
@@ -178,8 +185,11 @@ class ApiEvenementsTests(DossierTleTemporaire, TestCase):
         self.assertIn("phase_lune", types)
         for e in d["evenements"]:
             with self.subTest(e=e["titre"]):
-                self.assertTrue({"type", "titre", "instant", "objet_id", "direction"} <= set(e))
-                self.assertIn(e["type"], {"phase_lune", "conjonction", "essaim", "eclipse_lune", "passage"})
+                self.assertTrue({"type", "titre", "instant", "objet_id", "direction", "important", "source"} <= set(e))
+                self.assertIn(e["type"], {"phase_lune", "conjonction", "essaim", "eclipse_lune", "passage",
+                                          "eclipse_soleil", "opposition", "elongation", "occultation", "saison",
+                                          "aurore", "comete"})
+                self.assertIsInstance(e["important"], bool)
         instants = [e["instant"] for e in d["evenements"]]
         self.assertEqual(instants, sorted(instants))
         lune = ObjetCeleste.objects.get(nom="Lune").id

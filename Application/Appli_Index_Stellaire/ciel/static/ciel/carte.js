@@ -334,7 +334,7 @@
     const cible = horloge.virtuel;
     elEtatEvenements.hidden = false;
     elEtatEvenements.textContent = "Calcul en cours…";
-    fetch(carte.dataset.urlEvenements + "?jours=7&instant=" + encodeURIComponent(new Date(cible).toISOString()))
+    fetch(carte.dataset.urlEvenements + "?jours=30&instant=" + encodeURIComponent(new Date(cible).toISOString()))
       .then(function (reponse) {
         if (!reponse.ok) throw new Error("HTTP " + reponse.status);
         return reponse.json();
@@ -353,11 +353,6 @@
       });
   }
 
-  function quand(iso) {
-    const d = new Date(iso);
-    return fmtJourCourt.format(d) + " · " + fmtHeure.format(d);
-  }
-
   function versOu(direction) {
     if (!direction) return "";
     return direction.elevation > 0
@@ -366,8 +361,23 @@
   }
 
   function detailEvenement(e) {
-    const morceaux = [quand(e.instant)];
-    if (e.type === "passage") {
+    const morceaux = [fmtHeure.format(new Date(e.instant))]; // le jour est dans l'intertitre
+    if (e.type === "eclipse_soleil") {
+      morceaux.push("de " + fmtHeure.format(new Date(e.debut)) + " à " + fmtHeure.format(new Date(e.fin)),
+        "Soleil couvert à " + Math.round(e.magnitude * 100) + " %", "lunettes d'éclipse obligatoires");
+    } else if (e.type === "opposition") {
+      morceaux.push("visible toute la nuit", "au plus haut " + versOu(e.direction));
+    } else if (e.type === "occultation") {
+      morceaux.push("disparaît derrière la Lune, réapparaît vers " + fmtHeure.format(new Date(e.fin)));
+    } else if (e.type === "saison") {
+      return fmtHeure.format(new Date(e.instant));
+    } else if (e.type === "aurore") {
+      morceaux.push("bas sur l'horizon " + (e.direction.azimut === 0 ? "nord" : "sud"),
+        "Kp " + fmtNombre.format(e.kp) + " prévu (il en faut " + fmtNombre.format(e.kp_necessaire) + " ici)",
+        "source " + e.source);
+    } else if (e.type === "comete") {
+      morceaux.push(versOu(e.direction), "source " + e.source);
+    } else if (e.type === "passage") {
       morceaux.push("max " + Math.round(e.hauteur_max) + "°",
         pointCardinal(e.azimut_lever) + " → " + pointCardinal(e.azimut_coucher));
     } else if (e.type === "essaim") {
@@ -380,8 +390,9 @@
   }
 
   // Une ligne cliquable : pastille de couleur, titre, détail. Toujours textContent, jamais innerHTML.
-  function ligneEvenement(classe, titre, detail, action) {
+  function ligneEvenement(classe, titre, detail, action, important) {
     const li = document.createElement("li");
+    if (important) li.className = "important";
     const bouton = document.createElement("button");
     bouton.type = "button";
     const pastille = document.createElement("span");
@@ -389,6 +400,12 @@
     const t = document.createElement("span");
     t.className = "titre";
     t.textContent = titre;
+    if (important) {
+      const badge = document.createElement("span");
+      badge.className = "badge-important";
+      badge.textContent = "à ne pas manquer";
+      t.append(badge);
+    }
     const d = document.createElement("span");
     d.className = "detail";
     d.textContent = detail;
@@ -400,27 +417,56 @@
 
   function afficherEvenements() {
     const soir = evenements.ce_soir;
-    elSoirNuit.textContent = soir.debut_nuit
-      ? "Nuit de " + fmtHeure.format(new Date(soir.debut_nuit)) + " à " + fmtHeure.format(new Date(soir.fin_nuit)) + "."
-      : "Pas de nuit dans les 24 prochaines heures.";
+    elSoirNuit.textContent = !soir.debut_nuit ? "Pas de nuit dans les 24 prochaines heures."
+      : dejaCommence(soir.debut_nuit) ? "Nuit en cours, jusqu'à " + fmtHeure.format(new Date(soir.fin_nuit)) + "."
+        : "Nuit de " + fmtHeure.format(new Date(soir.debut_nuit)) + " à " + fmtHeure.format(new Date(soir.fin_nuit)) + ".";
     elSoirAstres.replaceChildren();
     soir.astres.forEach(function (a) {
       const o = objets.find(function (obj) { return obj.id === a.objet_id; });
-      const detail = fmtHeure.format(new Date(a.de)) + " → " + fmtHeure.format(new Date(a.a)) +
+      const detail = (dejaCommence(a.de) ? "maintenant" : fmtHeure.format(new Date(a.de))) + " → " + fmtHeure.format(new Date(a.a)) +
         " · max " + Math.round(a.hauteur_max) + "° " + versOu(a.direction).replace(/, à .*/, "");
       elSoirAstres.appendChild(ligneEvenement(o ? o.categorie : "planete", a.nom, detail, function () {
         voirMoment(a.instant, a.direction, a.objet_id);
-      }));
+      }, false));
     });
     elListeEvenements.replaceChildren();
+    let jourPrecedent = "";
     evenements.evenements.forEach(function (e) {
+      const jour = fmtJourLong.format(new Date(e.instant));
+      if (jour !== jourPrecedent) { // un intertitre par jour
+        jourPrecedent = jour;
+        const titreJour = document.createElement("li");
+        titreJour.className = "jour";
+        titreJour.textContent = jour;
+        elListeEvenements.appendChild(titreJour);
+      }
       elListeEvenements.appendChild(ligneEvenement(e.type, e.titre, detailEvenement(e), function () {
         voirMoment(e.instant, e.direction, e.objet_id);
-      }));
+      }, e.important));
     });
     elEtatEvenements.hidden = evenements.evenements.length > 0;
-    elEtatEvenements.textContent = "Rien de remarquable ces 7 prochains jours.";
+    elEtatEvenements.textContent = "Rien de remarquable ces 30 prochains jours.";
+    afficherSources(evenements.sources || []);
   }
+
+  // Partie 8.3 : d'où viennent les événements, et si chaque source est à jour
+  const ETATS_SOURCE = { ok: "à jour", cache: "copie locale", indisponible: "indisponible" };
+  function afficherSources(sources) {
+    const el2 = document.getElementById("evenements-sources");
+    el2.replaceChildren("Sources : ");
+    sources.forEach(function (s, i) {
+      if (i > 0) el2.append(" · ");
+      const lien = lienExterne(s.page, s.nom);
+      el2.append(lien || s.nom);
+      const precisions = [s.licence, i > 0 ? ETATS_SOURCE[s.etat] + (s.etat === "cache" && s.age_h !== null ? ", il y a " + Math.round(s.age_h) + " h" : "") : ""]
+        .filter(Boolean).join(", ");
+      if (precisions) el2.append(" (" + precisions + ")");
+    });
+  }
+
+  const fmtJourLong = new Intl.DateTimeFormat("fr-FR", {
+    weekday: "long", day: "numeric", month: "long", timeZone: lieu.fuseau,
+  });
 
   // Aller au moment de l'événement : l'heure de la carte saute, la vue se tourne vers lui et la
   // fiche de l'astre s'ouvre. « Revenir à maintenant » (panneau du temps) ramène au direct.
@@ -698,6 +744,7 @@
   // Positions et noms français : constellations.json de d3-celestial (licence BSD), chargé une fois.
   // Rang 1 et 2 : toujours affichés ; rang 3 (petites constellations) : à partir du zoom ×1,5.
   let etiquettesConstellations = [];
+  const nomsConstellations = {}; // abréviation UAI -> nom français
   const ESPACE_LETTRES = 3.2; // px entre deux lettres
   fetch(carte.dataset.datapath + "constellations.json")
     .then(function (reponse) {
@@ -712,6 +759,10 @@
           rang: Number(f.properties.rank),
           largeurs: null, // largeur de chaque lettre, mesurée au premier dessin
         };
+      });
+      // Partie 8.1 : nom français d'après l'abréviation officielle (« Tau » -> « Taureau »)
+      donnees.features.forEach(function (f) {
+        nomsConstellations[f.id] = f.properties.fr || f.properties.name;
       });
       if (horlogeDemarree) Celestial.redraw();
     })
@@ -844,6 +895,12 @@
     description: document.getElementById("fiche-description"),
     credit: document.getElementById("fiche-credit"),
     sources: document.getElementById("fiche-sources"),
+    magnitude: document.getElementById("fiche-magnitude"),
+    distance: document.getElementById("fiche-distance"),
+    ligneEclairement: document.getElementById("ligne-eclairement"),
+    eclairement: document.getElementById("fiche-eclairement"),
+    coordonnees: document.getElementById("fiche-coordonnees"),
+    ceSoir: document.getElementById("fiche-ce-soir"),
   };
 
   let selection = null; // id de l'objet sélectionné (ou null)
@@ -1005,7 +1062,10 @@
     const nom = fiche ? fiche.nom : o ? o.nom : "";
     const categorie = NOMS_CATEGORIES[fiche ? fiche.categorie : o && o.categorie] || "";
     el.nom.textContent = nom;
-    const constellations = fiche && fiche.constellations.length ? " · " + fiche.constellations.join(", ") : "";
+    // Constellations saisies dans l'administration, sinon celle où se trouve l'astre (8.1)
+    const dansConstellation = fiche && fiche.constellation_iau && nomsConstellations[fiche.constellation_iau];
+    const constellations = fiche && fiche.constellations.length ? " · " + fiche.constellations.join(", ")
+      : dansConstellation ? " · " + dansConstellation : "";
     el.sousTitre.textContent = categorie + constellations;
 
     const pos = positionActuelle();
@@ -1040,12 +1100,71 @@
       el.image.hidden = true;
     }
     remplirCredits();
+    remplirInfosPlus();
     const passages = fiche && fiche.passages;
     // 6.3 : pour un satellite, la liste des passages remplace la courbe (style : `hidden` ne marche pas sur un SVG)
     el.courbe.style.display = passages ? "none" : "";
     if (passages) remplirPassages(passages); else el.passages.hidden = true;
     tracerCourbe();
     majBoutonPointer();
+  }
+
+  // Un instant déjà atteint par l'heure de la carte (à une minute près)
+  function dejaCommence(iso) {
+    return Date.parse(iso) <= horloge.virtuel + 60000;
+  }
+
+  // Partie 8.1 : magnitude, distance, éclairement de la Lune, coordonnées, visibilité ce soir
+  const fmtEntier = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 });
+
+  function texteDistance(f) {
+    if (f.distance_al !== null && f.distance_al !== undefined) {
+      return fmtNombre.format(f.distance_al) + " années-lumière";
+    }
+    if (f.distance_km === null || f.distance_km === undefined) return "—";
+    if (f.distance_km >= 1e9) return fmtNombre.format(f.distance_km / 149597870.7) + " UA"; // unité astronomique
+    if (f.distance_km >= 1e6) return fmtNombre.format(f.distance_km / 1e6) + " millions de km";
+    return fmtEntier.format(f.distance_km) + " km";
+  }
+
+  // 88.79° -> « 5 h 55 min 10 s », +7.41° -> « +7° 24′ »
+  function texteCoordonnees(ra, dec) {
+    const h = ra / 15;
+    const hh = Math.floor(h);
+    const mm = Math.floor((h - hh) * 60);
+    const ss = Math.round(((h - hh) * 60 - mm) * 60);
+    const signe = dec < 0 ? "−" : "+";
+    const d = Math.abs(dec);
+    const dd = Math.floor(d);
+    const dm = Math.round((d - dd) * 60);
+    return "AD " + hh + " h " + mm + " min " + Math.min(ss, 59) + " s · Déc " + signe + dd + "° " + Math.min(dm, 59) + "′";
+  }
+
+  function remplirInfosPlus() {
+    if (!fiche) {
+      [el.magnitude, el.distance, el.coordonnees].forEach(function (e) { e.textContent = "—"; });
+      el.ligneEclairement.hidden = true;
+      el.ceSoir.hidden = true;
+      return;
+    }
+    el.magnitude.textContent = fiche.magnitude === null ? "—" : fmtNombre.format(fiche.magnitude);
+    el.distance.textContent = texteDistance(fiche);
+    el.ligneEclairement.hidden = fiche.eclairement === null;
+    if (fiche.eclairement !== null) el.eclairement.textContent = Math.round(fiche.eclairement * 100) + " %";
+    el.coordonnees.textContent = texteCoordonnees(fiche.ra, fiche.dec);
+    const soir = fiche.ce_soir;
+    el.ceSoir.hidden = !soir || fiche.passages; // un satellite a sa liste de passages
+    if (!soir) return;
+    if (!soir.debut_nuit) {
+      el.ceSoir.textContent = "Pas de nuit dans les 24 prochaines heures.";
+    } else if (soir.visible) {
+      const v = soir.visible;
+      el.ceSoir.textContent = (dejaCommence(v.de) ? "Ce soir : visible dès maintenant jusqu'à " + fmtHeure.format(new Date(v.a))
+        : "Ce soir : visible de " + fmtHeure.format(new Date(v.de)) + " à " + fmtHeure.format(new Date(v.a))) +
+        (dejaCommence(v.instant) ? "." : ", au plus haut (" + Math.round(v.hauteur_max) + "°) vers " + fmtHeure.format(new Date(v.instant)) + ".");
+    } else {
+      el.ceSoir.textContent = "Pas visible ce soir (ne monte pas à 10° pendant la nuit).";
+    }
   }
 
   // Partie 6.3 : prochains passages d'un satellite (au moins 10° de hauteur, 48 h)

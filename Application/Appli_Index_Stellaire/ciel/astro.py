@@ -253,3 +253,54 @@ def passages(identifiant, latitude, longitude, altitude_m=0, debut=None, duree_h
             "visible": bool(eclaire and hauteur_soleil < -6),
         })
     return resultat
+
+
+# --- Partie 8.1 : fiche complétée (magnitude, coordonnées, constellation, distance) --------------
+
+UA_KM = 149_597_870.7
+PARSEC_AL = 3.261563777
+
+
+@lru_cache(maxsize=1)
+def _carte_constellations():
+    from skyfield.api import load_constellation_map
+    return load_constellation_map()  # données incluses dans Skyfield, rien à télécharger
+
+
+def infos(identifiant, latitude, longitude, altitude_m=0, instant=None):
+    """Ce que la fiche affiche en plus de la position : {magnitude, ra, dec, constellation_iau,
+    distance_km, distance_al, eclairement}. Une valeur inconnue vaut None.
+    - magnitude : éclat (plus c'est petit, plus c'est brillant ; à l'œil nu jusqu'à 6 environ) ;
+      catalogue Hipparcos pour une étoile, calcul pour une planète, None pour la Lune et l'ISS ;
+    - ra, dec : ascension droite (0-360°) et déclinaison, J2000 ;
+    - constellation_iau : abréviation officielle (« Tau » pour le Taureau) ;
+    - distance_km (système solaire, satellites) ou distance_al (étoile, années-lumière) ;
+    - eclairement : part éclairée du disque de la Lune (0 à 1), None pour les autres astres."""
+    from skyfield.magnitudelib import planetary_magnitude
+
+    t = instant if instant is not None else _timescale().now()
+    resultat = {"magnitude": None, "distance_km": None, "distance_al": None, "eclairement": None}
+    ra, dec = radec(identifiant, latitude, longitude, altitude_m, t)
+    resultat.update(ra=round(ra, 4), dec=round(dec, 4))
+    position = _vu_du_lieu(identifiant, latitude, longitude, altitude_m, t, apparente=False)
+    resultat["constellation_iau"] = str(_carte_constellations()(position))
+
+    if identifiant.startswith("hip:"):
+        etoile = _catalogue_hipparcos().loc[int(identifiant[4:])]
+        if np.isfinite(etoile["magnitude"]):
+            resultat["magnitude"] = round(float(etoile["magnitude"]), 2)
+        if np.isfinite(etoile["parallax_mas"]) and etoile["parallax_mas"] > 0:
+            resultat["distance_al"] = round(1000.0 / float(etoile["parallax_mas"]) * PARSEC_AL, 1)
+    else:
+        resultat["distance_km"] = round(float(position.distance().km))
+        if identifiant == "moon":
+            resultat["eclairement"] = round(float(almanac.fraction_illuminated(_ephemerides(), "moon", t)), 3)
+        elif _satellite(identifiant) is None:
+            try:
+                geocentrique = _ephemerides()["earth"].at(t).observe(_corps(identifiant))
+                m = float(planetary_magnitude(geocentrique))
+                if np.isfinite(m):
+                    resultat["magnitude"] = round(m, 1)
+            except (ValueError, KeyError):
+                pass  # pas de formule de magnitude pour ce corps
+    return resultat

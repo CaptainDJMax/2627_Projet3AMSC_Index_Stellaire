@@ -9,10 +9,11 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_POST
 
 from .astro import (
-    altaz, est_satellite, instant_depuis, levers_couchers, maintenant, passages, radec,
+    altaz, est_satellite, infos, instant_depuis, levers_couchers, maintenant, passages, radec,
     trace_satellite, trajectoire,
 )
 from . import evenements as calcul_evenements
+from . import sources_externes
 from .lieu import definir_partage, lieu_courant, lieu_partage, retirer_partage
 from .models import ObjetCeleste
 
@@ -128,6 +129,9 @@ def detail_objet(request, objet_id):
         points = trajectoire(ident, lat, lon, alt, instant, duree, pas)
         # Partie 6.3 : prochains passages (48 h) pour un satellite, None pour les autres astres
         prochains = passages(ident, lat, lon, alt, instant) if est_satellite(ident) else None
+        # Partie 8.1 : magnitude, coordonnées, constellation, distance, et la nuit qui vient
+        plus = infos(ident, lat, lon, alt, instant)
+        soir = calcul_evenements.ce_soir([(objet.id, objet.nom, ident)], lat, lon, alt, instant)
     except (KeyError, ValueError):
         logger.warning("Identifiant Skyfield invalide pour %r : %r", objet.nom, ident)
         return JsonResponse({"erreur": "Identifiant de calcul invalide."}, status=404)
@@ -157,6 +161,15 @@ def detail_objet(request, objet_id):
             "levers_couchers": evenements,
             "trajectoire": points,
             "passages": prochains,  # Partie 6.3
+            # Partie 8.1
+            **plus,  # magnitude, ra, dec, constellation_iau, distance_km, distance_al, eclairement
+            "ce_soir": {
+                "debut_nuit": soir["debut_nuit"],
+                "fin_nuit": soir["fin_nuit"],
+                # {de, a, hauteur_max, instant} si l'astre monte à 10° ou plus pendant la nuit, sinon None
+                "visible": {k: soir["astres"][0][k] for k in ("de", "a", "hauteur_max", "instant")}
+                if soir["astres"] else None,
+            },
         },
         json_dumps_params={"ensure_ascii": False},
     )
@@ -186,13 +199,19 @@ def evenements(request):
     ]
     # « Ce soir » : la Lune et les planètes (les étoiles sont toujours là, elles n'en sont pas)
     soir = [o[:3] for o in objets if o[3] in ("planete", "lune")]
+    liste = calcul_evenements.evenements(objets, lat, lon, alt, instant, jours)
+    # Partie 8.3 : aurores et comètes, prises à des sources en temps réel (si internet)
+    fin = instant.ts.tt_jd(instant.tt + jours)
+    externes, statuts = sources_externes.evenements_externes(lat, lon, alt, instant, fin)
     return JsonResponse(
         {
             "instant": instant.utc_iso(),
             "jours": jours,
             "lieu": lieu,
             "ce_soir": calcul_evenements.ce_soir(soir, lat, lon, alt, instant),
-            "evenements": calcul_evenements.evenements(objets, lat, lon, alt, instant, jours),
+            "evenements": sorted(liste + externes, key=lambda e: e["instant"]),
+            "sources": [{"nom": "Calcul interne (Skyfield, éphéméride JPL DE421)", "page": "https://rhodesmill.org/skyfield/",
+                         "licence": "", "etat": "ok", "age_h": None}] + statuts,
         },
         json_dumps_params={"ensure_ascii": False},
     )
