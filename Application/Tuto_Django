@@ -4945,3 +4945,368 @@ git push
 Tu peux maintenant supprimer `A_FAIRE_PARTIE_5.md` et `A_FAIRE_PARTIE_6_1.md` : leur contenu est
 consigné ci-dessus.
 
+## Partie 6 (6.1 + 6.2) : suivi autonome, ISS et position GPS
+
+L'archive contenait la 6.1 (trajectoire 48 h, déjà installée et journalisée ci-dessus) **et** la 6.2
+(ISS), qui la remplace : les fichiers de la 6.2 contiennent déjà tout ce que faisait la 6.1.
+
+Ce que fait la 6.2 :
+- l'ISS (`sat:25544`) est calculable : TLE téléchargé chez CelesTrak, gardé 6 h dans
+  `donnees_skyfield/tle/` (ignoré par Git), copie locale si CelesTrak ne répond pas ;
+- la trajectoire envoyée au robot contient, pour un satellite, son TLE et un point toutes les 5 s
+  sur 6 h (secours et contrôle) ; pour les autres astres, rien ne change (`tle: null`) ;
+- le robot peut envoyer sa position GPS dans la synchronisation : cible et trajectoire sont alors
+  calculées pour l'endroit où il se trouve vraiment.
+
+### Fichiers de l'archive
+
+- NOUVEAUX : `ciel/satellites.py`, `ciel/test_satellites.py`, `appareil/migrations/0002_lieu_gps.py`,
+  `contenu/astres/iss.json`
+- REMPLACÉS : `ciel/astro.py`, `appareil/models.py`, `appareil/services.py`, `appareil/views.py`,
+  `appareil/urls.py`, `appareil/tests.py`, `appareil/management/commands/simuler_appareil.py`
+- `ciel/apps.py` et `appareil/apps.py` reçoivent `default_auto_field = 'django.db.models.BigAutoField'`
+  (sans elle, `makemigrations` voulait modifier les clés `id` de toutes les tables).
+
+### 1. `ciel/satellites.py` (nouveau fichier)
+
+Éléments orbitaux (TLE) d'un satellite, pris chez CelesTrak et mis en cache localement.
+
+```python
+"""Partie 6.2 : éléments orbitaux (TLE) des satellites, pris chez CelesTrak.
+
+Un satellite se note « sat:NUMERO » dans `identifiant_skyfield` (numéro NORAD : 25544 pour l'ISS).
+
+- Le TLE est gardé dans donnees_skyfield/tle/<numero>.tle (dossier ignoré par Git).
+- Il est retéléchargé quand il a plus de AGE_RAFRAICHISSEMENT (CelesTrak demande de ne pas
+  télécharger plus souvent : ses données changent au mieux toutes les deux heures).
+- Si CelesTrak ne répond pas, on garde la copie locale tant qu'elle a moins de AGE_MAX_JOURS
+  (au-delà, la position de l'ISS est fausse de plusieurs degrés : mieux vaut refuser).
+"""
+
+import time
+import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
+
+from django.conf import settings
+
+URL_CELESTRAK = "https://celestrak.org/NORAD/elements/gp.php?CATNR={numero}&FORMAT=TLE"
+AGE_RAFRAICHISSEMENT_S = 6 * 3600
+AGE_MAX_JOURS = 7  # âge de l'époque du TLE (pas du fichier) au-delà duquel on refuse
+
+
+class TleIndisponible(ValueError):
+    """Pas de TLE utilisable. Hérite de ValueError : les vues traitent déjà ce cas
+    (objet ignoré sur la carte, 422 pour la trajectoire)."""
+
+
+def dossier():
+    defaut = Path(settings.BASE_DIR) / "donnees_skyfield" / "tle"
+    return Path(getattr(settings, "DOSSIER_TLE", defaut))
+
+
+def numero_de(identifiant):
+    """'sat:25544' -> 25544 ; None si ce n'est pas un satellite."""
+    if not identifiant.startswith("sat:"):
+        return None
+    try:
+        return int(identifiant[4:])
+    except ValueError:
+        raise TleIndisponible(f"Identifiant de satellite invalide : {identifiant!r}")
+
+
+def somme_controle_ok(ligne):
+    """Dernier chiffre d'une ligne TLE = somme des chiffres (« - » compte 1) modulo 10."""
+    if len(ligne) != 69 or not ligne[68].isdigit():
+        return False
+    somme = sum(int(c) if c.isdigit() else (1 if c == "-" else 0) for c in ligne[:68])
+    return somme % 10 == int(ligne[68])
+
+
+def lire_tle(texte, numero):
+    """Texte CelesTrak (nom + 2 lignes) -> (nom, ligne1, ligne2). TleIndisponible si invalide."""
+    lignes = [l.rstrip() for l in texte.strip().splitlines() if l.strip()]
+    if len(lignes) == 2:
+        lignes = [f"SAT {numero}"] + lignes
+    if len(lignes) != 3:
+        raise TleIndisponible("TLE illisible (3 lignes attendues).")
+    nom, l1, l2 = lignes[0].strip(), lignes[1], lignes[2]
+    if not (l1.startswith("1 ") and l2.startswith("2 ")):
+        raise TleIndisponible("TLE illisible (lignes 1 et 2 attendues).")
+    if not (somme_controle_ok(l1) and somme_controle_ok(l2)):
+        raise TleIndisponible("TLE corrompu (somme de contrôle fausse).")
+    if int(l1[2:7]) != numero or int(l2[2:7]) != numero:
+        raise TleIndisponible(f"TLE d'un autre satellite que {numero}.")
+    return nom, l1, l2
+
+
+def epoque(ligne1):
+    """Instant de référence du TLE (colonnes 19-32 de la ligne 1 : AAJJJ.JJJJJJJJ), en UTC."""
+    annee = int(ligne1[18:20])
+    annee += 2000 if annee < 57 else 1900
+    jours = float(ligne1[20:32])
+    return datetime(annee, 1, 1, tzinfo=timezone.utc).timestamp() + (jours - 1) * 86400
+
+
+def _telecharger(numero):
+    """Texte du TLE chez CelesTrak (remplacé dans les tests)."""
+    requete = urllib.request.Request(
+        URL_CELESTRAK.format(numero=numero), headers={"User-Agent": "Index-Stellaire"}
+    )
+    with urllib.request.urlopen(requete, timeout=10) as reponse:
+        return reponse.read().decode("ascii", errors="replace")
+
+
+def tle(numero):
+    """{numero, nom, ligne1, ligne2, epoque (ISO UTC)} : copie locale si elle est récente,
+    sinon téléchargement ; copie locale de secours si CelesTrak ne répond pas."""
+    fichier = dossier() / f"{numero}.tle"
+    texte = fichier.read_text(encoding="ascii") if fichier.is_file() else None
+    recent = texte is not None and time.time() - fichier.stat().st_mtime < AGE_RAFRAICHISSEMENT_S
+
+    if not recent:
+        try:
+            neuf = _telecharger(numero)
+            lire_tle(neuf, numero)  # on n'écrase la copie locale qu'avec un TLE valide
+        except (OSError, ValueError):
+            pass  # réseau coupé, CelesTrak en panne, réponse invalide : on garde la copie locale
+        else:
+            fichier.parent.mkdir(parents=True, exist_ok=True)
+            fichier.write_text(neuf.strip() + "\n", encoding="ascii")
+            texte = neuf
+
+    if texte is None:
+        raise TleIndisponible(f"Aucun TLE pour le satellite {numero} (CelesTrak injoignable).")
+    nom, l1, l2 = lire_tle(texte, numero)
+    t_epoque = epoque(l1)
+    if time.time() - t_epoque > AGE_MAX_JOURS * 86400:
+        raise TleIndisponible(f"TLE du satellite {numero} trop ancien (plus de {AGE_MAX_JOURS} jours).")
+    return {
+        "numero": numero,
+        "nom": nom,
+        "ligne1": l1,
+        "ligne2": l2,
+        "epoque": datetime.fromtimestamp(t_epoque, timezone.utc)
+        .isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+    }
+```
+
+### 2. `ciel/astro.py` : un satellite se calcule par SGP4, pas par l'éphéméride
+
+```python
+from skyfield.api import EarthSatellite, Loader, Star, wgs84
+from . import satellites
+
+# --- Partie 6.2 : satellites (« sat:25544 » = l'ISS), calculés par SGP4 à partir du TLE ----------
+
+@lru_cache(maxsize=8)
+def _satellite_depuis_tle(ligne1, ligne2, nom):
+    return EarthSatellite(ligne1, ligne2, nom, _timescale())
+
+
+def _satellite(identifiant):
+    """Le satellite (Skyfield) si l'identifiant est « sat:NUMERO », sinon None.
+    Lève satellites.TleIndisponible (une ValueError) sans TLE utilisable."""
+    numero = satellites.numero_de(identifiant)
+    if numero is None:
+        return None
+    d = satellites.tle(numero)
+    return _satellite_depuis_tle(d["ligne1"], d["ligne2"], d["nom"])
+
+
+def _vu_du_lieu(identifiant, latitude, longitude, altitude_m, instants, apparente=True):
+    """Position de l'astre vue depuis le lieu, à un ou plusieurs instants.
+
+    Satellite : position topocentrique directe (il est tout près, pas de temps de lumière
+    à corriger). Autres astres : observation depuis la Terre, apparente ou astrométrique."""
+    topos = wgs84.latlon(latitude, longitude, elevation_m=altitude_m)
+    sat = _satellite(identifiant)
+    if sat is not None:
+        return (sat - topos).at(instants)
+    position = (_ephemerides()["earth"] + topos).at(instants).observe(_corps(identifiant))
+    return position.apparent() if apparente else position
+```
+
+`altaz`, `radec` et `trajectoire` appellent maintenant `_vu_du_lieu(...)` au lieu de reconstruire
+l'observateur à chaque fois. `levers_couchers` gagne une branche satellite (`sat.find_events`,
+qui donne lever/culmination/coucher par passage, au lieu du calcul de lever/coucher solaire).
+
+### 3. `appareil/models.py` : lieu GPS de l'appareil
+
+```python
+    # Partie 6.2 : lieu rapporté par le GPS de l'appareil (vide tant qu'il n'a rien envoyé)
+    latitude = models.FloatField(null=True, blank=True)  # degrés, nord positif
+    longitude = models.FloatField(null=True, blank=True)  # degrés, est positif
+    altitude_m = models.FloatField(null=True, blank=True)  # mètres au-dessus de l'ellipsoïde
+    lieu_mis_a_jour = models.DateTimeField(null=True, blank=True)
+```
+
+### 4. `appareil/services.py` : le lieu suit l'appareil, trajectoire adaptée au satellite
+
+```python
+def lieu_observation(appareil=None):
+    """Où se trouve le bras : la position GPS qu'il a rapportée (Partie 6.2), sinon le lieu
+    par défaut des réglages. Indispensable pour l'ISS : 10 km d'écart = 1,5° d'erreur."""
+    if appareil is not None and appareil.latitude is not None and appareil.longitude is not None:
+        return {
+            "latitude": appareil.latitude,
+            "longitude": appareil.longitude,
+            "altitude_m": appareil.altitude_m if appareil.altitude_m is not None else 0,
+        }
+    return settings.LIEU_PAR_DEFAUT
+
+
+# Partie 6.2 : un satellite va jusqu'à 1 °/s. Interpoler à 60 s donne jusqu'à 21° d'erreur,
+# à 5 s 0,4°. On envoie donc un point toutes les 5 s, sur 6 h seulement (4 321 points) : le
+# robot calcule lui-même la suite avec SGP4 à partir du TLE joint, et compare à ces points.
+PAS_SATELLITE_S = 5
+DUREE_SATELLITE_H = 6
+
+
+def trajectoire_pour_appareil(commande, debut, heures=DUREE_TRAJECTOIRE_H):
+    """Tout ce que l'appareil télécharge pour suivre seul : {pas_s, points, tle, lieu}.
+    Satellite : pas de 5 s, 6 h au plus, et son TLE ; autre astre : pas de 60 s, tle None.
+    Lève ValueError (dont satellites.TleIndisponible) si le calcul est impossible."""
+    lieu = lieu_observation(commande.appareil)
+    tle = None
+    pas_s = PAS_TRAJECTOIRE_S
+    if est_satellite(commande.objet):
+        d = satellites.tle(satellites.numero_de(commande.objet.identifiant_skyfield))
+        tle = {k: d[k] for k in ("nom", "ligne1", "ligne2", "epoque")}
+        pas_s = PAS_SATELLITE_S
+        heures = min(heures, DUREE_SATELLITE_H)
+    return {
+        "pas_s": pas_s,
+        "points": trajectoire_de(commande, debut, heures, pas_s),
+        "tle": tle,
+        "lieu": {k: lieu[k] for k in ("latitude", "longitude", "altitude_m")},
+    }
+```
+
+### 5. `appareil/views.py` : GPS dans la synchronisation, TLE dans la trajectoire
+
+```python
+        # Partie 6.2 : position GPS, facultative ; latitude et longitude vont ensemble
+        latitude = _nombre(corps, "latitude", -90, 90)
+        longitude = _nombre(corps, "longitude", -180, 180)
+        altitude_m = _nombre(corps, "altitude_m", -500, 9000)
+        if (latitude is None) != (longitude is None):
+            raise ValueError("latitude/longitude")
+    ...
+    if latitude is not None:
+        appareil.latitude, appareil.longitude = latitude, longitude
+        appareil.altitude_m = altitude_m if altitude_m is not None else appareil.altitude_m
+        appareil.lieu_mis_a_jour = appareil.derniere_vue
+```
+
+`trajectoire_appareil` renvoie en plus `tle` (`null` sauf satellite) et `lieu` (le lieu utilisé
+pour calculer les points — celui du GPS si l'appareil l'a envoyé). Le début de trajectoire est
+arrondi à la seconde entière (`debut = instant_depuis(maintenant().utc_datetime().replace(microsecond=0))`) :
+sans ça, l'erreur d'arrondi sur l'ISS (jusqu'à 1°/s) faussait chaque point d'environ 0,4°.
+
+### 6. `appareil/management/commands/simuler_appareil.py` : le calcul SGP4 de référence
+
+C'est le calcul que le firmware (STM32) devra reproduire en C, étape par étape : SGP4 (position
+TEME en km) → rotation de la Terre (temps sidéral de Greenwich) → repère terrestre → écart avec la
+position du robot sur l'ellipsoïde WGS84 → repère local est/nord/haut → azimut et élévation.
+
+```python
+from sgp4.api import Satrec, jday
+
+WGS84_A_KM = 6378.137
+WGS84_F = 1 / 298.257223563
+
+
+def temps_sideral_greenwich(jd_ut1):
+    """GMST en radians (formule IAU 1982, celle de Vallado, `gstime`)."""
+    t = (jd_ut1 - 2451545.0) / 36525.0
+    secondes = (-6.2e-6 * t ** 3 + 0.093104 * t ** 2
+                + (876600.0 * 3600 + 8640184.812866) * t + 67310.54841)
+    return math.radians(secondes / 240.0) % (2 * math.pi)  # 240 s de temps = 1°
+
+
+def lieu_terrestre_km(latitude, longitude, altitude_m):
+    """Position du robot dans le repère terrestre (x, y, z) en km, ellipsoïde WGS84."""
+    phi, lam = math.radians(latitude), math.radians(longitude)
+    e2 = WGS84_F * (2 - WGS84_F)
+    n = WGS84_A_KM / math.sqrt(1 - e2 * math.sin(phi) ** 2)
+    h = altitude_m / 1000.0
+    return ((n + h) * math.cos(phi) * math.cos(lam),
+            (n + h) * math.cos(phi) * math.sin(lam),
+            (n * (1 - e2) + h) * math.sin(phi))
+
+
+def position_sgp4(tle, lieu, t):
+    """{azimut, elevation} du satellite vu du lieu {latitude, longitude, altitude_m}, à l'instant t
+    (secondes depuis 1970, UTC). None si SGP4 échoue (TLE invalide ou trop ancien)."""
+    sat = Satrec.twoline2rv(tle["ligne1"], tle["ligne2"])
+    jd, fr = jday(1970, 1, 1, 0, 0, 0)
+    fr += t / 86400.0
+    erreur, (x, y, z), _ = sat.sgp4(jd, fr)
+    if erreur:
+        return None
+    g = temps_sideral_greenwich(jd + fr)  # TEME -> repère terrestre : rotation de -GMST
+    xt, yt = math.cos(g) * x + math.sin(g) * y, -math.sin(g) * x + math.cos(g) * y
+    ox, oy, oz = lieu_terrestre_km(lieu["latitude"], lieu["longitude"], lieu["altitude_m"])
+    dx, dy, dz = xt - ox, yt - oy, z - oz
+    phi, lam = math.radians(lieu["latitude"]), math.radians(lieu["longitude"])
+    est = -math.sin(lam) * dx + math.cos(lam) * dy
+    nord = (-math.sin(phi) * math.cos(lam) * dx - math.sin(phi) * math.sin(lam) * dy
+            + math.cos(phi) * dz)
+    haut = (math.cos(phi) * math.cos(lam) * dx + math.cos(phi) * math.sin(lam) * dy
+            + math.sin(phi) * dz)
+    return {"azimut": math.degrees(math.atan2(est, nord)) % 360,
+            "elevation": math.degrees(math.atan2(haut, math.hypot(est, nord)))}
+```
+
+Le simulateur compare ce calcul aux points envoyés par le serveur (`ecart_controle`, un point par
+minute, écart attendu ~0,01°), choisit la consigne (SGP4 si un TLE est présent, sinon interpolation
+des points, `consigne_de`), et retélécharge la trajectoire quand il en reste moins d'une heure
+(`a_retelecharger`). Nouvelles options : `--lieu LAT LON ALT_M` (position GPS simulée, envoyée au
+serveur) et `--sans-sgp4` (pour voir ce que ferait un firmware qui ne sait qu'interpoler).
+
+### Testé
+
+```
+python manage.py migrate
+python manage.py makemigrations --check      # No changes detected
+python manage.py importer_contenu             # ajoute l'ISS (contenu/astres/iss.json)
+python manage.py test                         # 84 tests OK
+```
+
+Puis, deux terminaux :
+```
+python manage.py runserver
+python manage.py simuler_appareil --lieu 45.764 4.8357 170
+```
+Pointé l'ISS dans l'appli. Le simulateur affiche bien « Trajectoire reçue... » suivi de « TLE reçu
+pour ISS (…) : calcul SGP4 sur l'appareil, écart avec le serveur 0,0x° », puis `[SGP4]` sur chaque
+ligne. Serveur coupé : il continue (« suivi autonome (calcul SGP4) »). `--sans-sgp4` montre le
+comportement de secours (interpolation seule, erreur plus grande).
+
+La carte et la fiche de l'ISS restent sommaires (texte, pas d'icône spéciale) : c'est la 6.3.
+
+### À surveiller en plus des parties précédentes
+
+- **L'ISS a besoin d'Internet** (CelesTrak) **au moins une fois** pour obtenir un premier TLE ; une
+  fois téléchargé, il est gardé 7 jours en local (`donnees_skyfield/tle/25544.tle`, ignoré par Git)
+  si le réseau coupe ensuite. Sur un réseau filtré (ex. Wi-Fi d'école), si CelesTrak est bloqué,
+  l'ISS reste invisible sur la carte et le pointage renvoie une 422 tant qu'aucun TLE n'a pu être
+  obtenu une première fois sur un réseau qui le permet.
+- **Le champ Lune est resté incomplet en base** (catégorie `satellite`, `identifiant_skyfield`
+  vide) : l'étape de la Partie 3.3 pour créer l'objet Lune dans l'admin n'a jamais été refaite après
+  les exports/imports de contenu. À corriger dans l'admin (`/admin/ciel/objetceleste/`) : catégorie
+  « Lune », `identifiant_skyfield` = `moon`. Sans ça, la Lune n'apparaît pas sur la carte.
+- **La position GPS du simulateur est fixe** (`--lieu` ne change pas en cours de route) : c'est
+  normal pour ce test, le vrai GPS de l'appareil variera légèrement même à l'arrêt.
+
+### Envoyé
+
+```
+git add appareil ciel contenu
+git commit -m "Partie 6 : trajectoire 48 h, ISS (TLE + SGP4), position GPS de l'appareil"
+git push
+```
+
+Tu peux maintenant supprimer `A_FAIRE_PARTIE_6.md` : son contenu est consigné ci-dessus.
+
