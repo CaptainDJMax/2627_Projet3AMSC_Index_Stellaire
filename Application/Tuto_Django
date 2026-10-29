@@ -4408,3 +4408,540 @@ Le simulateur se lance comme avant, mais vers l’adresse réseau :
 
 python manage.py simuler_appareil --url http://127.0.0.1:8000
 Le simulateur reste sur ton PC, seule la carte passe sur le téléphone.
+
+Voici les étapes une par une, sous Windows avec Git Bash et VS Code. Fais-les dans l'ordre. Si une étape affiche une erreur, envoie-moi une capture et on corrige avant de continuer.
+
+**Étape 0 : sauvegarder l'état actuel**
+
+Dans Git Bash, place-toi à la racine du projet (le dossier qui contient `manage.py`), puis :
+```
+git add -A
+git commit -m "Avant l'étape contenu partagé"
+```
+Si quelque chose tourne mal ensuite, tu pourras revenir en arrière.
+
+**Étape 1 : décompresser l'archive**
+
+Décompresse `etape-contenu-partage.zip` **à la racine du projet**, à côté de `manage.py`. Accepte de remplacer les fichiers existants. Tu dois maintenant avoir :
+- `ciel/management/commands/importer_contenu.py`
+- `ciel/management/commands/exporter_contenu.py`
+- `A_FAIRE_A_LA_MAIN.md`, que tu pourras supprimer à la fin.
+
+**Étape 2 : compléter `ciel/models.py`**
+
+Ouvre `ciel/models.py` dans VS Code. Trouve cette ligne :
+```python
+    image = models.ImageField(upload_to="objets_celestes/", blank=True, null=True)
+```
+Colle juste en dessous, avec le même décalage de 4 espaces :
+```python
+    # Crédits de l'image (obligatoires dès qu'il y a une image : licence libre) et sources du texte
+    image_source = models.URLField("source de l'image", max_length=500, blank=True, default="")
+    image_auteur = models.CharField("auteur de l'image", max_length=200, blank=True, default="")
+    image_licence = models.CharField("licence de l'image", max_length=100, blank=True, default="")
+    sources = models.TextField("sources de la description", blank=True, default="", help_text="Une adresse par ligne.")
+```
+Enregistre (Ctrl+S).
+
+**Étape 3 : compléter `ciel/views.py`**
+
+Ouvre `ciel/views.py`. Dans la fonction `detail_objet`, trouve cette ligne :
+```python
+        "image": objet.image.url if objet.image else None,
+```
+Colle juste en dessous, avec le même décalage de 8 espaces :
+```python
+        # Ajoutés pour le contenu (Partie 10) : crédit obligatoire de l'image et sources du texte
+        "image_credit": {
+            "source": objet.image_source,
+            "auteur": objet.image_auteur,
+            "licence": objet.image_licence,
+        } if objet.image else None,
+        "sources": [s.strip() for s in objet.sources.splitlines() if s.strip()],
+```
+Enregistre.
+
+**Étape 4 : mettre la base à jour et tester**
+
+Dans Git Bash, à la racine du projet. Si tu utilises un environnement virtuel, active-le d'abord : `source .venv/Scripts/activate`. Puis :
+```
+python manage.py makemigrations ciel
+python manage.py migrate
+python manage.py test
+```
+Résultats attendus :
+- `makemigrations` affiche 4 lignes « + Add field … » ;
+- `test` se termine par `Ran 39 tests` puis `OK`.
+
+**Étape 5 : sortir la base et les images de Git**
+
+À la racine du projet, ouvre le fichier `.gitignore` dans VS Code. S'il n'existe pas, crée un fichier nommé exactement `.gitignore`. Ajoute ces deux lignes à la fin :
+```
+db.sqlite3
+media/
+```
+Enregistre. Ensuite, si Git suivait déjà la base, retire-la du suivi : elle reste sur ton PC, Git arrête seulement de l'envoyer.
+```
+git rm --cached db.sqlite3
+git rm -r --cached media
+```
+Si ces commandes répondent « did not match any files », c'est normal : ils n'étaient pas suivis.
+
+**Étape 6 : créer le dossier `contenu/`**
+
+```
+python manage.py exporter_contenu
+```
+Attendu : une ligne « écrit : … » par astre, puis « 6 fichier(s) écrit(s) ». Le dossier `contenu/astres/` contient alors un fichier par astre (`mars.json`, `jupiter.json`, etc.).
+
+**Étape 7 : vérifier l'appli**
+
+```
+python manage.py runserver
+```
+Ouvre http://127.0.0.1:8000, vide le cache avec Ctrl+F5, puis ouvre la fiche de Mars. Tout doit marcher comme avant. Arrête ensuite le serveur avec Ctrl+C.
+
+**Étape 8 : envoyer sur Git**
+
+```
+git add contenu .gitignore ciel
+git commit -m "Contenu partagé : un fichier par astre, import et export, crédits des images"
+git push
+```
+Tu peux supprimer `A_FAIRE_A_LA_MAIN.md`.
+
+## Partie 5 : code de pilotage
+
+Piloter le bras (« Pointer », « Arrêter ») demande maintenant un code. Regarder le ciel et l'état
+de l'appareil reste libre. L'appareil (ESP32) n'est pas concerné : il garde son jeton.
+
+### Fichiers de l'archive
+
+- NOUVEAU : `appareil/pilotage.py`
+- REMPLACÉS (livrés en entier aux Parties 4 et 3.5) : `appareil/views.py`, `appareil/urls.py`,
+  `appareil/tests.py`, `ciel/tests.py`, `ciel/templates/ciel/carte.html`, `ciel/static/ciel/carte.js`,
+  `ciel/static/ciel/carte.css`.
+
+### 1. `index_stellaire/settings.py` : ajouté à la fin du fichier
+
+```python
+# Partie 5 : code de pilotage du bras. Jamais dans le code source : variable d'environnement
+# INDEX_STELLAIRE_CODE, sinon fichier code_pilotage.txt à la racine du projet (ignoré par Git).
+# Sans code configuré, le pilotage est refusé.
+import os  # noqa: E402
+
+_FICHIER_CODE = BASE_DIR / "code_pilotage.txt"
+CODE_PILOTAGE = os.environ.get("INDEX_STELLAIRE_CODE") or (
+    _FICHIER_CODE.read_text(encoding="utf-8").strip() if _FICHIER_CODE.is_file() else ""
+)
+```
+
+### 2. `appareil/pilotage.py` (nouveau fichier)
+
+Logique du code : empreinte en session (jamais le code lui-même), autorisation 30 jours par
+navigateur, blocage 15 minutes après 5 codes faux, décorateur `pilotage_requis` posé sur
+`definir_commande` et `arreter_pointage`.
+
+```python
+"""Partie 5 : le code de pilotage.
+
+Piloter le bras (« Pointer », « Arrêter ») demande un code ; regarder le ciel et l'état de
+l'appareil, non. Le projet est mono-utilisateur : pas de comptes, un seul code.
+
+- Le code est dans le réglage CODE_PILOTAGE (lu par settings.py dans le fichier code_pilotage.txt
+  ou la variable d'environnement INDEX_STELLAIRE_CODE) : jamais dans le code source.
+- Un bon code autorise CE navigateur pendant 30 jours (session Django), jusqu'à « Verrouiller ».
+- Changer le code retire l'autorisation à tous les navigateurs déjà autorisés.
+- Après 5 codes faux, l'adresse IP est bloquée 15 minutes.
+- L'appareil (ESP32) n'est pas concerné : il garde son jeton (/api/appareil/sync/).
+"""
+
+import hashlib
+import hmac
+import time
+from functools import wraps
+
+from django.conf import settings
+from django.core.cache import cache
+from django.http import JsonResponse
+
+DUREE_AUTORISATION_S = 30 * 24 * 3600
+ESSAIS_MAX = 5
+BLOCAGE_S = 15 * 60
+CLE_SESSION = "pilotage"
+
+
+def code_configure():
+    """Le code attendu, ou "" s'il n'est pas configuré (le pilotage est alors refusé)."""
+    return str(getattr(settings, "CODE_PILOTAGE", "") or "").strip()
+
+
+def _empreinte(code):
+    """Ce qu'on garde en session : pas le code, une empreinte liée au code actuel."""
+    return hashlib.sha256(f"{settings.SECRET_KEY}|pilotage|{code}".encode()).hexdigest()
+
+
+def est_autorise(request):
+    code = code_configure()
+    return bool(code) and hmac.compare_digest(str(request.session.get(CLE_SESSION, "")), _empreinte(code))
+
+
+def etat(request):
+    """Champ « pilotage » ajouté aux réponses de l'API de pointage."""
+    return {"autorise": est_autorise(request), "configure": bool(code_configure())}
+
+
+def code_correct(propose):
+    attendu = code_configure()
+    return bool(attendu) and hmac.compare_digest(propose.strip().encode(), attendu.encode())
+
+
+def autoriser(request):
+    request.session.cycle_key()  # nouvel identifiant de session après l'authentification
+    request.session[CLE_SESSION] = _empreinte(code_configure())
+    request.session.set_expiry(DUREE_AUTORISATION_S)
+
+
+def retirer(request):
+    request.session.pop(CLE_SESSION, None)
+
+
+# --- Limite d'essais, par adresse IP ------------------------------------------------------
+
+def _cle_essais(request):
+    return "pilotage-essais:" + (request.META.get("REMOTE_ADDR") or "inconnue")
+
+
+def secondes_de_blocage(request):
+    donnees = cache.get(_cle_essais(request)) or {}
+    return max(0, int(donnees.get("bloque_jusqu_a", 0) - time.time()))
+
+
+def noter_echec(request):
+    """Compte un code faux. Renvoie le nombre d'essais restants (0 = bloqué pour BLOCAGE_S)."""
+    cle = _cle_essais(request)
+    donnees = cache.get(cle) or {"echecs": 0, "bloque_jusqu_a": 0}
+    donnees["echecs"] += 1
+    restants = ESSAIS_MAX - donnees["echecs"]
+    if restants <= 0:
+        donnees = {"echecs": 0, "bloque_jusqu_a": time.time() + BLOCAGE_S}
+        restants = 0
+    cache.set(cle, donnees, BLOCAGE_S)
+    return restants
+
+
+def oublier_echecs(request):
+    cache.delete(_cle_essais(request))
+
+
+# --- Décorateur pour les vues qui font bouger le bras ---------------------------------------
+
+def pilotage_requis(vue):
+    @wraps(vue)
+    def enveloppe(request, *args, **kwargs):
+        if not est_autorise(request):
+            return JsonResponse(
+                {"erreur": "Code de pilotage requis.", "code_requis": True, "pilotage": etat(request)},
+                status=403,
+            )
+        return vue(request, *args, **kwargs)
+
+    return enveloppe
+```
+
+### 3. `appareil/views.py` : les deux vues ajoutées, et le décorateur posé
+
+```python
+@require_POST
+@pilotage.pilotage_requis
+def definir_commande(request):
+    ...
+
+@require_POST
+@pilotage.pilotage_requis
+def arreter_pointage(request):
+    ...
+
+
+# ===========================================================================
+# Partie 5 : le code de pilotage (ouvrir / fermer l'autorisation de ce navigateur)
+# ===========================================================================
+
+
+@require_POST
+def ouvrir_pilotage(request):
+    """POST {"code": "..."} : un bon code autorise ce navigateur pendant 30 jours."""
+    if not pilotage.code_configure():
+        return _erreur("Code de pilotage non configuré sur le serveur (fichier code_pilotage.txt).", 503)
+    attente = pilotage.secondes_de_blocage(request)
+    if attente:
+        return JsonResponse(
+            {"erreur": "Trop d'essais. Réessaie plus tard.", "attente_s": attente}, status=429
+        )
+    try:
+        code = json.loads(request.body or b"{}")["code"]
+        if not isinstance(code, str):
+            raise ValueError("code")
+    except (ValueError, KeyError, TypeError):
+        return _erreur('Corps JSON attendu : {"code": "..."}.', 400)
+
+    if pilotage.code_correct(code):
+        pilotage.oublier_echecs(request)
+        pilotage.autoriser(request)
+        return JsonResponse({"pilotage": pilotage.etat(request)})
+
+    restants = pilotage.noter_echec(request)
+    if restants == 0:
+        logger.warning("Pilotage : trop de codes faux depuis %s", request.META.get("REMOTE_ADDR"))
+        return JsonResponse(
+            {"erreur": "Trop d'essais. Réessaie plus tard.", "attente_s": pilotage.secondes_de_blocage(request)},
+            status=429,
+        )
+    return JsonResponse({"erreur": "Code incorrect.", "essais_restants": restants}, status=403)
+
+
+@require_POST
+def fermer_pilotage(request):
+    """Retire l'autorisation de ce navigateur (bouton « Verrouiller »)."""
+    pilotage.retirer(request)
+    return JsonResponse({"pilotage": pilotage.etat(request)})
+```
+
+`_etat_pointage` renvoie aussi un champ `pilotage: {autorise, configure}` à chaque appel, pour que
+le JS sache afficher ou non le panneau de code.
+
+### 4. `appareil/urls.py` : les deux routes ajoutées
+
+```python
+    # Partie 5 : code de pilotage
+    path("pointage/pilotage/", views.ouvrir_pilotage, name="pilotage"),
+    path("pointage/pilotage/fin/", views.fermer_pilotage, name="pilotage_fin"),
+```
+
+### 5. Choisir le code
+
+Créé `code_pilotage.txt` à la racine du projet (à côté de `manage.py`), une ligne, avec le code
+choisi (6 chiffres). Le code lui-même n'est pas noté ici : il ne doit figurer dans aucun fichier
+suivi par Git, y compris ce journal. Le code choisi ressemble à une date, pas idéal, gardé
+volontairement pour un usage local uniquement (réseau Wi-Fi maison/école, jamais exposé sur
+Internet) — à changer avant toute exposition réelle.
+
+### 6. `.gitignore` : ligne ajoutée
+
+```
+code_pilotage.txt
+```
+
+Vérifié avec `git status` : le fichier n'apparaît jamais.
+
+### 7. Côté interface (`carte.html` / `carte.js`, déjà dans le zip)
+
+- Un panneau `#panneau-code` (champ mot de passe + bouton Valider) s'ouvre automatiquement à la
+  première tentative de « Pointer » ou « Arrêter », ou via « Entrer le code » dans le panneau de
+  l'appareil.
+- Après un bon code : le panneau se ferme, l'action qui attendait (pointer/arrêter) repart toute
+  seule, et la fiche qui était ouverte revient.
+- Le panneau de l'appareil affiche « Pilotage autorisé sur ce navigateur » et un bouton
+  « Verrouiller » qui appelle `pointage/pilotage/fin/`.
+- Toutes les requêtes POST envoient le jeton CSRF lu dans le cookie `csrftoken` (en-tête
+  `X-CSRFToken`), déposé par `@ensure_csrf_cookie` sur la vue `carte` depuis la Partie 4.1.
+
+### Testé
+
+```
+python manage.py test        # 49 tests OK
+python manage.py runserver 0.0.0.0:8000
+```
+
+Sur le téléphone : ouvert une fiche, touché « Pointer » → panneau de code ouvert → code tapé → le
+pointage est parti tout seul. Pastille de l'appareil : « Pilotage autorisé sur ce navigateur » +
+« Verrouiller ».
+
+### Envoyé
+
+```
+git add appareil ciel .gitignore index_stellaire/settings.py
+git commit -m "Partie 5 : code de pilotage"
+git push
+```
+
+Changer le code (modifier `code_pilotage.txt`, puis relancer le serveur) retire l'autorisation à
+tous les navigateurs déjà autorisés.
+
+## Partie 6.1 : trajectoire longue (autonomie 48 h)
+
+À chaque nouvelle commande, l'appareil télécharge la trajectoire de sa cible sur 48 h (une position
+par minute) et la suit seul, en interpolant entre deux points. Si le réseau tombe, il continue.
+
+### Fichiers de l'archive (tous remplacés en entier, déjà livrés ainsi aux Parties 4 et 5)
+
+- `appareil/services.py`, `appareil/views.py`, `appareil/urls.py`, `appareil/tests.py`
+- `appareil/management/commands/simuler_appareil.py`
+
+Aucune migration, aucun réglage. La Partie 5 (code de pilotage) est un préalable.
+
+### 1. `appareil/services.py` : trajectoire pré-calculée
+
+```python
+# Partie 6.1 : trajectoire longue, pour que le bras suive sa cible même sans réseau
+PAS_TRAJECTOIRE_S = 60  # une position par minute ; l'appareil interpole entre deux points
+DUREE_TRAJECTOIRE_H = 48  # l'autonomie visée
+
+
+def trajectoire_de(commande, debut, heures=DUREE_TRAJECTOIRE_H):
+    """Positions [azimut, élévation] (degrés, 2 décimales) du bras pour viser l'objet de la
+    commande, une par minute de `debut` à `debut + heures`, bornes comprises."""
+    lieu = lieu_observation()
+    points = trajectoire(
+        commande.objet.identifiant_skyfield,
+        lieu["latitude"], lieu["longitude"], lieu["altitude_m"],
+        debut, heures, PAS_TRAJECTOIRE_S // 60,
+    )
+    return [[round(p["azimut"], 2), round(p["elevation"], 2)] for p in points]
+```
+
+(Réutilise `trajectoire()` de `ciel/astro.py`, déjà écrite en Partie 2.5.)
+
+### 2. `appareil/views.py` : la route de téléchargement, et le pointeur dans la commande
+
+```python
+def _commande_pour_appareil(appareil, instant):
+    ...
+    return {
+        "id": commande.id,
+        "mode": "pointer",
+        "objet": {"id": commande.objet.id, "nom": commande.objet.nom},
+        "cible": cible,
+        # Partie 6.1 : où télécharger la trajectoire longue (une fois par nouvelle commande)
+        "trajectoire": reverse("appareil:trajectoire"),
+    }
+
+
+@require_GET
+def trajectoire_appareil(request):
+    """Partie 6.1 : la trajectoire longue de la commande en cours, pour l'autonomie.
+
+    L'appareil la télécharge quand l'id de la commande change, puis suit seul en interpolant
+    entre deux points : il continue même si le réseau tombe. ?heures=1..48 (défaut 48).
+    Réponse : {commande, type: "positions", debut, pas_s, format, points[[azimut, elevation]]},
+    ou {commande: null} sans commande."""
+    appareil = _appareil_authentifie(request)
+    if appareil is None:
+        return _erreur("Jeton d'appareil manquant ou invalide.", 401)
+    commande = services.commande_active(appareil)
+    if commande is None:
+        return JsonResponse({"commande": None})
+    try:
+        heures = int(request.GET.get("heures", services.DUREE_TRAJECTOIRE_H))
+    except ValueError:
+        return _erreur("Paramètre 'heures' invalide (entier de 1 à 48).", 400)
+    heures = max(1, min(services.DUREE_TRAJECTOIRE_H, heures))
+
+    debut = maintenant()
+    try:
+        points = services.trajectoire_de(commande, debut, heures)
+    except (KeyError, ValueError):
+        logger.warning("Trajectoire impossible à calculer pour %s", commande.objet)
+        return _erreur("Trajectoire impossible à calculer pour cet objet.", 422)
+    return JsonResponse({
+        "commande": {"id": commande.id, "objet": {"id": commande.objet.id, "nom": commande.objet.nom}},
+        "type": "positions",  # Partie 6.2 : « tle » pour un satellite (calcul SGP4 sur l'appareil)
+        "debut": debut.utc_iso(),
+        "pas_s": services.PAS_TRAJECTOIRE_S,
+        "format": ["azimut", "elevation"],
+        "points": points,
+    })
+```
+
+### 3. `appareil/urls.py` : la route ajoutée
+
+```python
+    path("appareil/trajectoire/", views.trajectoire_appareil, name="trajectoire"),  # Partie 6.1
+```
+
+### 4. `appareil/management/commands/simuler_appareil.py` : suivi autonome
+
+Le simulateur télécharge la trajectoire quand l'id de la commande change (`telecharger_trajectoire`),
+puis calcule la position à suivre par interpolation (`position_sur_trajectoire`) sans attendre le
+serveur. Si le réseau tombe, il continue sur la trajectoire déjà en mémoire jusqu'à sa fin.
+
+```python
+def position_sur_trajectoire(traj, t):
+    """Position {azimut, elevation} à l'instant t (secondes depuis 1970), interpolée entre les deux
+    points qui l'encadrent ; None avant le début ou après la fin. traj = {debut, pas_s, points}.
+    L'azimut passe par le plus court chemin (350° -> 10° passe par le nord)."""
+    x = (t - traj["debut"]) / traj["pas_s"]
+    i = math.floor(x)
+    points = traj["points"]
+    if i < 0 or i >= len(points) - 1:
+        if i == len(points) - 1 and x == i:
+            az, el = points[i]
+            return {"azimut": az % 360, "elevation": el}
+        return None
+    f = x - i
+    (az1, el1), (az2, el2) = points[i], points[i + 1]
+    return {"azimut": (az1 + ecart_azimut(az1, az2) * f) % 360, "elevation": el1 + (el2 - el1) * f}
+```
+
+Nouvelle option `--sans-trajectoire` pour retrouver l'ancien comportement (suivi seconde par
+seconde seulement, sans téléchargement de trajectoire).
+
+### Testé
+
+```
+python manage.py test                                   # 56 tests OK
+python manage.py runserver
+python manage.py simuler_appareil                       # dans un second terminal
+```
+
+Dans l'appli : « Pointer » sur Jupiter. Le simulateur affiche
+« Trajectoire reçue pour Jupiter : 2881 positions, 48 h d'autonomie. »
+Arrêt du serveur (Ctrl+C) : le simulateur affiche « hors ligne … suivi autonome sur la trajectoire »
+et l'azimut continue d'avancer avec le ciel. Relancé le serveur : il se reconnecte.
+
+### Pour l'équipe robot (firmware ESP32)
+
+1. `POST /api/appareil/sync/` une fois par seconde (inchangé). La commande contient un champ
+   ajouté `trajectoire` : l'adresse à appeler.
+2. Quand `commande.id` change : `GET /api/appareil/trajectoire/` (en-tête `Authorization: Bearer <jeton>`,
+   `?heures=1..48` pour une trajectoire plus courte si la mémoire manque).
+   Réponse : `{commande, type: "positions", debut (UTC, ISO 8601), pas_s: 60,
+   format: ["azimut", "elevation"], points: [[az, el], ...]}`, environ 45 Ko pour 48 h.
+3. Position à l'instant t : i = (t - debut) / pas_s ; interpoler entre points[i] et points[i+1],
+   l'azimut par le plus court chemin (350° vers 10° passe par le nord). Voir
+   `position_sur_trajectoire` dans `simuler_appareil.py`.
+4. Sans réseau : continuer sur la trajectoire jusqu'à sa fin. `commande: null` reçue = s'arrêter.
+
+### Envoyé
+
+```
+git add appareil
+git commit -m "Partie 6.1 : trajectoire longue, suivi autonome 48 h"
+git push
+```
+
+## Petit correctif : sens du glisser sur la carte inversé
+
+Le glissement vertical sur la carte (haut/bas) a été inversé à la demande : glisser le doigt vers
+le bas fait désormais regarder vers le haut, et inversement (comme un réglage « invert look » dans
+un jeu vidéo). L'axe horizontal (gauche/droite) n'a pas changé.
+
+Dans `ciel/static/ciel/carte.js`, fonction du glisser (section « glisser le doigt... fait tourner
+la vue ») :
+
+```javascript
+    const sensibilite = SENSIBILITE_VUE / vue.zoom; // à fort zoom, un glissement tourne moins
+    // Axe vertical inversé : glisser vers le bas fait regarder vers le haut, et inversement.
+    fixerDirection(vue.azimut - (e.clientX - derniere.x) * sensibilite, vue.hauteur + (e.clientY - derniere.y) * sensibilite);
+```
+
+Seul le signe devant `(e.clientY - derniere.y)` a changé (de `-` à `+`).
+
+```
+git commit -m "Inverse le sens vertical du glissement sur la carte"
+git push
+```
+
+Tu peux maintenant supprimer `A_FAIRE_PARTIE_5.md` et `A_FAIRE_PARTIE_6_1.md` : leur contenu est
+consigné ci-dessus.
+
