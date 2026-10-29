@@ -5673,3 +5673,109 @@ Déjà inclus dans le commit de rattrapage de la 6.4 (code) ; cette session a se
 `A_FAIRE_PARTIE_6.md` et `A_FAIRE_PARTIE_7.md` peuvent maintenant être supprimés : tout leur contenu
 est consigné ci-dessus, et vérifié (migrations à jour, 112 tests OK, Lune correcte en base).
 
+## Partie 8 : fiche complétée, événements principaux, sources en temps réel
+
+Archive posée par-dessus les Parties 6 et 7 (pas de migration, pas de `importer_contenu`).
+
+**8.1 Fiche complétée** : magnitude, distance (km ou années-lumière), part éclairée de la Lune,
+coordonnées (ra/dec), constellation IAU, et « Ce soir : visible de … à …, au plus haut vers … ».
+
+**8.2 Événements « principaux », sur 30 jours** : en plus de la Partie 7 (phases, rapprochements,
+étoiles filantes, éclipses de Lune, passages ISS) — éclipses de Soleil, oppositions de
+Mars/Jupiter/Saturne, plus grandes élongations de Mercure/Vénus, occultations (la Lune passe devant
+un astre de la base), équinoxes/solstices. Les plus marquants portent « à ne pas manquer ».
+
+**8.3 Sources en temps réel** : prévision d'indice Kp du NOAA (aurores, avec le Kp nécessaire selon
+la latitude géomagnétique du lieu) et comètes brillantes (éclat COBS + orbite Minor Planet Center).
+Copie locale dans `donnees_skyfield/externes/` (ignoré par Git), utilisée sans Internet ou si une
+source est en panne — jamais bloquant pour le reste.
+
+### `ciel/astro.py` : `infos(identifiant, latitude, longitude, altitude_m=0, instant=None)`
+
+```python
+def infos(identifiant, latitude, longitude, altitude_m=0, instant=None):
+    """Ce que la fiche affiche en plus de la position : {magnitude, ra, dec, constellation_iau,
+    distance_km, distance_al, eclairement}. Une valeur inconnue vaut None.
+    - magnitude : éclat (plus c'est petit, plus c'est brillant ; à l'œil nu jusqu'à 6 environ) ;
+      catalogue Hipparcos pour une étoile, calcul pour une planète, None pour la Lune et l'ISS ;
+    - ra, dec : ascension droite (0-360°) et déclinaison, J2000 ;
+    - constellation_iau : abréviation officielle (« Tau » pour le Taureau) ;
+    - distance_km (système solaire, satellites) ou distance_al (étoile, années-lumière) ;
+    - eclairement : part éclairée du disque de la Lune (0 à 1), None pour les autres astres."""
+```
+
+### `ciel/sources_externes.py` (nouveau fichier) : NOAA + COBS/MPC, avec repli local
+
+| Fonction | Rôle |
+|---|---|
+| `lire_source(cle, valider)` | Télécharge, valide, et garde une copie dans `donnees_skyfield/externes/` ; sans réseau ou en cas d'échec, relit la copie si elle n'est pas trop vieille |
+| `kp_necessaire(lat, lon)` | Indice Kp minimal pour voir une aurore à ce lieu (latitude géomagnétique) |
+| `aurores(lat, lon, alt, debut, fin)` | Prévision NOAA filtrée par ce seuil et la nuit |
+| `cometes(lat, lon, alt, debut, fin)` | Comètes ≤ magnitude 6 (COBS) + orbite (MPC) → position dans la fenêtre |
+| `evenements_externes(lat, lon, alt, debut, fin)` | Regroupe les deux, plus le statut de chaque source (ok/périmé/en panne, âge) |
+
+### `ciel/management/commands/verifier_sources.py` (nouveau) : sortie obtenue
+
+```
+NOAA SWPC (https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json)
+  OK : 81 créneaux de 3 h, 18 prévus, Kp maxi prévu 5.0
+
+COBS (https://cobs.si/api/comet_list.api?is-observed=true&cur-mag=8)
+  OK : 0 comètes avec un éclat mesuré
+
+Minor Planet Center (https://www.minorplanetcenter.net/iau/MPCORB/CometEls.txt)
+  OK : 965 orbites de comètes
+
+Kp nécessaire pour une aurore ici : 7.8
+Événements externes pour les 30 prochains jours : 0
+
+Toutes les sources répondent et sont lisibles.
+```
+Les trois sources répondent et le format attendu correspond (pas de divergence à corriger).
+
+### `ciel/views.py` : `detail_objet` et `evenements` gagnent des champs
+
+- `detail_objet` : `**infos(...)` (magnitude, ra, dec, constellation_iau, distance_km, distance_al,
+  eclairement) + `ce_soir: {debut_nuit, fin_nuit, visible: {de, a, hauteur_max, instant} | null}`.
+- `evenements` : les événements calculés (Partie 7) et externes (8.3) sont fusionnés et triés par
+  instant ; nouveau champ `sources` (liste `{nom, page, licence, etat, age_h}`, calcul interne compris).
+
+### Testé
+
+```
+python manage.py test                 # 119 tests OK attendus par l'archive ; 127 avec la 6.4 réintégrée
+python manage.py verifier_sources     # sortie ci-dessus envoyée (voir note plus bas)
+python manage.py runserver 0.0.0.0:8000
+```
+Sur le téléphone (Ctrl+F5) : bouton ✦ (30 jours, rangés par jour, sources en bas), fiche de Saturne
+ou de la Lune pour la magnitude, la distance et « ce soir ».
+
+### ⚠️ Écrasée une deuxième fois : la Partie 6.4, réintégrée
+
+Le remplacement complet de `ciel/views.py`, `ciel/templates/ciel/carte.html`,
+`ciel/static/ciel/carte.js`/`carte.css` et `ciel/tests.py` par cette archive a de nouveau effacé :
+- la position partagée par le navigateur (Partie 6.4 : import `.lieu`, vue `partager_lieu`,
+  bouton 📍, panneau de message, tests) — **l'app ne démarrait plus du tout** : `ciel/urls.py`
+  (non remplacé par l'archive) pointait vers `views.partager_lieu`, qui n'existait plus
+  (`AttributeError` au chargement des URLs) ;
+- l'inversion du sens vertical du glisser (déjà reperdue une fois en Partie 6).
+
+Les deux ont été réappliquées dans ce commit. **À signaler à qui prépare les archives** : toute
+archive qui remplace `ciel/views.py`, `carte.html`, `carte.js` ou `carte.css` en entier écrase ces
+deux petits ajouts locaux, qui ne font pas partie du tuto. Pour que ça s'arrête de se reproduire à
+chaque nouvelle Partie, il faudrait soit les intégrer dans la version de référence, soit les garder
+dans des fichiers séparés que les remplacements complets ne touchent pas (`ciel/lieu.py` l'est déjà
+pour la logique ; le bouton et son JS ne le sont pas).
+
+### Envoyer
+
+```
+git add ciel
+git commit -m "Partie 8 : fiche complétée, événements principaux, sources en temps réel"
+git push
+```
+
+(Déjà fait dans cette session, avec la réintégration de la 6.4 dans le même commit.)
+
+Tu peux supprimer `A_FAIRE_PARTIE_8.md` : son contenu est consigné ci-dessus.
+
