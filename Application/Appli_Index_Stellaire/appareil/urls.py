@@ -7,6 +7,7 @@ app_name = "appareil"
 urlpatterns = [
     # Côté appareil (jeton)
     path("appareil/sync/", views.synchroniser, name="sync"),
+    path("appareil/trajectoire/", views.trajectoire_appareil, name="trajectoire"),  # Partie 6.1
     # Côté interface web
     path("pointage/", views.etat_pointage, name="etat"),
     path("pointage/commande/", views.definir_commande, name="commande"),

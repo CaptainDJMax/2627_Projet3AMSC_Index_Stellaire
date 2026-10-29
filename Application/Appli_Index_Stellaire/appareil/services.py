@@ -5,7 +5,7 @@ import math
 from django.conf import settings
 from django.db import transaction
 
-from ciel.astro import altaz, radec_depuis_altaz
+from ciel.astro import altaz, radec_depuis_altaz, trajectoire
 
 from .models import Appareil, Commande
 
@@ -48,6 +48,23 @@ def cible_de(commande, instant=None):
         instant,
     )
     return {"azimut": round(azimut, 3), "elevation": round(elevation, 3), "visible": elevation > 0}
+
+
+# Partie 6.1 : trajectoire longue, pour que le bras suive sa cible même sans réseau
+PAS_TRAJECTOIRE_S = 60  # une position par minute ; l'appareil interpole entre deux points
+DUREE_TRAJECTOIRE_H = 48  # l'autonomie visée
+
+
+def trajectoire_de(commande, debut, heures=DUREE_TRAJECTOIRE_H):
+    """Positions [azimut, élévation] (degrés, 2 décimales) du bras pour viser l'objet de la
+    commande, une par minute de `debut` à `debut + heures`, bornes comprises."""
+    lieu = lieu_observation()
+    points = trajectoire(
+        commande.objet.identifiant_skyfield,
+        lieu["latitude"], lieu["longitude"], lieu["altitude_m"],
+        debut, heures, PAS_TRAJECTOIRE_S // 60,
+    )
+    return [[round(p["azimut"], 2), round(p["elevation"], 2)] for p in points]
 
 
 def position_ciel_du_bras(appareil):

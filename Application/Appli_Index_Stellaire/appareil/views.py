@@ -3,6 +3,7 @@ import logging
 import math
 
 from django.http import JsonResponse
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
@@ -60,6 +61,8 @@ def _commande_pour_appareil(appareil, instant):
         "mode": "pointer",
         "objet": {"id": commande.objet.id, "nom": commande.objet.nom},
         "cible": cible,
+        # Partie 6.1 : où télécharger la trajectoire longue (une fois par nouvelle commande)
+        "trajectoire": reverse("appareil:trajectoire"),
     }
 
 
@@ -99,6 +102,42 @@ def synchroniser(request):
         "heure_serveur": instant.utc_iso(),
         "intervalle_ms": INTERVALLE_MS,
         "commande": _commande_pour_appareil(appareil, instant),
+    })
+
+
+@require_GET
+def trajectoire_appareil(request):
+    """Partie 6.1 : la trajectoire longue de la commande en cours, pour l'autonomie.
+
+    L'appareil la télécharge quand l'id de la commande change, puis suit seul en interpolant
+    entre deux points : il continue même si le réseau tombe. ?heures=1..48 (défaut 48).
+    Réponse : {commande, type: "positions", debut, pas_s, format, points[[azimut, elevation]]},
+    ou {commande: null} sans commande."""
+    appareil = _appareil_authentifie(request)
+    if appareil is None:
+        return _erreur("Jeton d'appareil manquant ou invalide.", 401)
+    commande = services.commande_active(appareil)
+    if commande is None:
+        return JsonResponse({"commande": None})
+    try:
+        heures = int(request.GET.get("heures", services.DUREE_TRAJECTOIRE_H))
+    except ValueError:
+        return _erreur("Paramètre 'heures' invalide (entier de 1 à 48).", 400)
+    heures = max(1, min(services.DUREE_TRAJECTOIRE_H, heures))
+
+    debut = maintenant()
+    try:
+        points = services.trajectoire_de(commande, debut, heures)
+    except (KeyError, ValueError):
+        logger.warning("Trajectoire impossible à calculer pour %s", commande.objet)
+        return _erreur("Trajectoire impossible à calculer pour cet objet.", 422)
+    return JsonResponse({
+        "commande": {"id": commande.id, "objet": {"id": commande.objet.id, "nom": commande.objet.nom}},
+        "type": "positions",  # Partie 6.2 : « tle » pour un satellite (calcul SGP4 sur l'appareil)
+        "debut": debut.utc_iso(),
+        "pas_s": services.PAS_TRAJECTOIRE_S,
+        "format": ["azimut", "elevation"],
+        "points": points,
     })
 
 

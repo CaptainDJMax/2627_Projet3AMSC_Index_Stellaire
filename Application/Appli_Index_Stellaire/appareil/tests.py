@@ -133,7 +133,8 @@ class ApiAppareilTests(TestCase):
                 patch("appareil.services.altaz", wraps=altaz) as calcul:
             d = self.sync({}, **self.entete).json()
         commande = d["commande"]
-        self.assertEqual({"id", "mode", "objet", "cible"}, set(commande))
+        self.assertEqual({"id", "mode", "objet", "cible", "trajectoire"}, set(commande))  # trajectoire : 6.1
+        self.assertEqual(commande["trajectoire"], "/api/appareil/trajectoire/")
         self.assertEqual(commande["mode"], "pointer")
         self.assertEqual(commande["objet"], {"id": self.jupiter.id, "nom": "Jupiter"})
         self.assertEqual({"azimut", "elevation", "visible"}, set(commande["cible"]))
@@ -331,3 +332,79 @@ class PilotageTests(TestCase):
             HTTP_AUTHORIZATION=f"Bearer {self.appareil.jeton}",
         )
         self.assertEqual(reponse.status_code, 200)
+
+
+class TrajectoireTests(TestCase):
+    """Partie 6.1 : trajectoire longue téléchargée par l'appareil (autonomie sans réseau)."""
+
+    URL = "/api/appareil/trajectoire/"
+
+    def setUp(self):
+        self.appareil = Appareil.objects.create()
+        self.entete = {"HTTP_AUTHORIZATION": f"Bearer {self.appareil.jeton}"}
+        self.jupiter = ObjetCeleste.objects.create(
+            nom="Jupiter", categorie="planete", identifiant_skyfield="jupiter barycenter"
+        )
+        self.instant = instant_depuis(datetime(2026, 10, 12, 12, 0, tzinfo=timezone.utc))
+
+    def lire(self, **params):
+        with patch("appareil.views.maintenant", return_value=self.instant):
+            return self.client.get(self.URL, params, **self.entete)
+
+    def test_jeton_obligatoire(self):
+        self.assertEqual(self.client.get(self.URL).status_code, 401)
+        self.assertEqual(self.client.get(self.URL, HTTP_AUTHORIZATION="Bearer faux").status_code, 401)
+
+    def test_sans_commande(self):
+        self.assertEqual(self.lire().json(), {"commande": None})
+
+    def test_contrat_48_h_une_position_par_minute(self):
+        services.definir_cible(self.appareil, self.jupiter)
+        d = self.lire().json()
+        self.assertEqual({"commande", "type", "debut", "pas_s", "format", "points"}, set(d))
+        self.assertEqual(d["type"], "positions")
+        self.assertEqual(d["pas_s"], 60)
+        self.assertEqual(d["format"], ["azimut", "elevation"])
+        self.assertEqual(d["commande"]["objet"], {"id": self.jupiter.id, "nom": "Jupiter"})
+        self.assertEqual(len(d["points"]), 48 * 60 + 1)
+        self.assertTrue(all(0 <= az < 360 and -90 <= el <= 90 for az, el in d["points"]))
+        self.assertTrue(any(el < 0 for _, el in d["points"]))  # sous l'horizon : consigne valide
+        self.assertLess(len(self.lire().content), 60_000)  # environ 45 Ko : raisonnable pour un ESP32
+
+    def test_premier_point_egal_a_la_cible_du_moment(self):
+        services.definir_cible(self.appareil, self.jupiter)
+        az, el = self.lire().json()["points"][0]
+        elevation, azimut = altaz("jupiter barycenter", 48.8566, 2.3522, 35, self.instant)
+        self.assertAlmostEqual(az, azimut, places=1)
+        self.assertAlmostEqual(el, elevation, places=1)
+
+    def test_point_a_une_heure(self):
+        services.definir_cible(self.appareil, self.jupiter)
+        az, el = self.lire().json()["points"][60]
+        une_heure_apres = instant_depuis(datetime(2026, 10, 12, 13, 0, tzinfo=timezone.utc))
+        elevation, azimut = altaz("jupiter barycenter", 48.8566, 2.3522, 35, une_heure_apres)
+        self.assertAlmostEqual(az, azimut, places=1)
+        self.assertAlmostEqual(el, elevation, places=1)
+
+    def test_duree_reglable_et_bornee(self):
+        services.definir_cible(self.appareil, self.jupiter)
+        self.assertEqual(len(self.lire(heures=2).json()["points"]), 2 * 60 + 1)
+        self.assertEqual(len(self.lire(heures=0).json()["points"]), 1 * 60 + 1)
+        self.assertEqual(len(self.lire(heures=500).json()["points"]), 48 * 60 + 1)
+        self.assertEqual(self.lire(heures="abc").status_code, 400)
+
+
+class SimulateurTests(SimpleTestCase):
+    """L'interpolation que le firmware devra reproduire (voir simuler_appareil)."""
+
+    def test_interpolation_et_passage_par_le_nord(self):
+        from appareil.management.commands.simuler_appareil import position_sur_trajectoire
+
+        traj = {"debut": 1000.0, "pas_s": 60, "points": [[350.0, 10.0], [10.0, 20.0], [20.0, 30.0]]}
+        self.assertEqual(position_sur_trajectoire(traj, 1000.0), {"azimut": 350.0, "elevation": 10.0})
+        milieu = position_sur_trajectoire(traj, 1030.0)  # 350° -> 10° par le nord, pas par le sud
+        self.assertAlmostEqual(milieu["azimut"], 0.0)
+        self.assertAlmostEqual(milieu["elevation"], 15.0)
+        self.assertIsNone(position_sur_trajectoire(traj, 999.0))  # avant le début
+        self.assertEqual(position_sur_trajectoire(traj, 1120.0), {"azimut": 20.0, "elevation": 30.0})  # dernier point
+        self.assertIsNone(position_sur_trajectoire(traj, 1121.0))  # après la fin
