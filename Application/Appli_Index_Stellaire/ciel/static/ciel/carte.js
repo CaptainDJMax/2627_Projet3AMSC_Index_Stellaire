@@ -1693,7 +1693,8 @@
       derniere = { x: depart.x, y: depart.y };
     }
     const sensibilite = SENSIBILITE_VUE / vue.zoom; // à fort zoom, un glissement tourne moins
-    fixerDirection(vue.azimut - (e.clientX - derniere.x) * sensibilite, vue.hauteur - (e.clientY - derniere.y) * sensibilite);
+    // Axe vertical inversé (demandé) : glisser vers le bas fait regarder vers le haut, et inversement.
+    fixerDirection(vue.azimut - (e.clientX - derniere.x) * sensibilite, vue.hauteur + (e.clientY - derniere.y) * sensibilite);
     derniere = { x: e.clientX, y: e.clientY };
     if (!redessinPrevu) {
       redessinPrevu = true;
