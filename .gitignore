@@ -3,6 +3,7 @@ venv/
 
 # Secrets (clés, mots de passe)
 .env
+code_pilotage.txt
 
 # Python
 __pycache__/

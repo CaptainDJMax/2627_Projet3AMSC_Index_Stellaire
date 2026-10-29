@@ -154,9 +154,16 @@
   const elBoussoleHauteur = document.getElementById("boussole-hauteur");
   const elEtatBouton = document.getElementById("etat-appareil"); // la pastille, qui ouvre son panneau
   const elPanAppareil = document.getElementById("panneau-appareil");
+  const elPanCode = document.getElementById("panneau-code"); // Partie 5 : code de pilotage
+  const elCodeFormulaire = document.getElementById("code-formulaire");
+  const elCodeChamp = document.getElementById("code-champ");
+  const elCodeValider = document.getElementById("code-valider");
+  const elCodeMessage = document.getElementById("code-message");
 
   const calques = { constellations: true, illustrations: true, voieLactee: true, etiquettesEtoiles: true };
   let viseurActif = false; // petit viseur au centre de la vue
+  let actionEnAttente = null; // Partie 5 : l'action (Pointer, Arrêter) qui attend le code
+  let ficheAvantCode = null; // la fiche ouverte avant la demande du code, rouverte ensuite
 
   // nom : "temps", "calques", "recherche", ou null pour tout fermer
   function ouvrir(nom) {
@@ -165,11 +172,13 @@
       ["calques", elPanCalques, elBtnCalques],
       ["recherche", elPanRecherche, elBtnRecherche],
       ["appareil", elPanAppareil, elEtatBouton],
+      ["code", elPanCode, null],
     ].forEach(function (p) {
       const ouvert = p[0] === nom;
       p[1].hidden = !ouvert;
-      p[2].setAttribute("aria-expanded", String(ouvert));
+      if (p[2]) p[2].setAttribute("aria-expanded", String(ouvert));
     });
+    if (nom !== "code") actionEnAttente = null; // fermer le panneau du code annule l'action en attente
     majEtatPanneaux();
   }
 
@@ -184,7 +193,7 @@
     document.body.classList.toggle("panneau-ouvert", selection !== null || !elPanRecherche.hidden);
     // N'importe quel panneau en bas de l'écran (sur téléphone, les boutons de zoom se cachent)
     document.body.classList.toggle("panneau-bas", selection !== null || !elPanneau.hidden ||
-      !elPanCalques.hidden || !elPanRecherche.hidden || !elPanAppareil.hidden);
+      !elPanCalques.hidden || !elPanRecherche.hidden || !elPanAppareil.hidden || !elPanCode.hidden);
   }
 
   function basculer(nom) {
@@ -216,8 +225,8 @@
 
   // Toucher le ciel ou la barre referme les panneaux du bas (sauf leurs propres boutons)
   document.addEventListener("pointerdown", function (e) {
-    if (e.target.closest("#panneau-temps, #panneau-calques, #panneau-recherche, #panneau-appareil, #btn-temps, #btn-calques, #btn-recherche, #etat-appareil")) return;
-    if (!elPanneau.hidden || !elPanCalques.hidden || !elPanRecherche.hidden || !elPanAppareil.hidden) ouvrir(null);
+    if (e.target.closest("#panneau-temps, #panneau-calques, #panneau-recherche, #panneau-appareil, #panneau-code, #btn-temps, #btn-calques, #btn-recherche, #etat-appareil")) return;
+    if (!elPanneau.hidden || !elPanCalques.hidden || !elPanRecherche.hidden || !elPanAppareil.hidden || !elPanCode.hidden) ouvrir(null);
   });
 
   // --- Calques : chaque case recharge la carte avec la nouvelle configuration -----
@@ -652,7 +661,7 @@
 
   // On distingue un « toucher » d'un « glisser » (qui déplace la carte).
   // On écoute tout le document : toucher le ciel vide, hors du disque, désélectionne.
-  const INTERFACE = "#fiche, #panneau-temps, #panneau-calques, #panneau-recherche, #panneau-appareil, #etat-appareil, #boussole, #zoom, #barre";
+  const INTERFACE = "#fiche, #panneau-temps, #panneau-calques, #panneau-recherche, #panneau-appareil, #panneau-code, #etat-appareil, #boussole, #zoom, #barre";
   let depart = null;
   document.addEventListener("pointerdown", function (e) {
     if (e.isPrimary && !e.target.closest(INTERFACE)) depart = { x: e.clientX, y: e.clientY, t: Date.now() };
@@ -1036,6 +1045,8 @@
     note: document.getElementById("app-note"),
     voir: document.getElementById("app-voir"),
     arreter: document.getElementById("app-arreter"),
+    pilotage: document.getElementById("app-pilotage"),
+    verrou: document.getElementById("app-verrou"),
   };
 
   function depuis(iso) {
@@ -1065,7 +1076,105 @@
     else if (!c && a) note = "Touche un astre puis « Pointer » pour viser.";
     elApp.note.textContent = note;
     elApp.note.hidden = note === "";
+
+    const p = pointage && pointage.pilotage;
+    elApp.pilotage.textContent = !p ? "" : !p.configure
+      ? "Pilotage impossible : aucun code n'est configuré sur le serveur (code_pilotage.txt)."
+      : p.autorise ? "Pilotage autorisé sur ce navigateur." : "Pilotage verrouillé : le code sera demandé.";
+    elApp.verrou.hidden = !p || !p.configure;
+    elApp.verrou.textContent = p && p.autorise ? "Verrouiller" : "Entrer le code";
   }
+
+  // « Verrouiller » retire l'autorisation de ce navigateur ; « Entrer le code » la demande
+  elApp.verrou.addEventListener("click", function () {
+    const p = pointage && pointage.pilotage;
+    if (!p || !p.autorise) {
+      demanderCode(null);
+      return;
+    }
+    posterJson(carte.dataset.urlPilotageFin, null).then(function (r) {
+      if (r.statut === 200 && pointage) pointage.pilotage = r.donnees.pilotage;
+      majPanneauAppareil();
+      majBoutonPointer();
+    }).catch(function () {});
+  });
+
+  // --- Partie 5 : le panneau du code de pilotage ----------------------------------
+  // Ouvert quand le serveur répond « code requis » (ou par « Entrer le code ») ; après un bon
+  // code, l'action en attente est relancée et la fiche qui était ouverte revient.
+
+  let codeEnCours = false;
+
+  function demanderCode(action) {
+    ficheAvantCode = selection;
+    if (selection !== null) selectionner(null);
+    ouvrir("code");
+    actionEnAttente = action; // après ouvrir(), qui annule l'action en attente précédente
+    elCodeChamp.value = "";
+    const p = pointage && pointage.pilotage;
+    if (p && !p.configure) afficherMessageCode("Aucun code n'est configuré sur le serveur : crée le fichier code_pilotage.txt.");
+    else elCodeMessage.hidden = true;
+    elCodeChamp.focus();
+  }
+
+  function afficherMessageCode(texte) {
+    elCodeMessage.textContent = texte;
+    elCodeMessage.hidden = false;
+  }
+
+  // POST JSON avec le jeton CSRF ; renvoie {statut, donnees} sans lever d'erreur sur un refus
+  function posterJson(url, corps) {
+    return fetch(url, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": cookie("csrftoken") },
+      body: corps ? JSON.stringify(corps) : undefined,
+    }).then(function (reponse) {
+      return reponse.json().catch(function () { return {}; }).then(function (donnees) {
+        return { statut: reponse.status, donnees: donnees };
+      });
+    });
+  }
+
+  elCodeFormulaire.addEventListener("submit", function (e) {
+    e.preventDefault();
+    if (codeEnCours) return;
+    codeEnCours = true;
+    elCodeValider.disabled = true;
+    posterJson(carte.dataset.urlPilotage, { code: elCodeChamp.value })
+      .then(function (r) {
+        if (r.statut === 200) {
+          if (pointage) pointage.pilotage = r.donnees.pilotage;
+          const action = actionEnAttente;
+          const fiche = ficheAvantCode;
+          elCodeChamp.value = "";
+          ouvrir(null);
+          if (fiche !== null) selectionner(fiche);
+          if (action) envoyer(action.url, action.corps);
+          majPanneauAppareil();
+          majBoutonPointer();
+          return;
+        }
+        const d = r.donnees;
+        let message = d.erreur || "Erreur " + r.statut;
+        if (r.statut === 403 && d.essais_restants !== undefined) {
+          message = "Code incorrect. " + d.essais_restants + (d.essais_restants > 1 ? " essais restants." : " essai restant.");
+        } else if (r.statut === 403) {
+          message = "Session expirée : recharge la page.";
+        } else if (r.statut === 429) {
+          message = "Trop d'essais. Réessaie dans " + Math.max(1, Math.ceil((d.attente_s || 60) / 60)) + " min.";
+        }
+        afficherMessageCode(message);
+        elCodeChamp.select();
+      })
+      .catch(function () {
+        afficherMessageCode("Serveur injoignable.");
+      })
+      .finally(function () {
+        codeEnCours = false;
+        elCodeValider.disabled = false;
+      });
+  });
 
   // « Voir la cible » : la vue se tourne vers l'astre visé et sa fiche s'ouvre
   elApp.voir.addEventListener("click", function () {
@@ -1097,6 +1206,12 @@
     })
       .then(function (reponse) {
         return reponse.json().catch(function () { return {}; }).then(function (donnees) {
+          if (reponse.status === 403 && donnees.code_requis) {
+            const erreur = new Error(donnees.erreur);
+            erreur.codeRequis = true;
+            erreur.pilotage = donnees.pilotage;
+            throw erreur;
+          }
           if (reponse.status === 403) throw new Error("Session expirée : recharge la page.");
           if (!reponse.ok) throw new Error(donnees.erreur || "Erreur " + reponse.status);
           return donnees;
@@ -1104,6 +1219,11 @@
       })
       .then(recevoirPointage)
       .catch(function (erreur) {
+        if (erreur.codeRequis) {
+          if (pointage && erreur.pilotage) pointage.pilotage = erreur.pilotage;
+          demanderCode({ url: url, corps: corps }); // l'action sera relancée après le code
+          return;
+        }
         messageErreur = erreur instanceof TypeError ? "Serveur injoignable." : erreur.message;
         finMessageErreur = Date.now() + 5000;
       })
@@ -1157,6 +1277,8 @@
     const pos = positionActuelle();
     if (pos && pos.elevation <= 0) phrases.push("Sous l'horizon : le bras pointera à travers la Terre.");
     if (!enDirect()) phrases.push("Le bras suit le ciel en temps réel, pas l'heure affichée.");
+    const p = pointage && pointage.pilotage;
+    if (a && p && !p.autorise) phrases.push("Le code de pilotage sera demandé.");
     elNoteAppareil.textContent = phrases.join(" ");
   }
 

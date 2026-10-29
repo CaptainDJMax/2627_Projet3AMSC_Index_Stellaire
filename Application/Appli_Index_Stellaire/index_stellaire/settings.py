@@ -138,3 +138,13 @@ LIEU_PAR_DEFAUT = {
     "longitude": 2.3522,
     "altitude_m": 35,
 }
+
+# Partie 5 : code de pilotage du bras. Jamais dans le code source : variable d'environnement
+# INDEX_STELLAIRE_CODE, sinon fichier code_pilotage.txt à la racine du projet (ignoré par Git).
+# Sans code configuré, le pilotage est refusé.
+import os  # noqa: E402
+
+_FICHIER_CODE = BASE_DIR / "code_pilotage.txt"
+CODE_PILOTAGE = os.environ.get("INDEX_STELLAIRE_CODE") or (
+    _FICHIER_CODE.read_text(encoding="utf-8").strip() if _FICHIER_CODE.is_file() else ""
+)

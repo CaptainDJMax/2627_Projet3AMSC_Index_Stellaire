@@ -17,6 +17,8 @@
        data-url-pointage="{% url 'appareil:etat' %}"
        data-url-commande="{% url 'appareil:commande' %}"
        data-url-arret="{% url 'appareil:arret' %}"
+       data-url-pilotage="{% url 'appareil:pilotage' %}"
+       data-url-pilotage-fin="{% url 'appareil:pilotage_fin' %}"
        data-url-illustrations="{% static 'ciel/constellations/illustrations.json' %}"
        data-dossier-illustrations="{% static 'ciel/constellations/illustrations/' %}"></div>
   <div id="celestial-form"></div>
@@ -44,6 +46,19 @@
     <p id="app-note" hidden></p>
     <button type="button" id="app-voir" class="large" hidden>Voir la cible</button>
     <button type="button" id="app-arreter" class="large arreter" hidden>Arrêter le pointage</button>
+    <p id="app-pilotage"></p>
+    <button type="button" id="app-verrou" class="large secondaire" hidden>Verrouiller</button>
+  </div>
+
+  <!-- Partie 5 : code de pilotage, demandé au premier « Pointer » ou « Arrêter » -->
+  <div id="panneau-code" class="verre" hidden>
+    <p class="titre-panneau">Code de pilotage</p>
+    <p id="code-explication">Entre le code pour piloter le bras. Ce navigateur restera autorisé 30 jours.</p>
+    <form id="code-formulaire">
+      <input type="password" id="code-champ" autocomplete="off" aria-label="Code de pilotage" required>
+      <button type="submit" id="code-valider" class="large">Valider</button>
+    </form>
+    <p id="code-message" role="alert" hidden></p>
   </div>
 
   <!-- Panneau du temps (s'ouvre au-dessus du bouton rond) -->

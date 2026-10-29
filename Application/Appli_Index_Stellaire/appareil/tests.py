@@ -8,7 +8,8 @@ from unittest.mock import patch
 
 from django.conf import settings
 from django.db import IntegrityError, transaction
-from django.test import SimpleTestCase, TestCase
+from django.core.cache import cache
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone as tz
 
 from ciel.astro import altaz, instant_depuis, radec
@@ -151,10 +152,16 @@ class ApiAppareilTests(TestCase):
         self.assertFalse(cible["visible"])
 
 
+CODE_TEST = "code-de-test"
+
+
+@override_settings(CODE_PILOTAGE=CODE_TEST)
 class ApiPointageTests(TestCase):
-    """Côté interface web : état, choix d'une cible, arrêt."""
+    """Côté interface web : état, choix d'une cible, arrêt (navigateur autorisé par le code)."""
 
     def setUp(self):
+        cache.clear()
+        self.client.post("/api/pointage/pilotage/", {"code": CODE_TEST}, content_type="application/json")
         self.appareil = Appareil.objects.create()
         self.jupiter = ObjetCeleste.objects.create(
             nom="Jupiter", categorie="planete", identifiant_skyfield="jupiter barycenter"
@@ -172,14 +179,16 @@ class ApiPointageTests(TestCase):
     def test_sans_appareil(self):
         Appareil.objects.all().delete()
         self.assertEqual(
-            self.client.get("/api/pointage/").json(), {"appareil": None, "commande": None, "ecart_deg": None}
+            self.client.get("/api/pointage/").json(),
+            {"appareil": None, "commande": None, "ecart_deg": None,
+             "pilotage": {"autorise": True, "configure": True}},
         )
         self.assertEqual(self.commander(self.jupiter.id).status_code, 404)
         self.assertEqual(self.client.post("/api/pointage/arret/").status_code, 404)
 
     def test_etat_contrat(self):
         d = self.client.get("/api/pointage/").json()
-        self.assertEqual({"appareil", "commande", "ecart_deg"}, set(d))
+        self.assertEqual({"appareil", "commande", "ecart_deg", "pilotage"}, set(d))  # pilotage : Partie 5
         self.assertEqual(
             {"nom", "connecte", "derniere_vue", "azimut", "elevation", "batterie", "mode", "ra", "dec"},
             set(d["appareil"]),
@@ -232,3 +241,93 @@ class ApiPointageTests(TestCase):
         self.assertEqual(self.client.get("/api/pointage/commande/").status_code, 405)
         self.assertEqual(self.client.get("/api/pointage/arret/").status_code, 405)
         self.assertEqual(self.client.post("/api/pointage/").status_code, 405)
+
+
+@override_settings(CODE_PILOTAGE=CODE_TEST)
+class PilotageTests(TestCase):
+    """Partie 5 : piloter le bras demande le code ; regarder, non ; l'appareil garde son jeton."""
+
+    OUVRIR = "/api/pointage/pilotage/"
+
+    def setUp(self):
+        cache.clear()
+        self.appareil = Appareil.objects.create()
+        self.jupiter = ObjetCeleste.objects.create(
+            nom="Jupiter", categorie="planete", identifiant_skyfield="jupiter barycenter"
+        )
+
+    def code(self, code):
+        return self.client.post(self.OUVRIR, {"code": code}, content_type="application/json")
+
+    def commander(self):
+        return self.client.post(
+            "/api/pointage/commande/", {"objet_id": self.jupiter.id}, content_type="application/json"
+        )
+
+    def test_sans_code_on_regarde_mais_on_ne_pilote_pas(self):
+        etat = self.client.get("/api/pointage/").json()
+        self.assertEqual(etat["pilotage"], {"autorise": False, "configure": True})
+        for reponse in (self.commander(), self.client.post("/api/pointage/arret/")):
+            self.assertEqual(reponse.status_code, 403)
+            self.assertTrue(reponse.json()["code_requis"])
+        self.assertEqual(self.appareil.commandes.count(), 0)
+
+    def test_bon_code_autorise_pour_30_jours(self):
+        reponse = self.code(CODE_TEST)
+        self.assertEqual(reponse.status_code, 200)
+        self.assertEqual(reponse.json()["pilotage"], {"autorise": True, "configure": True})
+        self.assertAlmostEqual(self.client.session.get_expiry_age(), 30 * 24 * 3600, delta=60)
+        self.assertEqual(self.commander().status_code, 200)
+
+    def test_espaces_autour_du_code_toleres(self):
+        self.assertEqual(self.code(f"  {CODE_TEST} ").status_code, 200)
+
+    def test_code_faux_puis_blocage(self):
+        for restants in (4, 3, 2, 1):
+            reponse = self.code("mauvais")
+            self.assertEqual(reponse.status_code, 403)
+            self.assertEqual(reponse.json()["essais_restants"], restants)
+        self.assertEqual(self.code("mauvais").status_code, 429)  # 5e essai faux : bloqué
+        bloque = self.code(CODE_TEST)  # même le bon code est refusé pendant le blocage
+        self.assertEqual(bloque.status_code, 429)
+        self.assertGreater(bloque.json()["attente_s"], 0)
+        self.assertEqual(self.commander().status_code, 403)
+
+    def test_verrouiller(self):
+        self.code(CODE_TEST)
+        reponse = self.client.post("/api/pointage/pilotage/fin/")
+        self.assertEqual(reponse.json()["pilotage"]["autorise"], False)
+        self.assertEqual(self.commander().status_code, 403)
+
+    def test_changer_le_code_retire_les_autorisations(self):
+        self.code(CODE_TEST)
+        with override_settings(CODE_PILOTAGE="nouveau-code"):
+            self.assertFalse(self.client.get("/api/pointage/").json()["pilotage"]["autorise"])
+            self.assertEqual(self.commander().status_code, 403)
+
+    def test_code_non_configure(self):
+        with override_settings(CODE_PILOTAGE=""):
+            self.assertEqual(self.code("").status_code, 503)
+            self.assertEqual(self.code("nimporte").status_code, 503)
+            self.assertEqual(self.client.get("/api/pointage/").json()["pilotage"]["configure"], False)
+            self.assertEqual(self.commander().status_code, 403)
+
+    def test_corps_invalide(self):
+        for corps in ({}, {"code": 123456}, {"code": None}):
+            with self.subTest(corps=corps):
+                self.assertEqual(
+                    self.client.post(self.OUVRIR, corps, content_type="application/json").status_code, 400
+                )
+        self.assertEqual(self.client.get(self.OUVRIR).status_code, 405)
+
+    def test_le_code_n_est_pas_garde_en_session(self):
+        self.code(CODE_TEST)
+        self.assertNotIn(CODE_TEST, str(dict(self.client.session.items())))
+
+    def test_l_appareil_n_a_pas_besoin_du_code(self):
+        """Le jeton de l'appareil et le code de pilotage sont deux mécanismes séparés."""
+        reponse = self.client.post(
+            "/api/appareil/sync/", {}, content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {self.appareil.jeton}",
+        )
+        self.assertEqual(reponse.status_code, 200)

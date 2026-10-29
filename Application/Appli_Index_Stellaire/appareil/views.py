@@ -10,7 +10,7 @@ from django.views.decorators.http import require_GET, require_POST
 from ciel.astro import maintenant
 from ciel.models import ObjetCeleste
 
-from . import services
+from . import pilotage, services
 from .models import Appareil
 
 logger = logging.getLogger(__name__)
@@ -151,12 +151,18 @@ def _etat(appareil):
     }
 
 
+def _reponse_etat(request, appareil):
+    """L'état du pointage, plus le champ « pilotage » (ce navigateur peut-il piloter le bras ?)."""
+    return JsonResponse({**_etat(appareil), "pilotage": pilotage.etat(request)})
+
+
 @require_GET
 def etat_pointage(request):
-    return JsonResponse(_etat(services.appareil_principal()))
+    return _reponse_etat(request, services.appareil_principal())
 
 
 @require_POST
+@pilotage.pilotage_requis
 def definir_commande(request):
     appareil = services.appareil_principal()
     if appareil is None:
@@ -174,13 +180,58 @@ def definir_commande(request):
         return _erreur("Objet introuvable ou sans identifiant Skyfield.", 404)
 
     services.definir_cible(appareil, objet)
-    return JsonResponse(_etat(appareil))
+    return _reponse_etat(request, appareil)
 
 
 @require_POST
+@pilotage.pilotage_requis
 def arreter_pointage(request):
     appareil = services.appareil_principal()
     if appareil is None:
         return _erreur("Aucun appareil enregistré.", 404)
     services.arreter(appareil)
-    return JsonResponse(_etat(appareil))
+    return _reponse_etat(request, appareil)
+
+
+# ===========================================================================
+# Partie 5 : le code de pilotage (ouvrir / fermer l'autorisation de ce navigateur)
+# ===========================================================================
+
+
+@require_POST
+def ouvrir_pilotage(request):
+    """POST {"code": "..."} : un bon code autorise ce navigateur pendant 30 jours."""
+    if not pilotage.code_configure():
+        return _erreur("Code de pilotage non configuré sur le serveur (fichier code_pilotage.txt).", 503)
+    attente = pilotage.secondes_de_blocage(request)
+    if attente:
+        return JsonResponse(
+            {"erreur": "Trop d'essais. Réessaie plus tard.", "attente_s": attente}, status=429
+        )
+    try:
+        code = json.loads(request.body or b"{}")["code"]
+        if not isinstance(code, str):
+            raise ValueError("code")
+    except (ValueError, KeyError, TypeError):
+        return _erreur('Corps JSON attendu : {"code": "..."}.', 400)
+
+    if pilotage.code_correct(code):
+        pilotage.oublier_echecs(request)
+        pilotage.autoriser(request)
+        return JsonResponse({"pilotage": pilotage.etat(request)})
+
+    restants = pilotage.noter_echec(request)
+    if restants == 0:
+        logger.warning("Pilotage : trop de codes faux depuis %s", request.META.get("REMOTE_ADDR"))
+        return JsonResponse(
+            {"erreur": "Trop d'essais. Réessaie plus tard.", "attente_s": pilotage.secondes_de_blocage(request)},
+            status=429,
+        )
+    return JsonResponse({"erreur": "Code incorrect.", "essais_restants": restants}, status=403)
+
+
+@require_POST
+def fermer_pilotage(request):
+    """Retire l'autorisation de ce navigateur (bouton « Verrouiller »)."""
+    pilotage.retirer(request)
+    return JsonResponse({"pilotage": pilotage.etat(request)})

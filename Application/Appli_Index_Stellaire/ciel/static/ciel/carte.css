@@ -654,3 +654,71 @@ body {
 #fiche-sources a {
   color: inherit;
 }
+
+/* --- Partie 5 : code de pilotage ------------------------------------------------- */
+#panneau-code {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(92px + env(safe-area-inset-bottom));
+  width: min(340px, calc(100vw - 32px));
+  box-sizing: border-box;
+  padding: 16px;
+  border-radius: 22px;
+}
+
+#code-explication,
+#app-pilotage {
+  margin: 0 0 12px;
+  color: var(--texte-doux);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+#app-pilotage {
+  margin: 14px 0 0;
+}
+
+/* 16 px minimum : sur iPhone, un champ plus petit déclenche un zoom automatique */
+#code-champ {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 11px 14px;
+  border: 1px solid var(--verre-bord);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--texte);
+  font: inherit;
+  font-size: 16px;
+  letter-spacing: 0.15em;
+}
+
+#panneau-code button.large {
+  width: 100%;
+  margin-top: 10px;
+  padding: 11px 0;
+  border: 1px solid var(--verre-bord);
+  border-radius: 14px;
+  background: rgba(255, 212, 121, 0.16);
+  color: var(--accent);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+#panneau-code button.large:disabled {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--texte-doux);
+}
+
+#code-message {
+  margin: 10px 0 0;
+  color: #ff9a9a;
+  font-size: 13px;
+}
+
+/* Bouton discret : « Verrouiller » / « Entrer le code » */
+#panneau-appareil button.large.secondaire {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--texte);
+}

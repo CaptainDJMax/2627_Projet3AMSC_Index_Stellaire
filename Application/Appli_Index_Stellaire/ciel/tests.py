@@ -117,7 +117,8 @@ class PageCarteTests(TestCase):
         self.assertEqual(reponse.status_code, 200)
         contenu = reponse.content.decode()
         self.assertIn('id="donnees-lieu"', contenu)
-        for url in ("/api/pointage/", "/api/pointage/commande/", "/api/pointage/arret/"):
+        for url in ("/api/pointage/", "/api/pointage/commande/", "/api/pointage/arret/",
+                    "/api/pointage/pilotage/", "/api/pointage/pilotage/fin/"):
             self.assertIn(url, contenu)  # le JavaScript lit ces adresses dans la page
         self.assertIn("Europe/Paris", contenu)  # fuseau d'affichage
         self.assertIn('data-url-objets="/api/ciel/objets/"', contenu)
