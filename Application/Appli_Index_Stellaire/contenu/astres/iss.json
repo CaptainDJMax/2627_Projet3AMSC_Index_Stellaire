@@ -1,0 +1,12 @@
+{
+  "nom": "ISS",
+  "categorie": "satellite",
+  "identifiant_skyfield": "sat:25544",
+  "description": "",
+  "sources": [],
+  "image": "",
+  "image_source": "",
+  "image_auteur": "",
+  "image_licence": "",
+  "constellations": []
+}

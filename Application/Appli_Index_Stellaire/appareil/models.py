@@ -33,6 +33,12 @@ class Appareil(models.Model):
     batterie = models.PositiveSmallIntegerField(null=True, blank=True)  # pourcentage
     mode = models.CharField(max_length=20, choices=Mode.choices, default=Mode.REPOS)
 
+    # Partie 6.2 : lieu rapporté par le GPS de l'appareil (vide tant qu'il n'a rien envoyé)
+    latitude = models.FloatField(null=True, blank=True)  # degrés, nord positif
+    longitude = models.FloatField(null=True, blank=True)  # degrés, est positif
+    altitude_m = models.FloatField(null=True, blank=True)  # mètres au-dessus de l'ellipsoïde
+    lieu_mis_a_jour = models.DateTimeField(null=True, blank=True)
+
     def __str__(self):
         return self.nom
 

@@ -14,6 +14,7 @@ from django.utils import timezone as tz
 
 from ciel.astro import altaz, instant_depuis, radec
 from ciel.models import ObjetCeleste
+from ciel.test_satellites import DossierTleTemporaire, fabriquer_tle
 
 from . import services
 from .models import Appareil, Commande
@@ -361,8 +362,10 @@ class TrajectoireTests(TestCase):
     def test_contrat_48_h_une_position_par_minute(self):
         services.definir_cible(self.appareil, self.jupiter)
         d = self.lire().json()
-        self.assertEqual({"commande", "type", "debut", "pas_s", "format", "points"}, set(d))
+        self.assertEqual({"commande", "type", "debut", "pas_s", "format", "points", "tle", "lieu"}, set(d))
         self.assertEqual(d["type"], "positions")
+        self.assertIsNone(d["tle"])  # 6.2 : pas un satellite
+        self.assertEqual(d["lieu"], {"latitude": 48.8566, "longitude": 2.3522, "altitude_m": 35})
         self.assertEqual(d["pas_s"], 60)
         self.assertEqual(d["format"], ["azimut", "elevation"])
         self.assertEqual(d["commande"]["objet"], {"id": self.jupiter.id, "nom": "Jupiter"})
@@ -394,6 +397,130 @@ class TrajectoireTests(TestCase):
         self.assertEqual(self.lire(heures="abc").status_code, 400)
 
 
+class LieuGpsTests(TestCase):
+    """Partie 6.2 : l'appareil envoie sa position GPS ; les calculs se font pour ce lieu."""
+
+    LYON = {"latitude": 45.764, "longitude": 4.8357, "altitude_m": 170.0}
+
+    def setUp(self):
+        self.appareil = Appareil.objects.create()
+        self.entete = {"HTTP_AUTHORIZATION": f"Bearer {self.appareil.jeton}"}
+        self.jupiter = ObjetCeleste.objects.create(
+            nom="Jupiter", categorie="planete", identifiant_skyfield="jupiter barycenter"
+        )
+        self.instant = instant_depuis(datetime(2026, 10, 12, 12, 0, tzinfo=timezone.utc))
+
+    def sync(self, corps):
+        with patch("appareil.views.maintenant", return_value=self.instant):
+            return self.client.post("/api/appareil/sync/", corps, content_type="application/json", **self.entete)
+
+    def test_position_gps_enregistree(self):
+        self.assertEqual(self.sync(self.LYON).status_code, 200)
+        self.appareil.refresh_from_db()
+        self.assertEqual((self.appareil.latitude, self.appareil.longitude, self.appareil.altitude_m),
+                         (45.764, 4.8357, 170.0))
+        self.assertIsNotNone(self.appareil.lieu_mis_a_jour)
+        self.assertEqual(services.lieu_observation(self.appareil), self.LYON)
+
+    def test_sans_gps_lieu_par_defaut(self):
+        self.sync({"azimut": 10})
+        self.appareil.refresh_from_db()
+        self.assertEqual(services.lieu_observation(self.appareil), settings.LIEU_PAR_DEFAUT)
+
+    def test_altitude_facultative(self):
+        self.sync({"latitude": 45.764, "longitude": 4.8357})
+        self.appareil.refresh_from_db()
+        self.assertEqual(services.lieu_observation(self.appareil)["altitude_m"], 0)
+
+    def test_valeurs_invalides(self):
+        for corps in [{"latitude": 45.0}, {"longitude": 4.0}, {"latitude": 95, "longitude": 4},
+                      {"latitude": 45, "longitude": 190}, {"latitude": "45", "longitude": 4},
+                      {"latitude": 45, "longitude": 4, "altitude_m": 20000}]:
+            with self.subTest(corps=corps):
+                self.assertEqual(self.sync(corps).status_code, 400)
+
+    def test_cible_et_trajectoire_calculees_pour_le_lieu_gps(self):
+        self.sync(self.LYON)
+        services.definir_cible(self.appareil, self.jupiter)
+        cible = self.sync({}).json()["commande"]["cible"]
+        elevation, azimut = altaz("jupiter barycenter", 45.764, 4.8357, 170, self.instant)
+        self.assertAlmostEqual(cible["azimut"], azimut, places=2)
+        self.assertAlmostEqual(cible["elevation"], elevation, places=2)
+        with patch("appareil.views.maintenant", return_value=self.instant):
+            d = self.client.get("/api/appareil/trajectoire/", **self.entete).json()
+        self.assertEqual(d["lieu"], self.LYON)
+        self.assertAlmostEqual(d["points"][0][0], azimut, places=1)
+
+
+class TrajectoireSatelliteTests(DossierTleTemporaire, TestCase):
+    """Partie 6.2 : pour l'ISS, la trajectoire porte le TLE et des points toutes les 5 s sur 6 h."""
+
+    URL = "/api/appareil/trajectoire/"
+
+    def setUp(self):
+        super().setUp()
+        self.appareil = Appareil.objects.create()
+        self.entete = {"HTTP_AUTHORIZATION": f"Bearer {self.appareil.jeton}"}
+        self.iss = ObjetCeleste.objects.create(nom="ISS", categorie="satellite", identifiant_skyfield="sat:25544")
+        self.epoque = datetime.now(timezone.utc).replace(microsecond=0)
+        self.texte = fabriquer_tle(self.epoque)
+        services.definir_cible(self.appareil, self.iss)
+
+    def lire(self, **params):
+        with patch("ciel.satellites._telecharger", return_value=self.texte),                 patch("appareil.views.maintenant", return_value=instant_depuis(self.epoque)):
+            return self.client.get(self.URL, params, **self.entete)
+
+    def test_contrat(self):
+        reponse = self.lire()
+        d = reponse.json()
+        self.assertEqual({"commande", "type", "debut", "pas_s", "format", "points", "tle", "lieu"}, set(d))
+        self.assertEqual(d["type"], "positions")  # inchangé : un firmware sans SGP4 suit les points
+        self.assertEqual(d["pas_s"], 5)
+        self.assertEqual(len(d["points"]), 6 * 3600 // 5 + 1)
+        self.assertEqual({"nom", "ligne1", "ligne2", "epoque"}, set(d["tle"]))
+        self.assertEqual(d["tle"]["nom"], "ISS (ZARYA)")
+        self.assertEqual((len(d["tle"]["ligne1"]), len(d["tle"]["ligne2"])), (69, 69))
+        self.assertLess(len(reponse.content), 90_000)  # environ 70 Ko : raisonnable pour l'ESP32-C3
+
+    def test_duree_bornee_a_6_h(self):
+        self.assertEqual(len(self.lire(heures=2).json()["points"]), 2 * 720 + 1)
+        self.assertEqual(len(self.lire(heures=48).json()["points"]), 6 * 720 + 1)
+
+    def test_les_points_concordent_avec_le_calcul_du_robot(self):
+        from appareil.management.commands.simuler_appareil import ecart_controle, instant_unix
+
+        d = self.lire().json()
+        traj = {"debut": instant_unix(d["debut"]), "pas_s": d["pas_s"], "points": d["points"],
+                "tle": d["tle"], "lieu": d["lieu"]}
+        self.assertLess(ecart_controle(traj), 0.05)
+
+    def test_debut_a_la_seconde_entiere(self):
+        """Le début est envoyé sans fraction de seconde : les points doivent partir de cet instant."""
+        from appareil.management.commands.simuler_appareil import ecart_controle, instant_unix
+
+        instant = instant_depuis(self.epoque + timedelta(seconds=10.6))
+        with patch("ciel.satellites._telecharger", return_value=self.texte), \
+                patch("appareil.views.maintenant", return_value=instant):
+            d = self.client.get(self.URL, **self.entete).json()
+        traj = {"debut": instant_unix(d["debut"]), "pas_s": d["pas_s"], "points": d["points"],
+                "tle": d["tle"], "lieu": d["lieu"]}
+        self.assertEqual(traj["debut"] % 1, 0)
+        self.assertLess(ecart_controle(traj), 0.05)
+
+    def test_sans_tle_422(self):
+        with patch("ciel.satellites._telecharger", side_effect=OSError("réseau coupé")):
+            reponse = self.client.get(self.URL, **self.entete)
+        self.assertEqual(reponse.status_code, 422)
+        self.assertIn("erreur", reponse.json())
+
+    def test_la_sync_donne_la_cible_de_l_iss(self):
+        with patch("ciel.satellites._telecharger", return_value=self.texte):
+            commande = self.client.post("/api/appareil/sync/", {}, content_type="application/json",
+                                        **self.entete).json()["commande"]
+        self.assertEqual(commande["objet"]["nom"], "ISS")
+        self.assertEqual({"azimut", "elevation", "visible"}, set(commande["cible"]))
+
+
 class SimulateurTests(SimpleTestCase):
     """L'interpolation que le firmware devra reproduire (voir simuler_appareil)."""
 
@@ -408,3 +535,24 @@ class SimulateurTests(SimpleTestCase):
         self.assertIsNone(position_sur_trajectoire(traj, 999.0))  # avant le début
         self.assertEqual(position_sur_trajectoire(traj, 1120.0), {"azimut": 20.0, "elevation": 30.0})  # dernier point
         self.assertIsNone(position_sur_trajectoire(traj, 1121.0))  # après la fin
+
+    def test_suivi_sgp4_et_retelechargement(self):
+        from appareil.management.commands.simuler_appareil import a_retelecharger, consigne_de
+
+        from ciel import satellites
+
+        texte = fabriquer_tle(datetime(2026, 10, 12, 0, 0, tzinfo=timezone.utc))
+        _, l1, l2 = satellites.lire_tle(texte, 25544)
+        debut = datetime(2026, 10, 12, 1, 0, tzinfo=timezone.utc).timestamp()
+        traj = {"debut": debut, "pas_s": 5, "points": [[0.0, 0.0]] * 4321,
+                "tle": {"ligne1": l1, "ligne2": l2},
+                "lieu": {"latitude": 48.8566, "longitude": 2.3522, "altitude_m": 35}}
+        # Avec le TLE, la consigne vient de SGP4 (pas des points factices), jusqu'à 48 h
+        self.assertNotEqual(consigne_de(traj, debut + 100), {"azimut": 0.0, "elevation": 0.0})
+        self.assertIsNotNone(consigne_de(traj, debut + 47 * 3600))
+        self.assertIsNone(consigne_de(traj, debut + 49 * 3600))
+        # Sans SGP4 : les points
+        self.assertEqual(consigne_de(traj, debut + 100, avec_sgp4=False), {"azimut": 0.0, "elevation": 0.0})
+        # Retéléchargement quand il reste moins d'une heure de points
+        self.assertFalse(a_retelecharger(traj, debut + 4 * 3600))
+        self.assertTrue(a_retelecharger(traj, debut + 5.5 * 3600))

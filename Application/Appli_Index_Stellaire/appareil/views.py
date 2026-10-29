@@ -8,7 +8,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
-from ciel.astro import maintenant
+from ciel.astro import instant_depuis, maintenant
 from ciel.models import ObjetCeleste
 
 from . import pilotage, services
@@ -84,8 +84,16 @@ def synchroniser(request):
         mode = corps.get("mode", appareil.mode)
         if mode not in Appareil.Mode.values:
             raise ValueError("mode")
+        # Partie 6.2 : position GPS, facultative ; latitude et longitude vont ensemble
+        latitude = _nombre(corps, "latitude", -90, 90)
+        longitude = _nombre(corps, "longitude", -180, 180)
+        altitude_m = _nombre(corps, "altitude_m", -500, 9000)
+        if (latitude is None) != (longitude is None):
+            raise ValueError("latitude/longitude")
     except ValueError:
-        return _erreur("Corps JSON invalide (azimut, elevation, batterie, mode).", 400)
+        return _erreur(
+            "Corps JSON invalide (azimut, elevation, batterie, mode, latitude, longitude, altitude_m).", 400
+        )
 
     appareil.derniere_vue = timezone.now()
     appareil.mode = mode
@@ -95,6 +103,10 @@ def synchroniser(request):
         appareil.elevation = elevation
     if batterie is not None:
         appareil.batterie = round(batterie)
+    if latitude is not None:
+        appareil.latitude, appareil.longitude = latitude, longitude
+        appareil.altitude_m = altitude_m if altitude_m is not None else appareil.altitude_m
+        appareil.lieu_mis_a_jour = appareil.derniere_vue
     appareil.save()
 
     instant = maintenant()
@@ -111,8 +123,13 @@ def trajectoire_appareil(request):
 
     L'appareil la télécharge quand l'id de la commande change, puis suit seul en interpolant
     entre deux points : il continue même si le réseau tombe. ?heures=1..48 (défaut 48).
-    Réponse : {commande, type: "positions", debut, pas_s, format, points[[azimut, elevation]]},
-    ou {commande: null} sans commande."""
+    Réponse : {commande, type: "positions", debut, pas_s, format, points[[azimut, elevation]],
+    tle, lieu}, ou {commande: null} sans commande.
+
+    Partie 6.2 : pour un satellite, `tle` = {nom, ligne1, ligne2, epoque} (sinon null) : le robot
+    calcule la position avec SGP4 ; les points (toutes les 5 s sur 6 h) servent de secours et de
+    contrôle. `lieu` = le lieu pour lequel les points sont calculés (GPS de l'appareil s'il l'a
+    envoyé)."""
     appareil = _appareil_authentifie(request)
     if appareil is None:
         return _erreur("Jeton d'appareil manquant ou invalide.", 401)
@@ -125,19 +142,23 @@ def trajectoire_appareil(request):
         return _erreur("Paramètre 'heures' invalide (entier de 1 à 48).", 400)
     heures = max(1, min(services.DUREE_TRAJECTOIRE_H, heures))
 
-    debut = maintenant()
+    # Début à la seconde entière : `debut` est envoyé sans fraction de seconde, et l'ISS
+    # parcourt jusqu'à 1° par seconde (sans cet arrondi, 0,4° d'erreur sur chaque point).
+    debut = instant_depuis(maintenant().utc_datetime().replace(microsecond=0))
     try:
-        points = services.trajectoire_de(commande, debut, heures)
-    except (KeyError, ValueError):
-        logger.warning("Trajectoire impossible à calculer pour %s", commande.objet)
-        return _erreur("Trajectoire impossible à calculer pour cet objet.", 422)
+        traj = services.trajectoire_pour_appareil(commande, debut, heures)
+    except (KeyError, ValueError) as erreur:
+        logger.warning("Trajectoire impossible à calculer pour %s : %s", commande.objet, erreur)
+        return _erreur(f"Trajectoire impossible à calculer pour cet objet ({erreur}).", 422)
     return JsonResponse({
         "commande": {"id": commande.id, "objet": {"id": commande.objet.id, "nom": commande.objet.nom}},
-        "type": "positions",  # Partie 6.2 : « tle » pour un satellite (calcul SGP4 sur l'appareil)
+        "type": "positions",  # toujours des points ; un satellite a en plus son TLE (champ tle)
         "debut": debut.utc_iso(),
-        "pas_s": services.PAS_TRAJECTOIRE_S,
+        "pas_s": traj["pas_s"],
         "format": ["azimut", "elevation"],
-        "points": points,
+        "points": traj["points"],
+        "tle": traj["tle"],  # Partie 6.2
+        "lieu": traj["lieu"],  # Partie 6.2
     })
 
 
