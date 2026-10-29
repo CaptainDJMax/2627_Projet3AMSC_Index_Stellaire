@@ -5564,5 +5564,112 @@ git push
 ```
 
 Tu peux maintenant supprimer `A_FAIRE_PARTIE_6.md` : son contenu (6.1 à 6.4) est consigné ci-dessus.
-`A_FAIRE_PARTIE_7.md` reste pour l'instant : la Partie 7 n'a pas encore été traitée.
+
+## Partie 7 : événements visibles à l'œil nu
+
+Le zip annoncé par `A_FAIRE_PARTIE_7.md` contenait à nouveau toute la Partie 6 (remplace
+`partie-6-complete.zip`) **et** la 7. Le code de la 7 était déjà sur le disque et committé depuis le
+« rattrapage » de la 6.4 ci-dessus (`ciel/evenements.py`, `ciel/test_evenements.py`, vue et URL
+`evenements`, panneau et bouton ✦ dans `carte.html`/`carte.js`/`carte.css`) — il manquait seulement
+de relancer `importer_contenu` pour que la base reprenne la correction de `contenu/astres/lune.json`
+(catégorie « lune », identifiant `moon`), déjà faite par le fichier mais pas encore importée.
+
+Nouveau bouton ✦ dans la barre (entre la recherche et la boussole) : le panneau « Événements ».
+- **Ce soir** : heures de la nuit (Soleil à plus de 6° sous l'horizon), et la Lune et les planètes
+  visibles au-dessus de 10°, avec leur hauteur maximale.
+- **Les 7 prochains jours** : phases de la Lune ; rapprochements Lune-planète (5° ou moins) et
+  planète-planète (3° ou moins), seulement s'ils sont observables de nuit ; essaims d'étoiles
+  filantes (calendrier de l'IMO, avec « Lune gênante » si elle éclaire trop) ; éclipses de Lune
+  partielles ou totales si la Lune est levée ; passages de l'ISS visibles à l'œil nu, à 20° ou plus.
+- Toucher une ligne : l'heure de la carte saute au meilleur moment, la vue se tourne vers
+  l'événement, sa fiche s'ouvre. « Revenir à maintenant » (panneau du temps) ramène au direct.
+
+### `ciel/evenements.py` (nouveau fichier, ~330 lignes) : les calculs, indépendants de Django
+
+Tout est calculé avec Skyfield (éphéméride DE421) pour un lieu et une fenêtre de temps. Chaque
+événement a la forme `{type, titre, instant, objet_id, direction{azimut, elevation}, ...}` —
+`instant` le meilleur moment pour regarder, `direction` où regarder.
+
+| Fonction | Rôle |
+|---|---|
+| `ce_soir(objets, lat, lon, alt, debut)` | Nuit du soir + astres visibles au-dessus de 10° |
+| `phases_lune(...)` | Nouvelle/premier quartier/pleine/dernier quartier dans la fenêtre |
+| `conjonctions(astres, ...)` | Rapprochements Lune-planète / planète-planète, observables de nuit |
+| `essaims(...)` | Essaims d'étoiles filantes au maximum, avec « Lune gênante » |
+| `eclipses_lune(...)` | Éclipses partielles/totales, si la Lune est levée |
+| `passages_visibles(satellites_base, ...)` | Passages ISS à l'œil nu (réutilise `passages` de la 6.3) |
+| `evenements(objets, lat, lon, alt, debut, jours)` | Rassemble tout, triés par instant |
+
+Les essaims viennent d'un tableau figé dans le fichier (nom, longitude du Soleil au maximum,
+radiant, ZHR), tiré du calendrier 2026 de l'IMO (International Meteor Organization) : le maximum
+revient chaque année au même point de l'orbite terrestre (longitude du Soleil), donc se recalcule
+pour n'importe quelle année sans mettre le tableau à jour chaque fois.
+
+### `ciel/views.py` : la vue `evenements`
+
+```python
+@require_GET
+def evenements(request):
+    """Partie 7 : ce qu'on peut voir à l'œil nu. ?instant=<ISO 8601> (défaut : maintenant),
+    ?jours=1..31 (défaut 7). Réponse : {instant, jours, lieu, ce_soir, evenements[]}."""
+    ...
+    lieu = lieu_courant(request)  # Partie 6.4 : robot > navigateur partagé > LIEU_PAR_DEFAUT
+    objets = [(o.id, o.nom, o.identifiant_skyfield, o.categorie)
+              for o in ObjetCeleste.objects.exclude(identifiant_skyfield="").order_by("nom")]
+    soir = [o[:3] for o in objets if o[3] in ("planete", "lune")]
+    return JsonResponse({
+        "instant": instant.utc_iso(), "jours": jours, "lieu": lieu,
+        "ce_soir": calcul_evenements.ce_soir(soir, lat, lon, alt, instant),
+        "evenements": calcul_evenements.evenements(objets, lat, lon, alt, instant, jours),
+    })
+```
+
+URL : `path("evenements/", views.evenements, name="evenements")` dans `ciel/urls.py`.
+
+### Interface (déjà dans `carte.html`/`carte.js`/`carte.css`)
+
+```html
+<button type="button" id="btn-evenements" class="rond verre" aria-expanded="false"
+        aria-controls="panneau-evenements" aria-label="Événements visibles">…</button>
+
+<div id="panneau-evenements" class="verre" hidden>
+  <p class="titre-panneau">Ce soir</p>
+  <p id="soir-nuit" class="note-panneau"></p>
+  <ul id="soir-astres" class="liste-evenements"></ul>
+  <p class="titre-panneau">Les 7 prochains jours</p>
+  <ul id="evenements-liste" class="liste-evenements"></ul>
+  <p id="evenements-etat" class="note-panneau" hidden></p>
+</div>
+```
+
+Côté JS : `chargerEvenements()` appelle `/api/ciel/evenements/`, périmé après un certain temps
+virtuel (comme les objets et la fiche) ; `afficherEvenements()` remplit les deux listes ; toucher
+une ligne appelle la même logique que « aller vers » un objet (saut de l'horloge + rotation de la
+vue + ouverture de la fiche).
+
+### Testé
+
+```
+python manage.py importer_contenu     # « mis à jour : Lune (lune.json) »
+python manage.py test                 # 112 tests OK (16 pour ciel.test_evenements)
+python manage.py runserver 0.0.0.0:8000
+```
+Sur le téléphone (Ctrl+F5) : bouton ✦, puis toucher une ligne — l'heure saute, la vue tourne, la
+fiche s'ouvre. Dates vérifiées par les tests : Géminides le 14 décembre 2026, Perséides le 13 août
+2026 (calendrier IMO), éclipse partielle de Lune le 28 août 2026 vers 04 h 13 UTC, rapprochement
+Vénus-Jupiter le 9 juin 2026.
+
+### À savoir
+
+- **Préviens Adrien** (dixit l'archive) : `contenu/astres/lune.json` est corrigé dans ce dépôt — il
+  doit faire `git pull` puis `python manage.py importer_contenu` de son côté pour que sa Lune
+  apparaisse aussi sur la carte.
+
+### Envoyé
+
+Déjà inclus dans le commit de rattrapage de la 6.4 (code) ; cette session a seulement ajouté le
+`importer_contenu` manquant (pas de fichier modifié, rien à committer pour ça).
+
+`A_FAIRE_PARTIE_6.md` et `A_FAIRE_PARTIE_7.md` peuvent maintenant être supprimés : tout leur contenu
+est consigné ci-dessus, et vérifié (migrations à jour, 112 tests OK, Lune correcte en base).
 
