@@ -32,7 +32,7 @@ def appareil_principal():
 
 
 def commande_active(appareil):
-    return appareil.commandes.filter(active=True).select_related("objet").first()
+    return appareil.commandes.filter(active=True).select_related("objet", "appareil").first()
 
 
 @transaction.atomic
@@ -40,6 +40,14 @@ def definir_cible(appareil, objet):
     """Remplace la commande en cours par un pointage sur `objet`."""
     appareil.commandes.filter(active=True).update(active=False)
     return Commande.objects.create(appareil=appareil, objet=objet)
+
+
+@transaction.atomic
+def definir_point(appareil, ra, dec, nom=""):
+    """Partie 8.4 (F18) : remplace la commande en cours par un point fixe du ciel (ra, dec en
+    degrés, J2000). Il tourne avec le ciel ; sous l'horizon, le bras pointe à travers la Terre."""
+    appareil.commandes.filter(active=True).update(active=False)
+    return Commande.objects.create(appareil=appareil, ra=ra % 360, dec=dec, nom_cible=nom)
 
 
 def arreter(appareil):
@@ -53,7 +61,7 @@ def cible_de(commande, instant=None, secours=None):
     pointer à travers la Terre (objets de l'autre côté du globe)."""
     lieu = lieu_observation(commande.appareil, secours)
     elevation, azimut = altaz(
-        commande.objet.identifiant_skyfield,
+        commande.identifiant,
         lieu["latitude"], lieu["longitude"], lieu["altitude_m"],
         instant,
     )
@@ -80,7 +88,7 @@ def trajectoire_de(commande, debut, heures=DUREE_TRAJECTOIRE_H, pas_s=PAS_TRAJEC
     commande, une tous les `pas_s` secondes de `debut` à `debut + heures`, bornes comprises."""
     lieu = lieu_observation(commande.appareil)
     points = trajectoire(
-        commande.objet.identifiant_skyfield,
+        commande.identifiant,
         lieu["latitude"], lieu["longitude"], lieu["altitude_m"],
         debut, heures, pas_s / 60,
     )
@@ -94,8 +102,8 @@ def trajectoire_pour_appareil(commande, debut, heures=DUREE_TRAJECTOIRE_H):
     lieu = lieu_observation(commande.appareil)
     tle = None
     pas_s = PAS_TRAJECTOIRE_S
-    if est_satellite(commande.objet):
-        d = satellites.tle(satellites.numero_de(commande.objet.identifiant_skyfield))
+    if satellites.numero_de(commande.identifiant) is not None:
+        d = satellites.tle(satellites.numero_de(commande.identifiant))
         tle = {k: d[k] for k in ("nom", "ligne1", "ligne2", "epoque")}
         pas_s = PAS_SATELLITE_S
         heures = min(heures, DUREE_SATELLITE_H)

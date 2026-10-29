@@ -134,7 +134,8 @@ class ApiAppareilTests(TestCase):
                 patch("appareil.services.altaz", wraps=altaz) as calcul:
             d = self.sync({}, **self.entete).json()
         commande = d["commande"]
-        self.assertEqual({"id", "mode", "objet", "cible", "trajectoire"}, set(commande))  # trajectoire : 6.1
+        self.assertEqual({"id", "mode", "objet", "cible", "trajectoire", "coordonnees"}, set(commande))  # 6.1, 8.4
+        self.assertIsNone(commande["coordonnees"])  # un objet de la base, pas un point du ciel
         self.assertEqual(commande["trajectoire"], "/api/appareil/trajectoire/")
         self.assertEqual(commande["mode"], "pointer")
         self.assertEqual(commande["objet"], {"id": self.jupiter.id, "nom": "Jupiter"})
@@ -597,3 +598,73 @@ class SimulateurTests(SimpleTestCase):
         # Retéléchargement quand il reste moins d'une heure de points
         self.assertFalse(a_retelecharger(traj, debut + 4 * 3600))
         self.assertTrue(a_retelecharger(traj, debut + 5.5 * 3600))
+
+
+@override_settings(CODE_PILOTAGE=CODE_TEST)
+class CiblePersonnaliseeTests(TestCase):
+    """Partie 8.4 (F18) : pointer un point fixe du ciel, même sous l'horizon."""
+
+    BETELGEUSE = {"ra": 88.7929, "dec": 7.4071}
+
+    def setUp(self):
+        self.appareil = Appareil.objects.create()
+        self.entete = {"HTTP_AUTHORIZATION": f"Bearer {self.appareil.jeton}"}
+        self.client.post("/api/pointage/pilotage/", {"code": CODE_TEST}, content_type="application/json")
+        self.instant = instant_depuis(datetime(2026, 10, 12, 23, 0, tzinfo=timezone.utc))
+
+    def commander(self, corps):
+        return self.client.post("/api/pointage/commande/", corps, content_type="application/json")
+
+    def test_commande_d_un_point(self):
+        d = self.commander({**self.BETELGEUSE, "nom": "Mon point"}).json()
+        self.assertEqual(d["commande"]["objet"], {"id": None, "nom": "Mon point"})
+        self.assertEqual(d["commande"]["coordonnees"], self.BETELGEUSE)
+        c = services.commande_active(self.appareil)
+        self.assertIsNone(c.objet)
+        self.assertEqual(c.identifiant, "radec:88.7929,7.4071")
+
+    def test_nom_par_defaut_et_ra_ramenee(self):
+        d = self.commander({"ra": -10, "dec": -45}).json()
+        self.assertEqual(d["commande"]["objet"]["nom"], "Point du ciel")
+        self.assertEqual(d["commande"]["coordonnees"], {"ra": 350.0, "dec": -45.0})
+
+    def test_valeurs_invalides(self):
+        for corps in [{"ra": 10}, {"dec": 10}, {"ra": "10", "dec": 5}, {"ra": 10, "dec": 95},
+                      {"ra": 10, "dec": 5, "nom": "x" * 61}, {"ra": True, "dec": 5}, [1, 2]]:
+            with self.subTest(corps=corps):
+                self.assertEqual(self.commander(corps).status_code, 400)
+
+    def test_code_de_pilotage_exige(self):
+        self.client.post("/api/pointage/pilotage/fin/")
+        self.assertEqual(self.commander(self.BETELGEUSE).status_code, 403)
+
+    def test_le_bras_vise_le_point_comme_une_etoile(self):
+        """Un point aux coordonnées de Bételgeuse se calcule comme Bételgeuse."""
+        self.commander(self.BETELGEUSE)
+        with patch("appareil.views.maintenant", return_value=self.instant):
+            cible = self.client.post("/api/appareil/sync/", {}, content_type="application/json", **self.entete).json()["commande"]["cible"]
+        elevation, azimut = altaz("hip:27989", 48.8566, 2.3522, 35, self.instant)
+        self.assertAlmostEqual(cible["azimut"], azimut, delta=0.02)
+        self.assertAlmostEqual(cible["elevation"], elevation, delta=0.02)
+
+    def test_trajectoire_d_un_point_sous_l_horizon(self):
+        self.commander({"ra": 100.0, "dec": -80.0})  # près du pôle Sud : jamais levé à Paris
+        with patch("appareil.views.maintenant", return_value=self.instant):
+            d = self.client.get("/api/appareil/trajectoire/", **self.entete).json()
+        self.assertEqual(d["commande"]["objet"]["id"], None)
+        self.assertEqual(d["pas_s"], 60)
+        self.assertIsNone(d["tle"])
+        self.assertTrue(all(el < 0 for _, el in d["points"]))  # le bras pointe à travers la Terre
+
+    def test_remplacer_un_point_par_un_objet(self):
+        jupiter = ObjetCeleste.objects.create(nom="Jupiter", categorie="planete", identifiant_skyfield="jupiter barycenter")
+        self.commander(self.BETELGEUSE)
+        d = self.commander({"objet_id": jupiter.id}).json()
+        self.assertEqual(d["commande"]["objet"], {"id": jupiter.id, "nom": "Jupiter"})
+        self.assertIsNone(d["commande"]["coordonnees"])
+        self.assertEqual(self.appareil.commandes.filter(active=True).count(), 1)
+
+    def test_ni_objet_ni_coordonnees_refuse_en_base(self):
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Commande.objects.create(appareil=self.appareil)
+

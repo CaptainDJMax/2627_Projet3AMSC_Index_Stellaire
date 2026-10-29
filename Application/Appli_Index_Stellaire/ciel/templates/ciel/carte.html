@@ -15,6 +15,7 @@
        data-datapath="{% static 'ciel/vendor/d3-celestial/data/' %}"
        data-url-objets="{% url 'ciel:objets' %}"
        data-url-evenements="{% url 'ciel:evenements' %}"
+       data-url-point="{% url 'ciel:point' %}"
        data-url-pointage="{% url 'appareil:etat' %}"
        data-url-commande="{% url 'appareil:commande' %}"
        data-url-arret="{% url 'appareil:arret' %}"
@@ -101,6 +102,20 @@
     <p id="evenements-sources" class="credits"></p>
   </div>
 
+  <!-- Partie 8.4 : un point quelconque du ciel, choisi par un appui long -->
+  <div id="panneau-point" class="verre" hidden>
+    <button type="button" id="point-fermer" aria-label="Fermer">×</button>
+    <p class="titre-panneau">Point du ciel</p>
+    <dl id="point-infos">
+      <div><dt>Hauteur</dt><dd id="point-hauteur">—</dd></div>
+      <div><dt>Direction</dt><dd id="point-direction">—</dd></div>
+      <div class="pleine-largeur"><dt>Coordonnées (J2000)</dt><dd id="point-coordonnees">—</dd></div>
+    </dl>
+    <p id="point-soir" class="note-panneau"></p>
+    <button type="button" id="btn-pointer-point" class="large">Pointer ici</button>
+    <p id="point-note" class="note-panneau"></p>
+  </div>
+
   <!-- Calques : ce qui apparaît sur la carte -->
   <div id="panneau-calques" class="verre" hidden>
     <p class="titre-panneau">Calques</p>
@@ -108,6 +123,19 @@
     <button type="button" data-calque="illustrations" aria-pressed="true">Illustrations</button>
     <button type="button" data-calque="voieLactee" aria-pressed="true">Voie lactée</button>
     <button type="button" data-calque="etiquettesEtoiles" aria-pressed="true">Noms des étoiles</button>
+    <!-- Partie 8.4 (F36) : quels astres de la base apparaître (la recherche suit ces filtres) -->
+    <p class="titre-panneau">Astres</p>
+    <div class="groupe-filtres">
+      <button type="button" data-filtre="planetes" aria-pressed="true">Planètes et Lune</button>
+      <button type="button" data-filtre="etoiles" aria-pressed="true">Étoiles</button>
+      <button type="button" data-filtre="satellites" aria-pressed="true">Satellites</button>
+    </div>
+    <p class="titre-panneau">Étoiles de fond jusqu'à la magnitude</p>
+    <div class="groupe-filtres" role="group" aria-label="Magnitude limite des étoiles">
+      <button type="button" data-magnitude="4" aria-pressed="false">4 · ville</button>
+      <button type="button" data-magnitude="5" aria-pressed="false">5 · banlieue</button>
+      <button type="button" data-magnitude="6" aria-pressed="true">6 · ciel noir</button>
+    </div>
     <!-- Mention obligatoire (Licence Art Libre) -->
     <p class="credits">Illustrations : Johan Meuris (Stellarium),
       <a href="https://artlibre.org/licence/lal/" target="_blank" rel="noopener">Licence Art Libre</a></p>

@@ -35,7 +35,17 @@ def _catalogue_hipparcos():
 
 def _corps(identifiant):
     """'hip:21421' -> une étoile du catalogue Hipparcos.
+    'radec:88.79,7.41' -> un point fixe du ciel (ascension droite, déclinaison en degrés, J2000) :
+    la cible personnalisée de la Partie 8.4, qui tourne avec le ciel comme une étoile.
     Sinon, un nom de corps de l'éphéméride (ex. 'jupiter barycenter')."""
+    if identifiant.startswith("radec:"):
+        try:
+            ra, dec = (float(x) for x in identifiant[6:].split(","))
+        except ValueError:
+            raise ValueError(f"Coordonnées invalides : {identifiant!r}")
+        if not (np.isfinite(ra) and -90 <= dec <= 90):
+            raise ValueError(f"Coordonnées invalides : {identifiant!r}")
+        return Star(ra_hours=(ra % 360) / 15.0, dec_degrees=dec)
     if identifiant.startswith("hip:"):
         numero = int(identifiant[4:])
         return Star.from_dataframe(_catalogue_hipparcos().loc[numero])

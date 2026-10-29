@@ -55,12 +55,13 @@ def _commande_pour_appareil(appareil, instant):
     try:
         cible = services.cible_de(commande, instant)
     except (KeyError, ValueError):
-        logger.warning("Cible impossible à calculer pour %s", commande.objet)
+        logger.warning("Cible impossible à calculer pour %s", commande.nom)
         return None
     return {
         "id": commande.id,
         "mode": "pointer",
-        "objet": {"id": commande.objet.id, "nom": commande.objet.nom},
+        "objet": commande.resume_objet(),  # id None pour un point du ciel (8.4)
+        "coordonnees": commande.coordonnees,  # 8.4 : {ra, dec} pour un point du ciel, sinon None
         "cible": cible,
         # Partie 6.1 : où télécharger la trajectoire longue (une fois par nouvelle commande)
         "trajectoire": reverse("appareil:trajectoire"),
@@ -149,10 +150,10 @@ def trajectoire_appareil(request):
     try:
         traj = services.trajectoire_pour_appareil(commande, debut, heures)
     except (KeyError, ValueError) as erreur:
-        logger.warning("Trajectoire impossible à calculer pour %s : %s", commande.objet, erreur)
+        logger.warning("Trajectoire impossible à calculer pour %s : %s", commande.nom, erreur)
         return _erreur(f"Trajectoire impossible à calculer pour cet objet ({erreur}).", 422)
     return JsonResponse({
-        "commande": {"id": commande.id, "objet": {"id": commande.objet.id, "nom": commande.objet.nom}},
+        "commande": {"id": commande.id, "objet": commande.resume_objet()},
         "type": "positions",  # toujours des points ; un satellite a en plus son TLE (champ tle)
         "debut": debut.utc_iso(),
         "pas_s": traj["pas_s"],
@@ -184,7 +185,8 @@ def _etat(appareil, secours=None):
         except (KeyError, ValueError):
             cible = None
         resume_commande = {
-            "objet": {"id": commande.objet.id, "nom": commande.objet.nom},
+            "objet": commande.resume_objet(),
+            "coordonnees": commande.coordonnees,  # 8.4
             "depuis": commande.cree_le.isoformat(),
             "cible": cible,
         }
@@ -232,11 +234,24 @@ def definir_commande(request):
         return _erreur("Aucun appareil enregistré.", 404)
     try:
         corps = json.loads(request.body or b"{}")
+        if not isinstance(corps, dict):
+            raise ValueError("corps")
+        if "objet_id" not in corps and "ra" in corps:
+            # Partie 8.4 (F18) : un point du ciel {"ra": 0..360, "dec": -90..90, "nom": facultatif}
+            ra = _nombre(corps, "ra", -360, 360)
+            dec = _nombre(corps, "dec", -90, 90)
+            nom = corps.get("nom", "")
+            if ra is None or dec is None or not isinstance(nom, str) or len(nom) > 60:
+                raise ValueError("point")
+            services.definir_point(appareil, ra, dec, nom.strip())
+            return _reponse_etat(request, appareil)
         objet_id = corps["objet_id"]
         if isinstance(objet_id, bool) or not isinstance(objet_id, int):
             raise ValueError("objet_id")
     except (ValueError, KeyError, TypeError):
-        return _erreur("Corps JSON attendu : {\"objet_id\": <entier>}.", 400)
+        return _erreur(
+            'Corps JSON attendu : {"objet_id": <entier>} ou {"ra": <degrés>, "dec": <degrés>}.', 400
+        )
 
     objet = ObjetCeleste.objects.filter(pk=objet_id).exclude(identifiant_skyfield="").first()
     if objet is None:

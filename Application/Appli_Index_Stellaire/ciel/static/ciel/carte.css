@@ -30,6 +30,9 @@ body {
 
 #carte canvas {
   touch-action: none; /* le glisser fait tourner la vue, il ne fait pas défiler la page */
+  -webkit-touch-callout: none; /* 8.4 : pas de menu « enregistrer l'image » sur un appui long */
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 /* --- Zoom : boutons + et − à droite, au-dessus de la barre (téléphone) ---------- */
@@ -617,6 +620,105 @@ body {
 #boussole-hauteur {
   color: var(--texte-doux);
   font-size: 13px;
+}
+
+/* --- Partie 8.4 : point du ciel (appui long) ------------------------------------- */
+#panneau-point {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(92px + env(safe-area-inset-bottom));
+  width: min(340px, calc(100vw - 32px));
+  box-sizing: border-box;
+  padding: 16px;
+  border-radius: 22px;
+}
+
+#point-fermer {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--texte);
+  font-size: 20px;
+  cursor: pointer;
+}
+
+#point-infos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 16px;
+  margin: 0 0 10px;
+}
+
+#point-infos dt {
+  color: var(--texte-doux);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+#point-infos dd {
+  margin: 2px 0 0;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+#point-infos .pleine-largeur {
+  grid-column: 1 / -1;
+}
+
+#panneau-point button.large {
+  width: 100%;
+  margin-top: 4px;
+  padding: 11px 0;
+  border: 1px solid var(--verre-bord);
+  border-radius: 14px;
+  background: rgba(255, 212, 121, 0.16);
+  color: var(--accent);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+#panneau-point button.large.arreter {
+  background: rgba(255, 90, 90, 0.16);
+  color: #ff9a9a;
+}
+
+#point-note {
+  margin: 8px 0 0;
+}
+
+/* Partie 8.4 (F36) : filtres des astres et magnitude limite, dans les calques */
+#panneau-calques {
+  max-height: min(68vh, 560px);
+  overflow-y: auto;
+}
+
+#panneau-calques .titre-panneau:not(:first-child) {
+  margin-top: 12px;
+}
+
+.groupe-filtres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+#panneau-calques .groupe-filtres button {
+  display: inline-block;
+  width: auto;
+  flex: 1 1 auto;
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 13px;
+  text-align: center;
 }
 
 /* --- Partie 7 : événements (même place que la recherche) ------------------------ */

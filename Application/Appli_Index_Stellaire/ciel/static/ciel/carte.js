@@ -156,6 +156,7 @@
   const elEtatBouton = document.getElementById("etat-appareil"); // la pastille, qui ouvre son panneau
   const elPanAppareil = document.getElementById("panneau-appareil");
   const elPanCode = document.getElementById("panneau-code"); // Partie 5 : code de pilotage
+  const elPanPoint = document.getElementById("panneau-point"); // Partie 8.4 : point du ciel
   const elBtnEvenements = document.getElementById("btn-evenements"); // Partie 7
   const elPanEvenements = document.getElementById("panneau-evenements");
   const elCodeFormulaire = document.getElementById("code-formulaire");
@@ -164,6 +165,31 @@
   const elCodeMessage = document.getElementById("code-message");
 
   const calques = { constellations: true, illustrations: true, voieLactee: true, etiquettesEtoiles: true };
+
+  // Partie 8.4 (F36) : filtres des astres de la base et magnitude limite des étoiles de fond.
+  // Gardés dans ce navigateur (localStorage) ; la page marche aussi sans (navigation privée).
+  const CLE_FILTRES = "index-stellaire-filtres";
+  const filtres = { planetes: true, etoiles: true, satellites: true, magnitude: 6 };
+  try {
+    const garde = JSON.parse(localStorage.getItem(CLE_FILTRES) || "null");
+    if (garde && typeof garde === "object") {
+      ["planetes", "etoiles", "satellites"].forEach(function (k) {
+        if (typeof garde[k] === "boolean") filtres[k] = garde[k];
+      });
+      if ([4, 5, 6].indexOf(garde.magnitude) !== -1) filtres.magnitude = garde.magnitude;
+    }
+  } catch (erreur) { /* stockage indisponible : filtres par défaut */ }
+
+  function garderFiltres() {
+    try { localStorage.setItem(CLE_FILTRES, JSON.stringify(filtres)); } catch (erreur) { /* tant pis */ }
+  }
+
+  // Un astre de la base passe-t-il les filtres ? (carte, toucher et recherche)
+  const FILTRE_DE_CATEGORIE = { planete: "planetes", lune: "planetes", etoile: "etoiles", amas: "etoiles", satellite: "satellites" };
+  function objetAffiche(o) {
+    const f = FILTRE_DE_CATEGORIE[o.categorie];
+    return !f || filtres[f];
+  }
   let viseurActif = false; // petit viseur au centre de la vue
   let actionEnAttente = null; // Partie 5 : l'action (Pointer, Arrêter) qui attend le code
   let ficheAvantCode = null; // la fiche ouverte avant la demande du code, rouverte ensuite
@@ -177,12 +203,17 @@
       ["appareil", elPanAppareil, elEtatBouton],
       ["code", elPanCode, null],
       ["evenements", elPanEvenements, elBtnEvenements],
+      ["point", elPanPoint, null],
     ].forEach(function (p) {
       const ouvert = p[0] === nom;
       p[1].hidden = !ouvert;
       if (p[2]) p[2].setAttribute("aria-expanded", String(ouvert));
     });
     if (nom !== "code") actionEnAttente = null; // fermer le panneau du code annule l'action en attente
+    if (nom !== "point" && pointChoisi) { // 8.4 : le repère du point disparaît avec son panneau
+      pointChoisi = null;
+      Celestial.redraw();
+    }
     majEtatPanneaux();
   }
 
@@ -198,7 +229,7 @@
     // N'importe quel panneau en bas de l'écran (sur téléphone, les boutons de zoom se cachent)
     document.body.classList.toggle("panneau-bas", selection !== null || !elPanneau.hidden ||
       !elPanCalques.hidden || !elPanRecherche.hidden || !elPanAppareil.hidden || !elPanCode.hidden ||
-      !elPanEvenements.hidden);
+      !elPanEvenements.hidden || !elPanPoint.hidden);
   }
 
   function basculer(nom) {
@@ -233,9 +264,9 @@
 
   // Toucher le ciel ou la barre referme les panneaux du bas (sauf leurs propres boutons)
   document.addEventListener("pointerdown", function (e) {
-    if (e.target.closest("#panneau-temps, #panneau-calques, #panneau-recherche, #panneau-appareil, #panneau-code, #panneau-evenements, #btn-temps, #btn-calques, #btn-recherche, #btn-evenements, #etat-appareil")) return;
+    if (e.target.closest("#panneau-temps, #panneau-calques, #panneau-recherche, #panneau-appareil, #panneau-code, #panneau-evenements, #panneau-point, #btn-temps, #btn-calques, #btn-recherche, #btn-evenements, #etat-appareil")) return;
     if (!elPanneau.hidden || !elPanCalques.hidden || !elPanRecherche.hidden || !elPanAppareil.hidden || !elPanCode.hidden ||
-      !elPanEvenements.hidden) ouvrir(null);
+      !elPanEvenements.hidden || !elPanPoint.hidden) ouvrir(null);
   });
 
   // --- Calques : chaque case recharge la carte avec la nouvelle configuration -----
@@ -245,6 +276,38 @@
       calques[nom] = !calques[nom];
       bouton.setAttribute("aria-pressed", String(calques[nom]));
       rechargerCarte();
+    });
+  });
+
+  // --- Filtres des astres et magnitude limite (8.4, F36) -------------------------------------
+  function majBoutonsFiltres() {
+    document.querySelectorAll("#panneau-calques [data-filtre]").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(filtres[b.dataset.filtre]));
+    });
+    document.querySelectorAll("#panneau-calques [data-magnitude]").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(Number(b.dataset.magnitude) === filtres.magnitude));
+    });
+  }
+  majBoutonsFiltres();
+  document.querySelectorAll("#panneau-calques [data-filtre]").forEach(function (bouton) {
+    bouton.addEventListener("click", function () {
+      const nom = bouton.dataset.filtre;
+      filtres[nom] = !filtres[nom];
+      garderFiltres();
+      majBoutonsFiltres();
+      if (selection !== null) {
+        const o = objets.find(function (obj) { return obj.id === selection; });
+        if (o && !objetAffiche(o)) selectionner(null); // l'astre ouvert vient d'être masqué
+      }
+      Celestial.redraw();
+    });
+  });
+  document.querySelectorAll("#panneau-calques [data-magnitude]").forEach(function (bouton) {
+    bouton.addEventListener("click", function () {
+      filtres.magnitude = Number(bouton.dataset.magnitude);
+      garderFiltres();
+      majBoutonsFiltres();
+      rechargerCarte(); // la bibliothèque relit la limite des étoiles
     });
   });
 
@@ -264,7 +327,7 @@
   function filtrerRecherche() {
     const cherche = normaliser(elChampRecherche.value.trim());
     const resultats = objets
-      .filter(function (o) { return normaliser(o.nom).indexOf(cherche) !== -1; })
+      .filter(function (o) { return objetAffiche(o) && normaliser(o.nom).indexOf(cherche) !== -1; }) // F12 : suit les filtres
       .sort(function (a, b) { return a.nom.localeCompare(b.nom, "fr"); })
       .slice(0, 50);
     elListeRecherche.replaceChildren();
@@ -315,6 +378,129 @@
     fixerDirection(azimut, elevation - decalage);
     appliquerVue();
     majBoussole();
+  }
+
+  // --- Partie 8.4 : cible personnalisée (un point quelconque du ciel) -----------------------
+  let pointChoisi = null; // {ra, dec, infos} : le point montré dans son panneau
+  const elPoint = {
+    hauteur: document.getElementById("point-hauteur"),
+    direction: document.getElementById("point-direction"),
+    coordonnees: document.getElementById("point-coordonnees"),
+    soir: document.getElementById("point-soir"),
+    bouton: document.getElementById("btn-pointer-point"),
+    note: document.getElementById("point-note"),
+  };
+
+  // Le point du ciel sous le doigt (x, y : coordonnées dans la fenêtre)
+  function choisirPoint(x, y) {
+    const canvas = carte.querySelector("canvas");
+    if (!canvas || !Celestial.mapProjection.invert) return;
+    const zone = canvas.getBoundingClientRect();
+    const p = Celestial.mapProjection.invert([x - zone.left, y - zone.top]);
+    if (!p || !isFinite(p[0]) || !isFinite(p[1])) return;
+    if (navigator.vibrate) {
+      try { navigator.vibrate(15); } catch (erreur) { /* sans vibreur : rien */ }
+    }
+    montrerPoint(((p[0] % 360) + 360) % 360, Math.max(-90, Math.min(90, p[1])));
+  }
+
+  function montrerPoint(ra, dec) {
+    if (selection !== null) selectionner(null);
+    ouvrir("point");
+    pointChoisi = { ra: ra, dec: dec, infos: null };
+    majPanneauPoint();
+    Celestial.redraw();
+    const demande = pointChoisi;
+    fetch(carte.dataset.urlPoint + "?ra=" + ra.toFixed(4) + "&dec=" + dec.toFixed(4) +
+      "&instant=" + encodeURIComponent(new Date(horloge.virtuel).toISOString()))
+      .then(function (reponse) {
+        if (!reponse.ok) throw new Error("HTTP " + reponse.status);
+        return reponse.json();
+      })
+      .then(function (donnees) {
+        if (pointChoisi !== demande) return; // un autre point a été choisi entre-temps
+        pointChoisi.infos = donnees;
+        majPanneauPoint();
+      })
+      .catch(function (erreur) {
+        console.warn("Point du ciel indisponible :", erreur);
+      });
+  }
+
+  // Le point visé par le bras est-il celui qu'on montre ? (à 0,01° près)
+  function pointEstVise() {
+    const c = pointage && pointage.commande;
+    return Boolean(pointChoisi && c && c.coordonnees &&
+      Math.abs(c.coordonnees.ra - pointChoisi.ra) < 0.01 && Math.abs(c.coordonnees.dec - pointChoisi.dec) < 0.01);
+  }
+
+  function majPanneauPoint() {
+    if (elPanPoint.hidden || !pointChoisi) return;
+    const i = pointChoisi.infos;
+    elPoint.coordonnees.textContent = texteCoordonnees(pointChoisi.ra, pointChoisi.dec) +
+      (i && nomsConstellations[i.constellation_iau] ? " · " + nomsConstellations[i.constellation_iau] : "");
+    elPoint.hauteur.textContent = i ? fmtNombre.format(i.elevation) + "°" : "…";
+    elPoint.direction.textContent = i ? POINTS_CARDINAUX[Math.round(i.azimut / 22.5) % 16] + " · " + Math.round(i.azimut) % 360 + "°" : "…";
+    elPoint.soir.textContent = i ? texteCeSoir(i.ce_soir, "Ce point") : "";
+    const vise = pointEstVise();
+    const a = pointage && pointage.appareil;
+    elPoint.bouton.textContent = vise ? "Arrêter le pointage" : "Pointer ici";
+    elPoint.bouton.classList.toggle("arreter", vise);
+    elPoint.bouton.disabled = !a || envoiEnCours;
+    const p = pointage && pointage.pilotage;
+    const phrases = [];
+    if (Date.now() < finMessageErreur) phrases.push(messageErreur);
+    else if (!a) phrases.push("Aucun appareil enregistré.");
+    else if (vise) phrases.push("Le bras suit ce point, qui tourne avec le ciel comme une étoile.");
+    if (i && i.elevation <= 0) phrases.push("Sous l'horizon : le bras pointera à travers la Terre.");
+    if (a && p && !p.autorise) phrases.push("Le code de pilotage sera demandé.");
+    elPoint.note.textContent = phrases.join(" ");
+  }
+
+  elPoint.bouton.addEventListener("click", function () {
+    if (!pointChoisi || envoiEnCours) return;
+    if (pointEstVise()) envoyer(carte.dataset.urlArret, null);
+    else envoyer(carte.dataset.urlCommande, { ra: Number(pointChoisi.ra.toFixed(4)), dec: Number(pointChoisi.dec.toFixed(4)) });
+  });
+  document.getElementById("point-fermer").addEventListener("click", function () {
+    ouvrir(null);
+  });
+
+  // Repères sur la carte : le point montré (croix dorée) et le point visé par le bras (anneau vert)
+  function dessinerPoints(ctx) {
+    const c = pointage && pointage.commande;
+    if (c && c.coordonnees) dessinerRepere(ctx, [c.coordonnees.ra, c.coordonnees.dec], COULEUR_BRAS, c.objet.nom, false);
+    if (pointChoisi) dessinerRepere(ctx, [pointChoisi.ra, pointChoisi.dec], "#ffd479", null, true);
+  }
+
+  function dessinerRepere(ctx, position, couleur, nom, croix) {
+    if (!Celestial.clip(position)) return;
+    const pt = Celestial.mapProjection(position);
+    ctx.save();
+    ctx.strokeStyle = couleur;
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.arc(pt[0], pt[1], 9, 0, 2 * Math.PI);
+    ctx.stroke();
+    if (croix) {
+      ctx.beginPath();
+      [[-16, 0, -11, 0], [11, 0, 16, 0], [0, -16, 0, -11], [0, 11, 0, 16]].forEach(function (s) {
+        ctx.moveTo(pt[0] + s[0], pt[1] + s[1]);
+        ctx.lineTo(pt[0] + s[2], pt[1] + s[3]);
+      });
+      ctx.stroke();
+    }
+    if (nom) {
+      ctx.font = "600 13px Helvetica, Arial, sans-serif";
+      ctx.textBaseline = "bottom";
+      ctx.lineJoin = "round";
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "rgba(5, 7, 13, 0.85)";
+      ctx.strokeText(nom, pt[0] + 13, pt[1] - 6);
+      ctx.fillStyle = couleur;
+      ctx.fillText(nom, pt[0] + 13, pt[1] - 6);
+    }
+    ctx.restore();
   }
 
   // --- Partie 7 : événements visibles à l'œil nu -------------------------------------------
@@ -647,13 +833,14 @@
     dessinerIllustrations(ctx); // la figure de la constellation regardée, en fond
     dessinerConstellations(ctx); // avant le sol : atténués sous l'horizon, comme le reste
     objets.forEach(function (o) {
-      if (ici(o).elevation <= 0) dessinerObjet(ctx, o);
+      if (objetAffiche(o) && ici(o).elevation <= 0) dessinerObjet(ctx, o);
     });
     dessinerSol(ctx);
     objets.forEach(function (o) {
-      if (ici(o).elevation > 0) dessinerObjet(ctx, o);
+      if (objetAffiche(o) && ici(o).elevation > 0) dessinerObjet(ctx, o);
     });
     dessinerHorizon(ctx);
+    dessinerPoints(ctx); // 8.4 : point du ciel choisi, point visé par le bras
     if (viseurActif) dessinerViseur(ctx);
     dessinerAppareil(ctx);
   }
@@ -916,6 +1103,7 @@
     let meilleur = null;
     let dmin = rayon;
     objets.forEach(function (o) {
+      if (!objetAffiche(o)) return; // 8.4 : un astre masqué ne se touche pas
       const p = ici(o);
       const position = [p.ra, p.dec];
       if (!Celestial.clip(position)) return;
@@ -931,12 +1119,45 @@
 
   // On distingue un « toucher » d'un « glisser » (qui déplace la carte).
   // On écoute tout le document : toucher le ciel vide, hors du disque, désélectionne.
-  const INTERFACE = "#fiche, #panneau-temps, #panneau-calques, #panneau-recherche, #panneau-appareil, #panneau-code, #panneau-evenements, #etat-appareil, #boussole, #zoom, #barre";
+  const INTERFACE = "#fiche, #panneau-temps, #panneau-calques, #panneau-recherche, #panneau-appareil, #panneau-code, #panneau-evenements, #panneau-point, #etat-appareil, #boussole, #zoom, #barre";
   let depart = null;
+  // Partie 8.4 : un appui long (0,6 s sans bouger) sur le ciel choisit ce point (cible personnalisée)
+  const DUREE_APPUI_LONG = 600;
+  let minuteurAppuiLong = null;
+  let appuiLongFait = false;
+  function annulerAppuiLong() {
+    clearTimeout(minuteurAppuiLong);
+    minuteurAppuiLong = null;
+  }
   document.addEventListener("pointerdown", function (e) {
-    if (e.isPrimary && !e.target.closest(INTERFACE)) depart = { x: e.clientX, y: e.clientY, t: Date.now() };
+    if (e.isPrimary && !e.target.closest(INTERFACE)) {
+      depart = { x: e.clientX, y: e.clientY, t: Date.now() };
+      appuiLongFait = false;
+      annulerAppuiLong();
+      const x = e.clientX, y = e.clientY;
+      minuteurAppuiLong = setTimeout(function () {
+        minuteurAppuiLong = null;
+        if (!depart || glisse || pointeurs.size > 1) return;
+        appuiLongFait = true;
+        choisirPoint(x, y);
+      }, DUREE_APPUI_LONG);
+    } else if (!e.isPrimary) {
+      annulerAppuiLong(); // un deuxième doigt : pincement
+    }
+  });
+  document.addEventListener("pointermove", function (e) {
+    if (minuteurAppuiLong && depart && Math.hypot(e.clientX - depart.x, e.clientY - depart.y) > 10) annulerAppuiLong();
+  });
+  carte.addEventListener("contextmenu", function (e) {
+    e.preventDefault(); // le clic droit ou l'appui long ne doit pas ouvrir un menu
   });
   document.addEventListener("pointerup", function (e) {
+    annulerAppuiLong();
+    if (appuiLongFait) { // l'appui long a déjà choisi un point : ce n'est pas un toucher
+      appuiLongFait = false;
+      depart = null;
+      return;
+    }
     if (!e.isPrimary || !depart) return;
     const deplacement = Math.hypot(e.clientX - depart.x, e.clientY - depart.y);
     const duree = Date.now() - depart.t;
@@ -1153,18 +1374,18 @@
     if (fiche.eclairement !== null) el.eclairement.textContent = Math.round(fiche.eclairement * 100) + " %";
     el.coordonnees.textContent = texteCoordonnees(fiche.ra, fiche.dec);
     const soir = fiche.ce_soir;
-    el.ceSoir.hidden = !soir || fiche.passages; // un satellite a sa liste de passages
-    if (!soir) return;
-    if (!soir.debut_nuit) {
-      el.ceSoir.textContent = "Pas de nuit dans les 24 prochaines heures.";
-    } else if (soir.visible) {
-      const v = soir.visible;
-      el.ceSoir.textContent = (dejaCommence(v.de) ? "Ce soir : visible dès maintenant jusqu'à " + fmtHeure.format(new Date(v.a))
-        : "Ce soir : visible de " + fmtHeure.format(new Date(v.de)) + " à " + fmtHeure.format(new Date(v.a))) +
-        (dejaCommence(v.instant) ? "." : ", au plus haut (" + Math.round(v.hauteur_max) + "°) vers " + fmtHeure.format(new Date(v.instant)) + ".");
-    } else {
-      el.ceSoir.textContent = "Pas visible ce soir (ne monte pas à 10° pendant la nuit).";
-    }
+    el.ceSoir.hidden = !soir || Boolean(fiche.passages); // un satellite a sa liste de passages
+    if (soir) el.ceSoir.textContent = texteCeSoir(soir, null);
+  }
+
+  // « Ce soir : visible de … à …, au plus haut vers … » (fiche et point du ciel)
+  function texteCeSoir(soir, sujet) {
+    if (!soir.debut_nuit) return "Pas de nuit dans les 24 prochaines heures.";
+    const v = soir.visible;
+    if (!v) return (sujet ? sujet + " ne monte" : "Pas visible ce soir (ne monte") + " pas à 10° pendant la nuit" + (sujet ? " ce soir." : ").");
+    return (dejaCommence(v.de) ? "Ce soir : visible dès maintenant jusqu'à " + fmtHeure.format(new Date(v.a))
+      : "Ce soir : visible de " + fmtHeure.format(new Date(v.de)) + " à " + fmtHeure.format(new Date(v.a))) +
+      (dejaCommence(v.instant) ? "." : ", au plus haut (" + Math.round(v.hauteur_max) + "°) vers " + fmtHeure.format(new Date(v.instant)) + ".");
   }
 
   // Partie 6.3 : prochains passages d'un satellite (au moins 10° de hauteur, 48 h)
@@ -1345,7 +1566,7 @@
   // sur téléphone, un redessin coûte cher et retarde les touchers.
   function signaturePointage() {
     const c = pointage && pointage.commande;
-    return (bras ? "bras" : "-") + "/" + (c ? c.objet.id : "-");
+    return (bras ? "bras" : "-") + "/" + (!c ? "-" : c.objet.id !== null ? c.objet.id : JSON.stringify(c.coordonnees));
   }
 
   function recevoirPointage(donnees) {
@@ -1364,6 +1585,7 @@
     }
     afficherEtat();
     majBoutonPointer();
+    majPanneauPoint();
     if (signaturePointage() !== avant) Celestial.redraw();
   }
 
@@ -1562,6 +1784,12 @@
   // « Voir la cible » : la vue se tourne vers l'astre visé et sa fiche s'ouvre
   elApp.voir.addEventListener("click", function () {
     const c = pointage && pointage.commande;
+    if (c && c.coordonnees) { // 8.4 : un point du ciel
+      montrerPoint(c.coordonnees.ra, c.coordonnees.dec);
+      const cible = c.cible;
+      if (cible) viser(cible.azimut, cible.elevation, false);
+      return;
+    }
     const o = c && objets.find(function (obj) { return obj.id === c.objet.id; });
     if (o) allerVers(o);
   });
@@ -1614,6 +1842,7 @@
         envoiEnCours = false;
         majBoutonPointer();
         majPanneauAppareil();
+        majPanneauPoint();
       });
   }
 
@@ -1977,7 +2206,7 @@
     form: true,
 
     stars: {
-      limit: 6,
+      limit: filtres.magnitude, // 8.4 (F36) : 4, 5 ou 6 selon le ciel de l'observateur
       size: 10, // disques plus gros : lisibles sur un petit écran
       colors: true,
       designation: false,

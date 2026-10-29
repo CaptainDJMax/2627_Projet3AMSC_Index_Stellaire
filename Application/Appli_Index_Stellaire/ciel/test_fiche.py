@@ -61,3 +61,24 @@ class FicheTests(TestCase):
         d = self.client.get(f"/api/ciel/objets/{sirius.id}/", {"instant": "2026-06-15T12:00:00Z"}).json()
         self.assertIsNone(d["ce_soir"]["visible"])
         self.assertEqual(d["constellation_iau"], "CMa")
+
+
+class PointDuCielTests(TestCase):
+    """Partie 8.4 : /api/ciel/point/ décrit un point quelconque du ciel."""
+
+    def test_point_aux_coordonnees_de_betelgeuse(self):
+        d = self.client.get("/api/ciel/point/", {"ra": 88.7929, "dec": 7.4071, "instant": "2026-10-12T23:00:00Z"}).json()
+        self.assertEqual({"ra", "dec", "instant", "elevation", "azimut", "visible", "constellation_iau", "ce_soir"}, set(d))
+        elevation, azimut = astro.altaz("hip:27989", *PARIS, instant(2026, 10, 12, 23))
+        self.assertAlmostEqual(d["elevation"], elevation, delta=0.02)
+        self.assertAlmostEqual(d["azimut"], azimut, delta=0.02)
+        self.assertEqual(d["constellation_iau"], "Ori")
+
+    def test_parametres(self):
+        for params in [{}, {"ra": 10}, {"ra": "x", "dec": 1}, {"ra": 10, "dec": 91}, {"ra": "nan", "dec": 1}]:
+            with self.subTest(params=params):
+                self.assertEqual(self.client.get("/api/ciel/point/", params).status_code, 400)
+
+    def test_identifiant_invalide(self):
+        with self.assertRaises(ValueError):
+            astro.altaz("radec:abc", *PARIS)

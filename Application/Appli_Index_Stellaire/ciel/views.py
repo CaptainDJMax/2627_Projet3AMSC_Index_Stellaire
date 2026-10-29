@@ -1,5 +1,6 @@
 import json
 import logging
+import math
 from datetime import datetime, timezone
 
 from django.conf import settings
@@ -173,6 +174,45 @@ def detail_objet(request, objet_id):
         },
         json_dumps_params={"ensure_ascii": False},
     )
+
+
+@require_GET
+def point(request):
+    """Partie 8.4 : où se trouve un point du ciel (?ra=0..360&dec=-90..90, ?instant facultatif).
+    Réponse : {ra, dec, instant, elevation, azimut, visible, constellation_iau, ce_soir}."""
+    try:
+        ra = float(request.GET["ra"]) % 360
+        dec = float(request.GET["dec"])
+        if not (math.isfinite(ra) and -90 <= dec <= 90):
+            raise ValueError("dec")
+    except (KeyError, ValueError):
+        return JsonResponse({"erreur": "Paramètres 'ra' (degrés) et 'dec' (-90 à 90) attendus."}, status=400)
+    try:
+        instant = _instant_demande(request)
+    except ValueError:
+        return JsonResponse(
+            {"erreur": "Paramètre 'instant' invalide (ISO 8601, 1950-2049)."}, status=400
+        )
+    lieu = lieu_courant(request)
+    lat, lon, alt = lieu["latitude"], lieu["longitude"], lieu["altitude_m"]
+    ident = f"radec:{ra},{dec}"
+    elevation, azimut = altaz(ident, lat, lon, alt, instant)
+    soir = calcul_evenements.ce_soir([(None, "point", ident)], lat, lon, alt, instant)
+    return JsonResponse({
+        "ra": round(ra, 4),
+        "dec": round(dec, 4),
+        "instant": instant.utc_iso(),
+        "elevation": round(elevation, 2),
+        "azimut": round(azimut, 2),
+        "visible": elevation > 0,
+        "constellation_iau": infos(ident, lat, lon, alt, instant)["constellation_iau"],
+        "ce_soir": {
+            "debut_nuit": soir["debut_nuit"],
+            "fin_nuit": soir["fin_nuit"],
+            "visible": {k: soir["astres"][0][k] for k in ("de", "a", "hauteur_max", "instant")}
+            if soir["astres"] else None,
+        },
+    })
 
 
 @require_GET
