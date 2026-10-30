@@ -16,6 +16,8 @@ from django.test import TestCase
 from .models import Constellation, ObjetCeleste
 
 CLES_LISTE = {"id", "nom", "categorie", "elevation", "azimut", "ra", "dec", "visible"}
+# Partie 10 bis : champ ajouté « apparence » (forme dessinée), seulement pour ces catégories
+CATEGORIES_ETENDUES = {"soleil", "lune", "amas", "ciel_profond"}
 CLES_DETAIL = {
     "id", "nom", "categorie", "description", "image", "constellations",
     "instant", "lieu", "position", "levers_couchers", "trajectoire",
@@ -56,7 +58,8 @@ class ApiCielTests(TestCase):
         # Seuls les objets calculables sont renvoyés : ni sans identifiant, ni invalide
         self.assertEqual({o["nom"] for o in donnees["objets"]}, {"Jupiter", "Lune"})
         for o in donnees["objets"]:
-            self.assertEqual(CLES_LISTE, set(o))
+            attendues = CLES_LISTE | ({"apparence"} if o["categorie"] in CATEGORIES_ETENDUES else set())
+            self.assertEqual(attendues, set(o))
             self.assertTrue(0 <= o["ra"] < 360)
             self.assertTrue(-90 <= o["dec"] <= 90)
             self.assertTrue(-90 <= o["elevation"] <= 90)

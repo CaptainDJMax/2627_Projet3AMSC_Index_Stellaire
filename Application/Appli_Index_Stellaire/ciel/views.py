@@ -14,6 +14,7 @@ from .astro import (
     trace_satellite, trajectoire,
 )
 from . import evenements as calcul_evenements
+from .apparence import apparence
 from . import sources_externes
 from .lieu import definir_partage, lieu_courant, lieu_partage, retirer_partage
 from .models import ObjetCeleste
@@ -69,6 +70,8 @@ def liste_objets(request):
             trace = trace_satellite(
                 ident, lieu["latitude"], lieu["longitude"], lieu["altitude_m"], instant
             ) if est_satellite(ident) else None
+            # Partie 10 bis : taille, forme (et phase de la Lune) des astres étendus
+            forme = apparence(objet, lieu, instant, ra, dec)
         except (KeyError, ValueError):
             # Un identifiant faux ne doit pas casser toute la carte
             logger.warning(
@@ -89,6 +92,8 @@ def liste_objets(request):
         }
         if trace is not None:
             donnees["trace"] = trace  # satellites seulement
+        if forme is not None:
+            donnees["apparence"] = forme  # Soleil, Lune, amas, ciel profond seulement
         objets.append(donnees)
 
     return JsonResponse(

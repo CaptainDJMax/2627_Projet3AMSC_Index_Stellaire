@@ -167,7 +167,7 @@
   const elCodeValider = document.getElementById("code-valider");
   const elCodeMessage = document.getElementById("code-message");
 
-  const calques = { constellations: true, illustrations: true, voieLactee: true, etiquettesEtoiles: true };
+  const calques = { constellations: true, illustrations: true, voieLactee: true, etiquettesEtoiles: true, cielProfond: true };
 
   // Partie 8.4 (F36) : filtres des astres de la base et magnitude limite des étoiles de fond.
   // Gardés dans ce navigateur (localStorage) ; la page marche aussi sans (navigation privée).
@@ -1458,6 +1458,160 @@
     ctx.restore();
   }
 
+  // --- Partie 10 bis : astres étendus à leur vraie taille ---------------------------------------
+  // Le serveur donne `apparence` (taille en degrés, forme, phase de la Lune). Le ciel profond et les
+  // amas sont des VOILES : lumière additive, très transparente, bords flous. Ils éclaircissent le fond
+  // sans jamais cacher une étoile (les étoiles de la bibliothèque restent visibles au travers).
+  // Le Soleil et la Lune sont pleins : en vrai aussi, ils cachent ce qui est derrière eux.
+  // De loin (forme de moins de TAILLE_MINI_FORME px), on garde le symbole habituel et le nom.
+  const TEINTES = {
+    galaxie: "255, 232, 200", // blanc chaud (vieilles étoiles)
+    nebuleuse: "255, 120, 175", // rose (hydrogène)
+    amas: "140, 180, 255", // bleuté (jeunes étoiles chaudes, gaz qui les éclaire)
+  };
+  const TAILLE_MINI_FORME = 7; // px
+  const TAILLE_MINI_DISQUE = { soleil: 6, lune: 6 }; // px : rayon minimum du Soleil et de la Lune
+
+  // Point à `distance` degrés de (ra, dec), dans la direction `angle` (0 = nord, 90 = est).
+  function decaler(ra, dec, angle, distance) {
+    const r = Math.PI / 180;
+    const d = distance * r, a = angle * r, d0 = dec * r;
+    const dec2 = Math.asin(Math.sin(d0) * Math.cos(d) + Math.cos(d0) * Math.sin(d) * Math.cos(a));
+    const ra2 = ra * r + Math.atan2(Math.sin(a) * Math.sin(d) * Math.cos(d0), Math.cos(d) - Math.sin(d0) * Math.sin(dec2));
+    return [(((ra2 / r) % 360) + 360) % 360, dec2 / r];
+  }
+
+  // Vecteur à l'écran (px) qui correspond à `distance` degrés dans la direction `angle` :
+  // tient compte de la projection, du zoom et de la rotation de la vue.
+  function vecteurEcran(p, pt, angle, distance) {
+    const q = Celestial.mapProjection(decaler(p.ra, p.dec, angle, distance));
+    return [q[0] - pt[0], q[1] - pt[1]];
+  }
+
+  // Voile flou en forme d'ellipse de demi-axes u et v (vecteurs à l'écran), en lumière additive.
+  function dessinerVoile(ctx, pt, u, v, teinte, alpha) {
+    if (Math.abs(u[0] * v[1] - u[1] * v[0]) < 0.5) return; // ellipse aplatie : rien à dessiner
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.transform(u[0], u[1], v[0], v[1], pt[0], pt[1]); // cercle de rayon 1 -> l'ellipse
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+    g.addColorStop(0, "rgba(" + teinte + "," + alpha + ")");
+    g.addColorStop(0.4, "rgba(" + teinte + "," + (alpha * 0.5).toFixed(3) + ")");
+    g.addColorStop(1, "rgba(" + teinte + ",0)");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, 1, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Contour fin en pointillés : on sait où est l'objet même quand le voile est à peine visible.
+  function contourEllipse(ctx, pt, u, v, teinte, alpha) {
+    ctx.save();
+    ctx.beginPath();
+    for (let i = 0; i <= 64; i++) {
+      const t = (i / 64) * 2 * Math.PI;
+      const x = pt[0] + Math.cos(t) * u[0] + Math.sin(t) * v[0];
+      const y = pt[1] + Math.cos(t) * u[1] + Math.sin(t) * v[1];
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.setLineDash([3, 4]);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(" + teinte + "," + alpha + ")";
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Dessine la forme ; renvoie son rayon à l'écran (px), ou 0 si elle est trop petite (symbole habituel).
+  function dessinerApparence(ctx, o, p, pt) {
+    const a = o.apparence;
+    if (a.type === "soleil" || a.type === "lune") {
+      const u = vecteurEcran(p, pt, 0, a.diametre / 2);
+      const rayon = Math.max(Math.hypot(u[0], u[1]), TAILLE_MINI_DISQUE[a.type]);
+      if (a.type === "soleil") dessinerSoleil(ctx, pt, rayon);
+      else dessinerLune(ctx, p, pt, rayon, a);
+      return rayon;
+    }
+    if (!calques.cielProfond) return 0;
+    let u, v, teinte;
+    if (a.type === "amas") {
+      u = vecteurEcran(p, pt, 0, a.diametre / 2);
+      v = vecteurEcran(p, pt, 90, a.diametre / 2);
+      teinte = TEINTES.amas;
+    } else {
+      u = vecteurEcran(p, pt, a.angle, a.grand_axe / 2);
+      v = vecteurEcran(p, pt, a.angle + 90, a.petit_axe / 2);
+      teinte = TEINTES[a.teinte] || TEINTES.galaxie;
+    }
+    const taille = Math.max(Math.hypot(u[0], u[1]), Math.hypot(v[0], v[1]));
+    if (taille < TAILLE_MINI_FORME) return 0;
+    // Plus l'objet est grand à l'écran, plus le voile s'efface : on voit les étoiles dedans
+    const alpha = Math.max(0.08, Math.min(0.22, (0.22 * 40) / taille));
+    dessinerVoile(ctx, pt, u, v, teinte, alpha);
+    if (a.type === "ellipse") {
+      // noyau plus lumineux (centre de la galaxie, cœur de la nébuleuse)
+      const k = a.teinte === "nebuleuse" ? 0.35 : 0.18;
+      dessinerVoile(ctx, pt, [u[0] * k, u[1] * k], [v[0] * k, v[1] * k], teinte, Math.min(0.35, alpha * 1.6));
+    }
+    contourEllipse(ctx, pt, u, v, teinte, 0.45);
+    return taille;
+  }
+
+  function dessinerSoleil(ctx, pt, rayon) {
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter"; // halo
+    const h = ctx.createRadialGradient(pt[0], pt[1], rayon * 0.8, pt[0], pt[1], rayon * 4);
+    h.addColorStop(0, "rgba(255, 210, 110, 0.45)");
+    h.addColorStop(1, "rgba(255, 210, 110, 0)");
+    ctx.fillStyle = h;
+    ctx.beginPath();
+    ctx.arc(pt[0], pt[1], rayon * 4, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.globalCompositeOperation = "source-over"; // disque plein, bord plus sombre (assombrissement centre-bord)
+    const d = ctx.createRadialGradient(pt[0], pt[1], 0, pt[0], pt[1], rayon);
+    d.addColorStop(0, "#fffbea");
+    d.addColorStop(0.7, "#ffe9a8");
+    d.addColorStop(1, "#ffc94d");
+    ctx.fillStyle = d;
+    ctx.beginPath();
+    ctx.arc(pt[0], pt[1], rayon, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // La Lune avec sa phase : côté éclairé tourné vers le Soleil (angle_soleil), partie sombre
+  // légèrement visible (lumière cendrée).
+  function dessinerLune(ctx, p, pt, rayon, a) {
+    const s = vecteurEcran(p, pt, a.angle_soleil, 1);
+    const k = Math.max(0, Math.min(1, a.eclairement));
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter"; // halo, plus fort près de la pleine Lune
+    const h = ctx.createRadialGradient(pt[0], pt[1], rayon, pt[0], pt[1], rayon * 3);
+    h.addColorStop(0, "rgba(200, 215, 255, " + (0.25 * k).toFixed(3) + ")");
+    h.addColorStop(1, "rgba(200, 215, 255, 0)");
+    ctx.fillStyle = h;
+    ctx.beginPath();
+    ctx.arc(pt[0], pt[1], rayon * 3, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.globalCompositeOperation = "source-over";
+    ctx.translate(pt[0], pt[1]);
+    ctx.rotate(Math.atan2(s[1], s[0])); // l'axe x pointe maintenant vers le Soleil
+    ctx.beginPath();
+    ctx.arc(0, 0, rayon, 0, 2 * Math.PI);
+    ctx.fillStyle = "#2a303d"; // lumière cendrée
+    ctx.fill();
+    // Partie éclairée : demi-disque côté Soleil, fermé par le terminateur (demi-ellipse)
+    const w = rayon * (2 * k - 1); // > 0 : gibbeuse, < 0 : croissant
+    ctx.beginPath();
+    ctx.arc(0, 0, rayon, -Math.PI / 2, Math.PI / 2, false);
+    ctx.ellipse(0, 0, Math.abs(w), rayon, 0, Math.PI / 2, -Math.PI / 2, w < 0);
+    ctx.closePath();
+    ctx.fillStyle = "#eef1f7";
+    ctx.fill();
+    ctx.restore();
+  }
+
   function dessinerObjet(ctx, o) {
     const p = ici(o);
     const position = [p.ra, p.dec]; // ascension droite, déclinaison (degrés)
@@ -1468,30 +1622,36 @@
     if (!Celestial.clip(position)) return;
     const pt = Celestial.mapProjection(position);
     o.ecran = pt; // dernière position dessinée (pour savoir quand un satellite a bougé)
+    // Partie 10 bis : Soleil, Lune, amas et ciel profond à leur vraie taille (0 = trop petit)
+    const etendu = o.apparence ? dessinerApparence(ctx, o, p, pt) : 0;
+    o.rayonEcran = etendu; // pour toucher l'objet n'importe où dans sa forme
+    const rayon = Math.max(style.rayon, etendu);
 
     ctx.save();
-    ctx.beginPath();
-    ctx.arc(pt[0], pt[1], style.rayon, 0, 2 * Math.PI);
     ctx.lineWidth = 1.5;
-    if (style.forme === "disque") {
-      ctx.fillStyle = style.couleur;
-      ctx.fill();
-      ctx.strokeStyle = "#05070d";
-    } else {
-      ctx.strokeStyle = style.couleur;
+    if (!etendu) {
+      ctx.beginPath();
+      ctx.arc(pt[0], pt[1], style.rayon, 0, 2 * Math.PI);
+      if (style.forme === "disque") {
+        ctx.fillStyle = style.couleur;
+        ctx.fill();
+        ctx.strokeStyle = "#05070d";
+      } else {
+        ctx.strokeStyle = style.couleur;
+      }
+      ctx.stroke();
     }
-    ctx.stroke();
     if (o.id === selection) {
       // halo autour de l'objet sélectionné
       ctx.beginPath();
-      ctx.arc(pt[0], pt[1], style.rayon + 7, 0, 2 * Math.PI);
+      ctx.arc(pt[0], pt[1], rayon + 7, 0, 2 * Math.PI);
       ctx.strokeStyle = "#ffffff";
       ctx.stroke();
     }
     if (vise) {
       // l'objet que le bras vise : un anneau de la couleur du réticule
       ctx.beginPath();
-      ctx.arc(pt[0], pt[1], style.rayon + 4, 0, 2 * Math.PI);
+      ctx.arc(pt[0], pt[1], rayon + 4, 0, 2 * Math.PI);
       ctx.strokeStyle = COULEUR_BRAS;
       ctx.stroke();
     }
@@ -1499,8 +1659,10 @@
       ctx.font = "600 14px Helvetica, Arial, sans-serif";
       ctx.textAlign = "left";
       ctx.textBaseline = "bottom";
-      const x = pt[0] + style.rayon + 4;
-      const y = pt[1] - style.rayon + 2;
+      // nom en haut à droite de la forme (au plus 40 px du centre : un grand objet zoomé garde son nom près de lui)
+      const ecart = etendu ? Math.max(style.rayon, Math.min(etendu, 40) * 0.75) : style.rayon;
+      const x = pt[0] + ecart + 4;
+      const y = pt[1] - ecart + 2;
       ctx.lineJoin = "round";
       ctx.lineWidth = 3;
       ctx.strokeStyle = "rgba(5, 7, 13, 0.85)"; // contour sombre : le nom se lit sur les étoiles
@@ -1588,7 +1750,9 @@
       const position = [p.ra, p.dec];
       if (!Celestial.clip(position)) return;
       const pt = Celestial.mapProjection(position);
-      const d = Math.hypot(pt[0] - px, pt[1] - py);
+      // Partie 10 bis : un astre étendu se touche dans toute sa forme (le plus proche du centre l'emporte)
+      const centre = Math.hypot(pt[0] - px, pt[1] - py);
+      const d = o.rayonEcran ? Math.max(0, centre - o.rayonEcran) + centre * 0.01 : centre;
       if (d < dmin) {
         dmin = d;
         meilleur = o;
