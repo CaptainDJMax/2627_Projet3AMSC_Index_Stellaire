@@ -6306,3 +6306,85 @@ git push
 
 Tu peux supprimer `A_FAIRE_PARTIE_14.md` : son contenu est consigné ci-dessus.
 
+## Partie 14.1 bis : interface simplifiée (calques, visite guidée, historique)
+
+✅ Construite sur `7a0bca4` : la 6.4 et le glisser vertical étaient bien conservés, vérifié avant
+d'installer. Pas de piège à l'extraction cette fois (archive directement dans
+`Application/Appli_Index_Stellaire/`), pas de migration.
+
+Cette partie nettoie l'interface sans rien changer côté serveur en profondeur (le modèle du
+journal d'observation reste le même, par exemple — seul l'affichage change).
+
+### 1. Calques réorganisés (`carte.js`/`carte.css`/`carte.html`)
+
+Avant : le filtre « Ciel profond » du haut faisait doublon avec les cases des calques. Maintenant
+deux groupes clairs, deux boutons par ligne :
+- **Affichage** : Constellations, Illustrations, Voie lactée, Noms des étoiles.
+- **Astres** : Soleil/Lune/planètes · Étoiles · Ciel profond · Satellites.
+
+Le filtre « Ciel profond » masque maintenant vraiment les amas/galaxies/nébuleuses, y compris dans
+la recherche (pas seulement leur voile, comme avant la Partie 10 bis).
+
+**« Étoiles du fond »** : les trois niveaux numérotés (« 4 · ville », « 5 · banlieue », « 6 · ciel
+noir ») sont renommés **Brillantes / Normal / Toutes** — même réglage (densité d'étoiles faibles
+dessinées en fond), juste des noms plus clairs pour quelqu'un qui découvre l'appli.
+
+### 2. Visite guidée : horaires et avertissements
+
+Chaque étape affiche maintenant son horaire réel (« 21:24 → 21:34 ») et la hauteur de l'astre,
+calculés par le **serveur** pour le lieu du bras (nouvelle route en lecture seule, voir ci-dessous).
+Un avertissement orange apparaît si l'astre est sous l'horizon pendant l'étape, ou s'il se lève/se
+couche pendant que le bras doit le suivre — on voit tout de suite si une étape n'a pas de sens
+avant de lancer la visite pour de vrai. Les horaires se recalculent si on change l'ordre, la durée
+ou l'heure de départ. La visite guidée s'ouvre maintenant aussi depuis le panneau ✦ (« Visite
+guidée »), pas seulement depuis le panneau de l'appareil ; une phrase explique son usage quand la
+liste est vide.
+
+#### `appareil/apercu.py` (nouveau) : `POST /api/pointage/visite/apercu/`
+
+Route **en lecture seule**, sans code de pilotage (elle ne commande rien, elle calcule juste des
+horaires/hauteurs) :
+```
+{"debut": ISO ou null, "etapes": [{"objet_id": n, "duree_min": m} ou {"ra": .., "dec": .., "duree_min": m}, ...]}
+→ {"debut", "etapes": [{"debut", "fin", "hauteur_debut", "hauteur_fin", "hauteur_min", "sous_horizon"}, ...]}
+```
+Hauteur échantillonnée toutes les 5 minutes sur la durée de l'étape (`_hauteurs`, via
+`astro._vu_du_lieu(...).altaz()`) ; `sous_horizon` vrai si la hauteur minimale de l'étape est
+négative. Une étape non calculable (TLE absent, etc.) a ses trois hauteurs à `null` plutôt que de
+faire échouer tout l'aperçu. Tests dans `appareil/test_apercu.py`.
+
+### 3. Historique du bras remplace le « Journal d'observation »
+
+Le panneau n'affiche plus que les pointages effectués par le bras lui-même : plus de
+« Noter une observation » dans les fiches d'astres, plus de bouton d'export en tableur. **Rien
+n'est supprimé côté serveur** : le modèle, l'API et les tests du journal (Partie 9) restent
+inchangés — seul `carte.js` n'affiche plus cette partie de l'interface. Pour la faire revenir,
+il suffit de repasser la constante `NOTES_JOURNAL` à `true` dans `carte.js`.
+
+### Testé
+
+```
+python manage.py check                   # OK
+python manage.py makemigrations --check  # aucun changement
+python manage.py test                    # 183 tests OK
+```
+
+### Envoyé
+
+```
+git add Application/Appli_Index_Stellaire
+git commit -m "Partie 14.1 bis : calques sans doublon, horaires de la visite guidee, historique du bras"
+git push
+```
+(Déjà fait dans cette session.)
+
+### À savoir
+
+- **Pour Adrien** : `git pull` suffit, pas de migration ni de réinstallation.
+- Le journal d'observation (notes manuelles) n'a pas disparu, il est juste masqué : `NOTES_JOURNAL`
+  dans `carte.js` le fait revenir si on en a besoin un jour.
+- Recharger avec **Ctrl+F5** après installation (ou relancer `python manage.py servir` si un jour
+  on est en mode production).
+
+Tu peux supprimer `A_FAIRE_PARTIE_14_1_BIS.md` : son contenu est consigné ci-dessus.
+
