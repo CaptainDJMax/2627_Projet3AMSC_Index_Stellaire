@@ -5884,3 +5884,133 @@ git push
 
 Tu peux supprimer `A_FAIRE_PARTIE_8_4.md` : son contenu est consigné ci-dessus.
 
+## Parties 8.5 (visite guidée) et 9 (journal d'observation)
+
+✅ **Bonne nouvelle** : cette archive a été reconstruite directement à partir de notre dépôt
+(commit `5e0df73`), en gardant explicitement la Partie 6.4 (`lieu_courant`, `secours`,
+`#btn-position`, `#message-eclair`, glisser vertical avec `+`, les tests) dans tous les fichiers
+remplacés. Vérifié avant d'installer : tout était bien là. Le message passé à l'auteur a fonctionné.
+
+### 8.5 : visite guidée (F22)
+
+« Proposer une visite guidée de ce soir » enchaîne plusieurs étapes (astre ou point du ciel, avec
+une durée chacune) comme une seule commande ; le robot n'a rien à savoir de spécial, il suit sa
+trajectoire comme d'habitude.
+
+`appareil/models.py` : `Commande` gagne `programme` (JSON, liste d'étapes) et `debut_programme` ;
+`etape_a(quand)` retrouve l'étape en cours à un instant donné.
+
+`appareil/services.py` :
+```python
+ETAPES_MAX = 20
+DUREE_ETAPE_MAX_MIN = 240
+
+
+def definir_visite(appareil, etapes, debut):
+    """Remplace la commande en cours par une visite guidée. etapes : [{objet (ObjetCeleste) ou
+    ra/dec/nom, duree_s}], déjà vérifiées ; debut : datetime (avec fuseau)."""
+
+def etape_resumee(commande, quand=None):
+    """Champ « etape » de la synchronisation : {numero, total, fin} ou None hors visite."""
+
+def programme_resume(commande, quand=None):
+    """Champ « programme » de l'état (interface) : la visite étape par étape, ou None."""
+```
+Côté trajectoire : chaque point de la trajectoire longue vise l'étape en cours à son instant — le
+format envoyé au robot ne change pas, il suit les points sans savoir qu'il s'agit d'une visite.
+
+URL : `path("pointage/visite/", views.definir_visite, name="visite")`. Migration
+`appareil/migrations/0004_visite_guidee.py`.
+
+### 9 : journal d'observation
+
+`ciel/models.py` : nouveau modèle `Observation` (déjà vu ci-dessus dans les notices de fichiers
+modifiés) — quand, astre ou `ra`/`dec`, lieu de l'observation, ciel (clair/voilé/nuageux),
+instrument (œil nu/jumelles/télescope/bras), note libre. Migration `ciel/migrations/0006_journal.py`.
+
+`ciel/journal.py` (nouveau fichier) : les observations notées **et** l'historique des pointages du
+bras (lus depuis `appareil`, jamais recopiés) sont mélangés et triés du plus récent au plus ancien.
+
+```python
+"""Partie 9 : le journal d'observation.
+
+Deux sortes de lignes, rangées ensemble du plus récent au plus ancien :
+- les observations notées par l'utilisateur (modèle Observation) : quoi, quand, où, ciel,
+  instrument, note ;
+- les pointages du bras (historique des commandes, appli appareil), lus sans être recopiés.
+
+Lire le journal est libre, comme la carte. Écrire ou effacer demande le code de pilotage (Partie 5) :
+c'est le carnet du propriétaire. Le journal reste dans la base (pas dans Git : il est personnel).
+"""
+
+LIMITE_PAR_DEFAUT = 100
+LIMITE_MAXI = 500
+JOURS_POINTAGES = 60  # les pointages du bras montrés dans le journal
+
+
+@require_GET
+def lire(request):
+    """GET /api/ciel/journal/?objet=<id>&limite=1..500 : {observations[], pointages[]}."""
+    ...
+    return JsonResponse({
+        "observations": [observation_json(o) for o in obs.select_related("objet")[:limite]],
+        "pointages": pointages(objet_id, limite, lieu_courant(request)),
+    })
+
+
+@require_POST
+@pilotage.pilotage_requis
+def noter(request):
+    """POST /api/ciel/journal/noter/ {objet_id ou ra/dec (+ nom), quand (ISO, facultatif),
+    ciel, instrument, note} : ajoute une observation, au lieu courant. Code de pilotage requis."""
+
+# + effacer(request, observation_id) et exporter(request) -> CSV (séparateur ;, pour Excel)
+```
+
+Le lieu utilisé pour chaque pointage affiché vient de `lieu_courant(request)` (Partie 6.4) : la
+Partie 9 réutilise directement cette priorité robot > navigateur partagé > défaut.
+
+URLs (`ciel/urls.py`) :
+```python
+path("journal/", journal.lire, name="journal"),
+path("journal/noter/", journal.noter, name="journal_noter"),
+path("journal/<int:observation_id>/effacer/", journal.effacer, name="journal_effacer"),
+path("journal/export.csv", journal.exporter, name="journal_export"),
+```
+
+### Interface
+
+- Fiche d'un astre : bouton « Noter une observation » (formulaire : quand, ciel, instrument, note),
+  et « n observations de cet astre » qui ouvre le journal filtré.
+- Lien « Journal d'observation » en bas du panneau ✦ : liste mêlée observations + pointages,
+  rangée par jour ; toucher une ligne ramène la carte à ce moment-là, tournée vers l'astre ;
+  « effacer » sur une observation ; « Exporter les observations (tableur) » (CSV).
+- Lire est libre ; noter/effacer demandent le code de pilotage.
+- Barre de boutons : légèrement réduite (52 px) avec marge, pour les six boutons sur petit écran
+  (ton bouton de position comptait dans les six à caser).
+
+### Testé
+
+```
+python manage.py migrate              # appareil 0004, ciel 0006
+python manage.py test                 # 154 tests OK
+python manage.py runserver 0.0.0.0:8000
+```
+Sur le téléphone (Ctrl+F5) : fiche de Saturne → « Noter une observation » → Enregistrer (code) →
+✦ en bas → « Journal d'observation ».
+
+### À savoir
+
+Le journal vit dans `db.sqlite3`, jamais dans Git (c'est personnel, comme prévu dès la Partie 1).
+
+### Envoyé
+
+```
+git add appareil ciel
+git commit -m "Parties 8.5 et 9 : visite guidée, journal d'observation"
+git push
+```
+(Déjà fait dans cette session.)
+
+Tu peux supprimer `A_FAIRE_PARTIES_8_5_ET_9.md` : son contenu est consigné ci-dessus.
+
