@@ -157,6 +157,9 @@
   const elPanAppareil = document.getElementById("panneau-appareil");
   const elPanCode = document.getElementById("panneau-code"); // Partie 5 : code de pilotage
   const elPanPoint = document.getElementById("panneau-point"); // Partie 8.4 : point du ciel
+  const elPanVisite = document.getElementById("panneau-visite"); // Partie 8.5 : visite guidée
+  const elPanJournal = document.getElementById("panneau-journal"); // Partie 9 : journal
+  const elPanObservation = document.getElementById("panneau-observation");
   const elBtnEvenements = document.getElementById("btn-evenements"); // Partie 7
   const elPanEvenements = document.getElementById("panneau-evenements");
   const elCodeFormulaire = document.getElementById("code-formulaire");
@@ -204,6 +207,9 @@
       ["code", elPanCode, null],
       ["evenements", elPanEvenements, elBtnEvenements],
       ["point", elPanPoint, null],
+      ["visite", elPanVisite, null],
+      ["journal", elPanJournal, null],
+      ["observation", elPanObservation, null],
     ].forEach(function (p) {
       const ouvert = p[0] === nom;
       p[1].hidden = !ouvert;
@@ -229,7 +235,8 @@
     // N'importe quel panneau en bas de l'écran (sur téléphone, les boutons de zoom se cachent)
     document.body.classList.toggle("panneau-bas", selection !== null || !elPanneau.hidden ||
       !elPanCalques.hidden || !elPanRecherche.hidden || !elPanAppareil.hidden || !elPanCode.hidden ||
-      !elPanEvenements.hidden || !elPanPoint.hidden);
+      !elPanEvenements.hidden || !elPanPoint.hidden || !elPanVisite.hidden || !elPanJournal.hidden ||
+      !elPanObservation.hidden);
   }
 
   function basculer(nom) {
@@ -264,9 +271,10 @@
 
   // Toucher le ciel ou la barre referme les panneaux du bas (sauf leurs propres boutons)
   document.addEventListener("pointerdown", function (e) {
-    if (e.target.closest("#panneau-temps, #panneau-calques, #panneau-recherche, #panneau-appareil, #panneau-code, #panneau-evenements, #panneau-point, #btn-temps, #btn-calques, #btn-recherche, #btn-evenements, #etat-appareil")) return;
+    if (e.target.closest("#panneau-temps, #panneau-calques, #panneau-recherche, #panneau-appareil, #panneau-code, #panneau-evenements, #panneau-point, #panneau-visite, #panneau-journal, #panneau-observation, #btn-temps, #btn-calques, #btn-recherche, #btn-evenements, #etat-appareil")) return;
     if (!elPanneau.hidden || !elPanCalques.hidden || !elPanRecherche.hidden || !elPanAppareil.hidden || !elPanCode.hidden ||
-      !elPanEvenements.hidden || !elPanPoint.hidden) ouvrir(null);
+      !elPanEvenements.hidden || !elPanPoint.hidden || !elPanVisite.hidden || !elPanJournal.hidden ||
+      !elPanObservation.hidden) ouvrir(null);
   });
 
   // --- Calques : chaque case recharge la carte avec la nouvelle configuration -----
@@ -455,6 +463,7 @@
     if (i && i.elevation <= 0) phrases.push("Sous l'horizon : le bras pointera à travers la Terre.");
     if (a && p && !p.autorise) phrases.push("Le code de pilotage sera demandé.");
     elPoint.note.textContent = phrases.join(" ");
+    majBoutonsVisite();
   }
 
   elPoint.bouton.addEventListener("click", function () {
@@ -502,6 +511,467 @@
     }
     ctx.restore();
   }
+
+  // --- Partie 9 : journal d'observation ---------------------------------------------------------
+  // Lire est libre ; noter ou effacer demande le code de pilotage (le carnet du propriétaire).
+  const elJournal = {
+    liste: document.getElementById("journal-liste"),
+    etat: document.getElementById("journal-etat"),
+    filtre: document.getElementById("journal-filtre"),
+    filtreNom: document.getElementById("journal-filtre-nom"),
+    tout: document.getElementById("journal-tout"),
+    exporter: document.getElementById("journal-export"),
+    astre: document.getElementById("btn-journal-astre"),
+    noter: document.getElementById("btn-noter"),
+  };
+  const elObs = {
+    nom: document.getElementById("observation-nom"),
+    quand: document.getElementById("observation-quand"),
+    note: document.getElementById("observation-note"),
+    enregistrer: document.getElementById("observation-enregistrer"),
+    message: document.getElementById("observation-message"),
+  };
+  const NOMS_CIEL = { clair: "ciel clair", voile: "ciel voilé", nuageux: "nuageux", inconnu: "" };
+  const NOMS_INSTRUMENT = { oeil: "à l'œil nu", jumelles: "aux jumelles", telescope: "au télescope", bras: "avec le bras" };
+  let filtreJournal = null; // {id, nom} : le journal d'un seul astre, ou null pour tout
+  let observationEnCours = null; // {objet_id, nom} : ce qu'on note
+  let comptesJournal = {}; // objet_id -> nombre d'observations (pour le lien de la fiche)
+  elJournal.exporter.href = carte.dataset.urlJournalExport;
+
+  function chargerJournal() {
+    elJournal.etat.textContent = "Chargement…";
+    const url = carte.dataset.urlJournal + (filtreJournal ? "?objet=" + filtreJournal.id : "");
+    return fetch(url)
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(afficherJournal)
+      .catch(function () { elJournal.etat.textContent = "Journal indisponible pour le moment."; });
+  }
+
+  function afficherJournal(d) {
+    elJournal.filtre.hidden = !filtreJournal;
+    if (filtreJournal) elJournal.filtreNom.textContent = "Seulement : " + filtreJournal.nom;
+    const lignes = d.observations.map(function (o) { return { sorte: "observation", quand: o.quand, d: o }; })
+      .concat(d.pointages.map(function (p) { return { sorte: "pointage", quand: p.quand, d: p }; }))
+      .sort(function (a, b) { return Date.parse(b.quand) - Date.parse(a.quand); });
+    elJournal.liste.replaceChildren();
+    let jourPrecedent = "";
+    lignes.forEach(function (l) {
+      const jour = fmtJourLong.format(new Date(l.quand));
+      if (jour !== jourPrecedent) {
+        jourPrecedent = jour;
+        const titre = document.createElement("li");
+        titre.className = "jour";
+        titre.textContent = jour;
+        elJournal.liste.appendChild(titre);
+      }
+      const x = l.d;
+      let li;
+      if (l.sorte === "observation") {
+        const detail = [fmtHeure.format(new Date(x.quand)), NOMS_INSTRUMENT[x.instrument], NOMS_CIEL[x.ciel]].filter(Boolean).join(" · ");
+        li = ligneEvenement("lune", x.nom, detail, function () { voirMoment(x.quand, x.direction, x.objet_id); }, false);
+        if (x.note) {
+          const note = document.createElement("span");
+          note.className = "note-texte";
+          note.textContent = x.note; // texte libre : textContent, jamais innerHTML
+          li.querySelector("button").appendChild(note);
+        }
+        li.appendChild(boutonEffacer(x));
+      } else {
+        const detail = "Bras : " + fmtHeure.format(new Date(x.quand)) + (x.fin ? " → " + fmtHeure.format(new Date(x.fin)) : "") +
+          (x.visite ? " · visite guidée" : "");
+        li = ligneEvenement("passage", x.nom, detail, function () { voirMoment(x.quand, x.direction, x.objet_id); }, false);
+      }
+      elJournal.liste.appendChild(li);
+    });
+    elJournal.etat.textContent = lignes.length ? "" : "Rien dans le journal pour l'instant : note une observation depuis la fiche d'un astre.";
+  }
+
+  function boutonEffacer(o) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "effacer";
+    b.textContent = "effacer";
+    b.addEventListener("click", function () { effacerObservation(o); }); // pas de boîte de dialogue (Partie 5)
+    return b;
+  }
+
+  function effacerObservation(o) {
+    posterJson(carte.dataset.urlJournal + o.id + "/effacer/", null).then(function (r) {
+      if (r.statut === 403 && r.donnees.code_requis) {
+        const filtre = filtreJournal;
+        demanderCode({ relancer: function () { ouvrirJournal(filtre); effacerObservation(o); } });
+        return;
+      }
+      comptesJournal = {};
+      chargerJournal();
+    }).catch(function () { elJournal.etat.textContent = "Serveur injoignable."; });
+  }
+
+  function ouvrirJournal(filtre) {
+    filtreJournal = filtre || null;
+    if (selection !== null) selectionner(null);
+    ouvrir("journal");
+    chargerJournal();
+  }
+
+  // Dans la fiche : « Noter une observation » et « Journal de cet astre (n) »
+  function majJournalFiche() {
+    elJournal.noter.hidden = selection === null;
+    if (selection === null) return;
+    const id = selection;
+    if (comptesJournal[id] === undefined) {
+      comptesJournal[id] = null; // demande en cours
+      fetch(carte.dataset.urlJournal + "?objet=" + id + "&limite=500")
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          comptesJournal[id] = d ? d.observations.length : 0;
+          if (selection === id) majJournalFiche();
+        })
+        .catch(function () { comptesJournal[id] = 0; });
+    }
+    const n = comptesJournal[id];
+    elJournal.astre.hidden = !n;
+    if (n) elJournal.astre.textContent = n + " observation" + (n > 1 ? "s" : "") + " de cet astre dans le journal";
+  }
+
+  elJournal.noter.addEventListener("click", function () {
+    if (selection === null) return;
+    const nom = fiche ? fiche.nom : (objets.find(function (o) { return o.id === selection; }) || {}).nom || "Astre";
+    ouvrirObservation({ objet_id: selection, nom: nom });
+  });
+  elJournal.astre.addEventListener("click", function () {
+    if (selection === null) return;
+    ouvrirJournal({ id: selection, nom: fiche ? fiche.nom : "" });
+  });
+  elJournal.tout.addEventListener("click", function () { ouvrirJournal(null); });
+  document.getElementById("btn-journal").addEventListener("click", function () { ouvrirJournal(null); });
+  document.getElementById("journal-fermer").addEventListener("click", function () { ouvrir(null); });
+  document.getElementById("observation-fermer").addEventListener("click", function () { ouvrir(null); });
+
+  function choisir(groupe, valeur) {
+    document.querySelectorAll("#panneau-observation [data-" + groupe + "]").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.dataset[groupe] === valeur));
+    });
+  }
+  function choisi(groupe, defaut) {
+    const b = document.querySelector("#panneau-observation [data-" + groupe + '][aria-pressed="true"]');
+    return b ? b.dataset[groupe] : defaut;
+  }
+  document.querySelectorAll("#panneau-observation [data-ciel], #panneau-observation [data-instrument]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      const groupe = b.dataset.ciel !== undefined ? "ciel" : "instrument";
+      const deja = b.getAttribute("aria-pressed") === "true";
+      choisir(groupe, deja && groupe === "ciel" ? "" : b.dataset[groupe]); // le ciel peut rester « non précisé »
+    });
+  });
+
+  // Date et heure locales pour <input type="datetime-local"> (AAAA-MM-JJTHH:MM)
+  function dateLocale(d) {
+    const z = function (n) { return String(n).padStart(2, "0"); };
+    return d.getFullYear() + "-" + z(d.getMonth() + 1) + "-" + z(d.getDate()) + "T" + z(d.getHours()) + ":" + z(d.getMinutes());
+  }
+
+  function ouvrirObservation(cible) {
+    observationEnCours = cible;
+    if (selection !== null) selectionner(null);
+    ouvrir("observation");
+    elObs.nom.textContent = cible.nom;
+    elObs.quand.value = dateLocale(new Date());
+    elObs.quand.max = dateLocale(new Date(Date.now() + 5 * 60000));
+    elObs.note.value = "";
+    elObs.message.textContent = "";
+    choisir("ciel", "");
+    choisir("instrument", pointage && pointage.commande && pointage.commande.objet.id === cible.objet_id ? "bras" : "oeil");
+  }
+
+  function enregistrerObservation() {
+    if (!observationEnCours) return;
+    const quand = elObs.quand.value ? new Date(elObs.quand.value) : new Date();
+    const corps = {
+      objet_id: observationEnCours.objet_id,
+      quand: isNaN(quand.getTime()) ? null : quand.toISOString(),
+      ciel: choisi("ciel", "inconnu") || "inconnu",
+      instrument: choisi("instrument", "oeil"),
+      note: elObs.note.value,
+    };
+    elObs.enregistrer.disabled = true;
+    posterJson(carte.dataset.urlJournalNoter, corps).then(function (r) {
+      elObs.enregistrer.disabled = false;
+      if (r.statut === 403 && r.donnees.code_requis) {
+        const garde = observationEnCours;
+        demanderCode({ relancer: function () {
+          // Le panneau a été fermé par la demande de code : on le rouvre tel quel, puis on enregistre
+          observationEnCours = garde;
+          ouvrir("observation");
+          enregistrerObservation();
+        } });
+        return;
+      }
+      if (r.statut !== 201) {
+        elObs.message.textContent = (r.donnees && r.donnees.erreur) || "Erreur " + r.statut;
+        return;
+      }
+      delete comptesJournal[corps.objet_id];
+      ouvrirJournal({ id: corps.objet_id, nom: observationEnCours.nom });
+    }).catch(function () {
+      elObs.enregistrer.disabled = false;
+      elObs.message.textContent = "Serveur injoignable.";
+    });
+  }
+  elObs.enregistrer.addEventListener("click", enregistrerObservation);
+
+  // --- Partie 8.5 (F22) : visite guidée --------------------------------------------------------
+  // Le brouillon (la liste qu'on prépare) reste dans ce navigateur ; la visite lancée est sur le
+  // serveur (et dans la trajectoire du robot, qui l'enchaîne même sans réseau).
+  const CLE_VISITE = "index-stellaire-visite";
+  const DUREES_ETAPE = [5, 10, 15, 20, 30, 45, 60];
+  let brouillon = [];
+  try {
+    const garde = JSON.parse(localStorage.getItem(CLE_VISITE) || "[]");
+    if (Array.isArray(garde)) {
+      brouillon = garde.filter(function (e) {
+        return e && typeof e.nom === "string" && DUREES_ETAPE.indexOf(e.duree_min) !== -1 &&
+          (Number.isInteger(e.objet_id) || (typeof e.ra === "number" && typeof e.dec === "number"));
+      }).slice(0, 20);
+    }
+  } catch (erreur) { /* stockage indisponible : liste vide */ }
+
+  const elVisite = {
+    enCours: document.getElementById("visite-en-cours"),
+    etapesEnCours: document.getElementById("visite-etapes-en-cours"),
+    arreter: document.getElementById("visite-arreter"),
+    titreBrouillon: document.getElementById("visite-titre-brouillon"),
+    etapes: document.getElementById("visite-etapes"),
+    vide: document.getElementById("visite-vide"),
+    proposer: document.getElementById("visite-proposer"),
+    depart: document.getElementById("visite-depart"),
+    heure: document.getElementById("visite-heure"),
+    resume: document.getElementById("visite-resume"),
+    lancer: document.getElementById("visite-lancer"),
+    vider: document.getElementById("visite-vider"),
+    note: document.getElementById("visite-note"),
+  };
+  const elAjouterVisite = document.getElementById("btn-ajouter-visite");
+  const elPointVisite = document.getElementById("btn-point-visite");
+
+  function garderBrouillon() {
+    try { localStorage.setItem(CLE_VISITE, JSON.stringify(brouillon)); } catch (erreur) { /* tant pis */ }
+  }
+
+  function cleEtape(e) {
+    return e.objet_id !== undefined && e.objet_id !== null ? "o" + e.objet_id : "p" + e.ra.toFixed(3) + "," + e.dec.toFixed(3);
+  }
+
+  function basculerEtape(etape) {
+    const cle = cleEtape(etape);
+    const i = brouillon.findIndex(function (e) { return cleEtape(e) === cle; });
+    if (i !== -1) brouillon.splice(i, 1);
+    else if (brouillon.length < 20) brouillon.push(etape);
+    garderBrouillon();
+    majBoutonsVisite();
+    afficherVisite();
+  }
+
+  function dansBrouillon(etape) {
+    const cle = cleEtape(etape);
+    return brouillon.some(function (e) { return cleEtape(e) === cle; });
+  }
+
+  // Boutons « Ajouter à la visite » de la fiche et du point du ciel
+  function majBoutonsVisite() {
+    const o = selection !== null ? objets.find(function (obj) { return obj.id === selection; }) : null;
+    const categorie = fiche ? fiche.categorie : o && o.categorie;
+    elAjouterVisite.hidden = selection === null || categorie === "satellite"; // un satellite passe trop vite
+    if (selection !== null) {
+      elAjouterVisite.textContent = dansBrouillon({ objet_id: selection })
+        ? "Retirer de la visite (" + brouillon.length + ")" : "Ajouter à la visite" + (brouillon.length ? " (" + brouillon.length + ")" : "");
+    }
+    if (pointChoisi) {
+      elPointVisite.textContent = dansBrouillon({ objet_id: null, ra: pointChoisi.ra, dec: pointChoisi.dec })
+        ? "Retirer de la visite" : "Ajouter à la visite";
+    }
+  }
+
+  elAjouterVisite.addEventListener("click", function () {
+    if (selection === null) return;
+    const nom = fiche ? fiche.nom : (objets.find(function (o) { return o.id === selection; }) || {}).nom || "Astre";
+    basculerEtape({ objet_id: selection, nom: nom, duree_min: 10 });
+  });
+  elPointVisite.addEventListener("click", function () {
+    if (!pointChoisi) return;
+    basculerEtape({ objet_id: null, ra: Number(pointChoisi.ra.toFixed(4)), dec: Number(pointChoisi.dec.toFixed(4)),
+      nom: "Point du ciel " + (brouillon.length + 1), duree_min: 10 });
+  });
+
+  // Début choisi : maintenant, ou la prochaine fois qu'il sera HH:MM (aujourd'hui ou demain)
+  function debutVisite() {
+    const choix = elVisite.depart.querySelector("input[name=visite-debut]:checked").value;
+    if (choix === "maintenant") return null;
+    const morceaux = (elVisite.heure.value || "21:00").split(":").map(Number);
+    const d = new Date();
+    d.setHours(morceaux[0], morceaux[1], 0, 0);
+    if (d.getTime() < Date.now() - 5 * 60000) d.setDate(d.getDate() + 1);
+    return d;
+  }
+
+  function boutonPetit(texte, titre, action) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = texte;
+    b.setAttribute("aria-label", titre);
+    b.addEventListener("click", action);
+    return b;
+  }
+
+  function afficherVisite() {
+    if (elPanVisite.hidden) return;
+    // La visite en cours (côté serveur)
+    const prog = pointage && pointage.commande && pointage.commande.programme;
+    elVisite.enCours.hidden = !prog;
+    elVisite.etapesEnCours.replaceChildren();
+    if (prog) {
+      prog.etapes.forEach(function (e, i) {
+        const li = document.createElement("li");
+        if (i + 1 === prog.etape) li.className = "courante";
+        const nom = document.createElement("span");
+        nom.className = "nom";
+        nom.textContent = e.nom;
+        const h = document.createElement("span");
+        h.className = "horaire";
+        h.textContent = fmtHeure.format(new Date(e.debut)) + (e.fin ? " → " + fmtHeure.format(new Date(e.fin)) : " → …");
+        li.append(nom, h);
+        elVisite.etapesEnCours.appendChild(li);
+      });
+    }
+    elVisite.titreBrouillon.textContent = prog ? "Prochaine visite (remplacera celle en cours) :" : "Prochaine visite :";
+    // Le brouillon : durée réglable, monter, descendre, retirer. Toujours textContent.
+    elVisite.etapes.replaceChildren();
+    brouillon.forEach(function (e, i) {
+      const li = document.createElement("li");
+      const nom = document.createElement("span");
+      nom.className = "nom";
+      nom.textContent = e.nom;
+      const duree = document.createElement("select");
+      duree.setAttribute("aria-label", "Durée de l'étape");
+      DUREES_ETAPE.forEach(function (m) {
+        const opt = document.createElement("option");
+        opt.value = String(m);
+        opt.textContent = m + " min";
+        if (m === e.duree_min) opt.selected = true;
+        duree.appendChild(opt);
+      });
+      duree.addEventListener("change", function () {
+        e.duree_min = Number(duree.value);
+        garderBrouillon();
+        afficherVisite();
+      });
+      li.append(nom, duree,
+        boutonPetit("↑", "Monter", function () {
+          if (i > 0) { brouillon.splice(i - 1, 0, brouillon.splice(i, 1)[0]); garderBrouillon(); afficherVisite(); }
+        }),
+        boutonPetit("↓", "Descendre", function () {
+          if (i < brouillon.length - 1) { brouillon.splice(i + 1, 0, brouillon.splice(i, 1)[0]); garderBrouillon(); afficherVisite(); }
+        }),
+        boutonPetit("×", "Retirer", function () {
+          brouillon.splice(i, 1); garderBrouillon(); majBoutonsVisite(); afficherVisite();
+        }));
+      elVisite.etapes.appendChild(li);
+    });
+    const vide = brouillon.length === 0;
+    elVisite.vide.hidden = !vide;
+    elVisite.depart.hidden = vide;
+    elVisite.lancer.hidden = vide;
+    elVisite.vider.hidden = vide;
+    const total = brouillon.reduce(function (s, e) { return s + e.duree_min; }, 0);
+    const debut = debutVisite() || new Date();
+    elVisite.resume.textContent = vide ? "" : brouillon.length + " étape" + (brouillon.length > 1 ? "s" : "") + " · " + total +
+      " min · de " + fmtHeure.format(debut) + " à " + fmtHeure.format(new Date(debut.getTime() + total * 60000)) +
+      " (le bras reste ensuite sur la dernière).";
+    const a = pointage && pointage.appareil;
+    elVisite.lancer.disabled = !a || envoiEnCours;
+    elVisite.arreter.disabled = envoiEnCours;
+    const p = pointage && pointage.pilotage;
+    const phrases = [];
+    if (Date.now() < finMessageErreur) phrases.push(messageErreur);
+    else if (!a) phrases.push("Aucun appareil enregistré.");
+    if (!vide && a && p && !p.autorise) phrases.push("Le code de pilotage sera demandé.");
+    if (!vide) phrases.push("Le bras enchaîne les étapes même si le réseau tombe.");
+    elVisite.note.textContent = phrases.join(" ");
+  }
+
+  elVisite.lancer.addEventListener("click", function () {
+    if (!brouillon.length || envoiEnCours) return;
+    const debut = debutVisite();
+    envoyer(carte.dataset.urlVisite, {
+      debut: debut ? debut.toISOString() : null,
+      etapes: brouillon.map(function (e) {
+        return e.objet_id !== null && e.objet_id !== undefined
+          ? { objet_id: e.objet_id, duree_min: e.duree_min }
+          : { ra: e.ra, dec: e.dec, nom: e.nom, duree_min: e.duree_min };
+      }),
+    });
+  });
+  elVisite.arreter.addEventListener("click", function () {
+    if (!envoiEnCours) envoyer(carte.dataset.urlArret, null);
+  });
+  elVisite.vider.addEventListener("click", function () {
+    brouillon = [];
+    garderBrouillon();
+    majBoutonsVisite();
+    afficherVisite();
+  });
+  elVisite.depart.addEventListener("change", afficherVisite);
+  document.getElementById("visite-fermer").addEventListener("click", function () { ouvrir(null); });
+  document.getElementById("app-visite").addEventListener("click", function () { ouvrirVisite(); });
+
+  function ouvrirVisite() {
+    if (selection !== null) selectionner(null);
+    ouvrir("visite");
+    afficherVisite();
+  }
+
+  // « Proposer une visite de ce soir » : les astres visibles cette nuit, 10 min chacun, dans
+  // l'ordre où ils sont observables (un astre n'est pris que s'il est levé pendant son étape)
+  function proposerVisite() {
+    function construire(soir) {
+      if (!soir || !soir.debut_nuit) {
+        elVisite.note.textContent = "Pas de nuit dans les 24 prochaines heures : rien à proposer.";
+        return;
+      }
+      let t = Math.max(Date.parse(soir.debut_nuit), Date.now());
+      const debutPropose = t;
+      const etapes = [];
+      // Les étapes s'enchaînent sans pause : un astre n'est pris que s'il est déjà levé (à 10° ou
+      // plus) au début de son étape et le reste jusqu'à la fin
+      soir.astres.slice().sort(function (a, b) { return Date.parse(a.de) - Date.parse(b.de); }).forEach(function (a) {
+        if (Date.parse(a.de) <= t && Date.parse(a.a) >= t + 10 * 60000) {
+          etapes.push({ objet_id: a.objet_id, nom: a.nom, duree_min: 10 });
+          t += 10 * 60000;
+        }
+      });
+      if (!etapes.length) {
+        elVisite.note.textContent = "Aucun astre de la base n'est assez haut à ce moment-là.";
+        return;
+      }
+      brouillon = etapes;
+      garderBrouillon();
+      const d = new Date(debutPropose);
+      const maintenant = debutPropose <= Date.now() + 60000;
+      elVisite.depart.querySelector("input[value=" + (maintenant ? "maintenant" : "heure") + "]").checked = true;
+      if (!maintenant) elVisite.heure.value = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+      ouvrirVisite();
+    }
+    if (evenements && Math.abs(Date.now() - instantEvenements) < EVENEMENTS_PERIMES_APRES) {
+      construire(evenements.ce_soir);
+      return;
+    }
+    fetch(carte.dataset.urlEvenements + "?jours=1")
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function (d) { construire(d.ce_soir); })
+      .catch(function () { elVisite.note.textContent = "Impossible de calculer la nuit pour le moment."; });
+  }
+  elVisite.proposer.addEventListener("click", proposerVisite);
+  document.getElementById("btn-proposer-visite").addEventListener("click", proposerVisite);
 
   // --- Partie 7 : événements visibles à l'œil nu -------------------------------------------
   const elSoirNuit = document.getElementById("soir-nuit");
@@ -630,6 +1100,7 @@
         voirMoment(e.instant, e.direction, e.objet_id);
       }, e.important));
     });
+    document.getElementById("btn-proposer-visite").hidden = soir.astres.length === 0;
     elEtatEvenements.hidden = evenements.evenements.length > 0;
     elEtatEvenements.textContent = "Rien de remarquable ces 30 prochains jours.";
     afficherSources(evenements.sources || []);
@@ -1119,7 +1590,7 @@
 
   // On distingue un « toucher » d'un « glisser » (qui déplace la carte).
   // On écoute tout le document : toucher le ciel vide, hors du disque, désélectionne.
-  const INTERFACE = "#fiche, #panneau-temps, #panneau-calques, #panneau-recherche, #panneau-appareil, #panneau-code, #panneau-evenements, #panneau-point, #etat-appareil, #boussole, #zoom, #barre";
+  const INTERFACE = "#fiche, #panneau-temps, #panneau-calques, #panneau-recherche, #panneau-appareil, #panneau-code, #panneau-evenements, #panneau-point, #panneau-visite, #panneau-journal, #panneau-observation, #etat-appareil, #boussole, #zoom, #barre";
   let depart = null;
   // Partie 8.4 : un appui long (0,6 s sans bouger) sur le ciel choisit ce point (cible personnalisée)
   const DUREE_APPUI_LONG = 600;
@@ -1322,6 +1793,8 @@
     }
     remplirCredits();
     remplirInfosPlus();
+    majBoutonsVisite();
+    majJournalFiche();
     const passages = fiche && fiche.passages;
     // 6.3 : pour un satellite, la liste des passages remplace la courbe (style : `hidden` ne marche pas sur un SVG)
     el.courbe.style.display = passages ? "none" : "";
@@ -1586,6 +2059,7 @@
     afficherEtat();
     majBoutonPointer();
     majPanneauPoint();
+    afficherVisite();
     if (signaturePointage() !== avant) Celestial.redraw();
   }
 
@@ -1670,7 +2144,8 @@
     elApp.mode.textContent = a && a.mode ? NOMS_MODES[a.mode] || a.mode : "—";
     elApp.batterie.textContent = a && a.batterie !== null ? a.batterie + " %" : "—";
     elApp.vu.textContent = a ? depuis(a.derniere_vue) : "—";
-    elApp.cible.textContent = c ? c.objet.nom : "Aucune";
+    const prog = c && c.programme;
+    elApp.cible.textContent = !c ? "Aucune" : c.objet.nom + (prog ? " (visite " + prog.etape + "/" + prog.etapes.length + ")" : "");
     elApp.ecart.textContent = c && pointage.ecart_deg !== null ? fmtNombre.format(pointage.ecart_deg) + "°" : "—";
     elApp.voir.hidden = !c;
     elApp.arreter.hidden = !c;
@@ -1755,7 +2230,8 @@
           elCodeChamp.value = "";
           ouvrir(null);
           if (fiche !== null) selectionner(fiche);
-          if (action) envoyer(action.url, action.corps);
+          if (action && action.relancer) action.relancer(); // Partie 9 : une action autre qu'un pointage
+          else if (action) envoyer(action.url, action.corps);
           majPanneauAppareil();
           majBoutonPointer();
           return;
@@ -1843,6 +2319,7 @@
         majBoutonPointer();
         majPanneauAppareil();
         majPanneauPoint();
+        afficherVisite();
       });
   }
 

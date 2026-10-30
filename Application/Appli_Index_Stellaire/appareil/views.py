@@ -1,6 +1,7 @@
 import json
 import logging
 import math
+from datetime import datetime, timedelta
 
 from django.http import JsonResponse
 from django.urls import reverse
@@ -57,11 +58,13 @@ def _commande_pour_appareil(appareil, instant):
     except (KeyError, ValueError):
         logger.warning("Cible impossible à calculer pour %s", commande.nom)
         return None
+    quand = instant.utc_datetime()
     return {
         "id": commande.id,
         "mode": "pointer",
-        "objet": commande.resume_objet(),  # id None pour un point du ciel (8.4)
-        "coordonnees": commande.coordonnees,  # 8.4 : {ra, dec} pour un point du ciel, sinon None
+        "objet": commande.resume_objet(quand),  # id None pour un point du ciel (8.4)
+        "coordonnees": commande.coordonnees_a(quand),  # 8.4 : {ra, dec} pour un point du ciel, sinon None
+        "etape": services.etape_resumee(commande, quand),  # 8.5 : {numero, total, fin} pendant une visite
         "cible": cible,
         # Partie 6.1 : où télécharger la trajectoire longue (une fois par nouvelle commande)
         "trajectoire": reverse("appareil:trajectoire"),
@@ -187,6 +190,7 @@ def _etat(appareil, secours=None):
         resume_commande = {
             "objet": commande.resume_objet(),
             "coordonnees": commande.coordonnees,  # 8.4
+            "programme": services.programme_resume(commande),  # 8.5 : la visite guidée, ou None
             "depuis": commande.cree_le.isoformat(),
             "cible": cible,
         }
@@ -258,6 +262,63 @@ def definir_commande(request):
         return _erreur("Objet introuvable ou sans identifiant Skyfield.", 404)
 
     services.definir_cible(appareil, objet)
+    return _reponse_etat(request, appareil)
+
+
+@require_POST
+@pilotage.pilotage_requis
+def definir_visite(request):
+    """Partie 8.5 (F22) : lancer une visite guidée.
+    {"debut": ISO 8601 ou null (maintenant), "etapes": [{"objet_id": n, "duree_min": 1..240} ou
+    {"ra": .., "dec": .., "nom": facultatif, "duree_min": ..}]} ; 20 étapes au plus, 48 h au plus,
+    début entre maintenant et 48 h. Pas de satellite (il ne passe que quelques minutes)."""
+    appareil = services.appareil_principal()
+    if appareil is None:
+        return _erreur("Aucun appareil enregistré.", 404)
+    try:
+        corps = json.loads(request.body or b"{}")
+        if not isinstance(corps, dict):
+            raise ValueError("corps")
+        brutes = corps["etapes"]
+        if not isinstance(brutes, list) or not 1 <= len(brutes) <= services.ETAPES_MAX:
+            raise ValueError("etapes")
+        etapes = []
+        for b in brutes:
+            if not isinstance(b, dict):
+                raise ValueError("etape")
+            duree = b.get("duree_min")
+            if isinstance(duree, bool) or not isinstance(duree, int) or not 1 <= duree <= services.DUREE_ETAPE_MAX_MIN:
+                raise ValueError("duree_min")
+            if "objet_id" in b:
+                if isinstance(b["objet_id"], bool) or not isinstance(b["objet_id"], int):
+                    raise ValueError("objet_id")
+                objet = ObjetCeleste.objects.filter(pk=b["objet_id"]).exclude(identifiant_skyfield="").first()
+                if objet is None:
+                    return _erreur(f"Objet {b['objet_id']} introuvable ou sans identifiant de calcul.", 404)
+                if objet.identifiant_skyfield.startswith("sat:"):
+                    return _erreur(f"{objet.nom} : un satellite ne peut pas faire partie d'une visite.", 400)
+                etapes.append({"objet": objet, "duree_s": duree * 60})
+            else:
+                ra, dec = _nombre(b, "ra", -360, 360), _nombre(b, "dec", -90, 90)
+                nom = b.get("nom", "")
+                if ra is None or dec is None or not isinstance(nom, str) or len(nom) > 60:
+                    raise ValueError("point")
+                etapes.append({"ra": ra, "dec": dec, "nom": nom.strip(), "duree_s": duree * 60})
+        maintenant_dt = timezone.now()
+        texte = corps.get("debut")
+        if texte is None:
+            debut = maintenant_dt
+        else:
+            debut = datetime.fromisoformat(str(texte).replace("Z", "+00:00"))
+            if debut.tzinfo is None:
+                raise ValueError("debut sans fuseau")
+            if not maintenant_dt - timedelta(minutes=5) <= debut <= maintenant_dt + timedelta(hours=48):
+                return _erreur("Le début doit être entre maintenant et dans 48 h.", 400)
+    except (ValueError, KeyError, TypeError):
+        return _erreur(
+            'Corps JSON attendu : {"debut": ISO ou null, "etapes": [{"objet_id": n, "duree_min": 1..240}, ...]}.', 400
+        )
+    services.definir_visite(appareil, etapes, debut)
     return _reponse_etat(request, appareil)
 
 

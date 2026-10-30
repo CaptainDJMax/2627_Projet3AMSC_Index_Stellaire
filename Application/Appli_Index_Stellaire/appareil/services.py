@@ -1,6 +1,7 @@
 """Logique métier du pointage, indépendante de HTTP (testable seule)."""
 
 import math
+from datetime import timedelta
 
 from django.conf import settings
 from django.db import transaction
@@ -50,6 +51,64 @@ def definir_point(appareil, ra, dec, nom=""):
     return Commande.objects.create(appareil=appareil, ra=ra % 360, dec=dec, nom_cible=nom)
 
 
+# Partie 8.5 (F22) : visite guidée
+ETAPES_MAX = 20
+DUREE_ETAPE_MAX_MIN = 240
+
+
+@transaction.atomic
+def definir_visite(appareil, etapes, debut):
+    """Remplace la commande en cours par une visite guidée. etapes : [{objet (ObjetCeleste) ou
+    ra/dec/nom, duree_s}], déjà vérifiées ; debut : datetime (avec fuseau)."""
+    appareil.commandes.filter(active=True).update(active=False)
+    programme = []
+    for e in etapes:
+        objet = e.get("objet")
+        if objet is not None:
+            programme.append({"objet_id": objet.id, "ra": None, "dec": None, "nom": objet.nom,
+                              "identifiant": objet.identifiant_skyfield, "duree_s": e["duree_s"]})
+        else:
+            ra = e["ra"] % 360
+            programme.append({"objet_id": None, "ra": ra, "dec": e["dec"], "nom": e.get("nom") or "Point du ciel",
+                              "identifiant": f"radec:{ra},{e['dec']}", "duree_s": e["duree_s"]})
+    premiere = etapes[0]
+    return Commande.objects.create(
+        appareil=appareil,
+        objet=premiere.get("objet"),
+        ra=None if premiere.get("objet") else premiere["ra"] % 360,
+        dec=None if premiere.get("objet") else premiere["dec"],
+        programme=programme,
+        debut_programme=debut,
+    )
+
+
+def etape_resumee(commande, quand=None):
+    """Champ « etape » de la synchronisation : {numero, total, fin} ou None hors visite."""
+    e = commande.etape_a(quand)
+    if e is None:
+        return None
+    return {"numero": e[0] + 1, "total": len(commande.programme),
+            "fin": e[3].isoformat().replace("+00:00", "Z") if e[3] else None}
+
+
+def programme_resume(commande, quand=None):
+    """Champ « programme » de l'état (interface) : la visite étape par étape, ou None."""
+    e = commande.etape_a(quand)
+    if e is None:
+        return None
+    iso = lambda d: d.isoformat().replace("+00:00", "Z") if d else None  # noqa: E731
+    return {
+        "debut": iso(commande.debut_programme),
+        "etape": e[0] + 1,  # numéro de l'étape en cours (ou à venir), à partir de 1
+        "etapes": [
+            {"nom": et["nom"], "objet_id": et["objet_id"],
+             "coordonnees": None if et["objet_id"] is not None else {"ra": et["ra"], "dec": et["dec"]},
+             "duree_min": round(et["duree_s"] / 60), "debut": iso(d), "fin": iso(f)}
+            for _, et, d, f in commande.etapes_datees()
+        ],
+    }
+
+
 def arreter(appareil):
     appareil.commandes.filter(active=True).update(active=False)
 
@@ -60,8 +119,9 @@ def cible_de(commande, instant=None, secours=None):
     L'élévation peut être négative : le bras est une structure ouverte, il sait
     pointer à travers la Terre (objets de l'autre côté du globe)."""
     lieu = lieu_observation(commande.appareil, secours)
+    quand = instant.utc_datetime() if instant is not None else None
     elevation, azimut = altaz(
-        commande.identifiant,
+        commande.identifiant_a(quand),
         lieu["latitude"], lieu["longitude"], lieu["altitude_m"],
         instant,
     )
@@ -87,12 +147,17 @@ def trajectoire_de(commande, debut, heures=DUREE_TRAJECTOIRE_H, pas_s=PAS_TRAJEC
     """Positions [azimut, élévation] (degrés, 2 décimales) du bras pour viser l'objet de la
     commande, une tous les `pas_s` secondes de `debut` à `debut + heures`, bornes comprises."""
     lieu = lieu_observation(commande.appareil)
-    points = trajectoire(
-        commande.identifiant,
-        lieu["latitude"], lieu["longitude"], lieu["altitude_m"],
-        debut, heures, pas_s / 60,
-    )
-    return [[round(p["azimut"], 2), round(p["elevation"], 2)] for p in points]
+    args = (lieu["latitude"], lieu["longitude"], lieu["altitude_m"], debut, heures, pas_s / 60)
+    if not commande.programme:
+        points = trajectoire(commande.identifiant_a(debut.utc_datetime()), *args)
+        return [[round(p["azimut"], 2), round(p["elevation"], 2)] for p in points]
+    # Visite guidée (8.5) : chaque point vise l'étape en cours à son instant. Le format ne change
+    # pas : le robot suit les points sans savoir qu'il s'agit d'une visite.
+    t0 = debut.utc_datetime()
+    n = int(round(heures * 3600 / pas_s)) + 1
+    choix = [commande.identifiant_a(t0 + timedelta(seconds=i * pas_s)) for i in range(n)]
+    par_cible = {ident: trajectoire(ident, *args) for ident in set(choix)}
+    return [[round(par_cible[c][i]["azimut"], 2), round(par_cible[c][i]["elevation"], 2)] for i, c in enumerate(choix)]
 
 
 def trajectoire_pour_appareil(commande, debut, heures=DUREE_TRAJECTOIRE_H):

@@ -61,3 +61,42 @@ class Constellation(models.Model):
 
     def __str__(self):
         return self.nom
+
+
+class Observation(models.Model):
+    """Partie 9 : une ligne du journal d'observation, notée par l'utilisateur.
+
+    Le journal montre aussi, sans les recopier ici, les pointages du bras (historique des
+    commandes de l'appli `appareil`)."""
+
+    class Ciel(models.TextChoices):
+        CLAIR = "clair", "Ciel clair"
+        VOILE = "voile", "Ciel voilé"
+        NUAGEUX = "nuageux", "Nuageux"
+        INCONNU = "inconnu", "Non précisé"
+
+    class Instrument(models.TextChoices):
+        OEIL = "oeil", "À l'œil nu"
+        JUMELLES = "jumelles", "Jumelles"
+        TELESCOPE = "telescope", "Télescope ou lunette"
+        BRAS = "bras", "Avec le bras"
+
+    quand = models.DateTimeField()
+    # L'astre observé (gardé même s'il est retiré de la base : on garde son nom), ou un point du ciel
+    objet = models.ForeignKey(ObjetCeleste, on_delete=models.SET_NULL, null=True, blank=True, related_name="observations")
+    ra = models.FloatField(null=True, blank=True)
+    dec = models.FloatField(null=True, blank=True)
+    nom = models.CharField(max_length=100)
+    # Le lieu de l'observation (celui des calculs à ce moment-là)
+    latitude = models.FloatField()
+    longitude = models.FloatField()
+    ciel = models.CharField(max_length=10, choices=Ciel.choices, default=Ciel.INCONNU)
+    instrument = models.CharField(max_length=10, choices=Instrument.choices, default=Instrument.OEIL)
+    note = models.TextField(blank=True, default="", max_length=2000)
+    cree_le = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-quand"]
+
+    def __str__(self):
+        return f"{self.nom} ({self.quand:%d/%m/%Y %H:%M})"

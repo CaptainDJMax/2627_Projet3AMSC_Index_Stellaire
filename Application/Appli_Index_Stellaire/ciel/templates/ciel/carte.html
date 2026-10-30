@@ -19,6 +19,10 @@
        data-url-pointage="{% url 'appareil:etat' %}"
        data-url-commande="{% url 'appareil:commande' %}"
        data-url-arret="{% url 'appareil:arret' %}"
+       data-url-visite="{% url 'appareil:visite' %}"
+       data-url-journal="{% url 'ciel:journal' %}"
+       data-url-journal-noter="{% url 'ciel:journal_noter' %}"
+       data-url-journal-export="{% url 'ciel:journal_export' %}"
        data-url-pilotage="{% url 'appareil:pilotage' %}"
        data-url-pilotage-fin="{% url 'appareil:pilotage_fin' %}"
        data-url-lieu="{% url 'ciel:lieu' %}"
@@ -49,6 +53,7 @@
     <p id="app-note" hidden></p>
     <button type="button" id="app-voir" class="large" hidden>Voir la cible</button>
     <button type="button" id="app-arreter" class="large arreter" hidden>Arrêter le pointage</button>
+    <button type="button" id="app-visite" class="large secondaire">Visite guidée</button>
     <p id="app-pilotage"></p>
     <button type="button" id="app-verrou" class="large secondaire" hidden>Verrouiller</button>
   </div>
@@ -95,11 +100,13 @@
     <p class="titre-panneau">Ce soir</p>
     <p id="soir-nuit" class="note-panneau"></p>
     <ul id="soir-astres" class="liste-evenements"></ul>
+    <button type="button" id="btn-proposer-visite" class="lien-panneau" hidden>Proposer une visite guidée de ce soir</button>
     <p class="titre-panneau">Les 30 prochains jours</p>
     <ul id="evenements-liste" class="liste-evenements"></ul>
     <p id="evenements-etat" class="note-panneau" hidden></p>
     <!-- Partie 8.3 : d'où viennent les événements (mention obligatoire pour COBS) -->
     <p id="evenements-sources" class="credits"></p>
+    <button type="button" id="btn-journal" class="lien-panneau">Journal d'observation</button>
   </div>
 
   <!-- Partie 8.4 : un point quelconque du ciel, choisi par un appui long -->
@@ -113,7 +120,72 @@
     </dl>
     <p id="point-soir" class="note-panneau"></p>
     <button type="button" id="btn-pointer-point" class="large">Pointer ici</button>
+    <button type="button" id="btn-point-visite" class="large secondaire">Ajouter à la visite</button>
     <p id="point-note" class="note-panneau"></p>
+  </div>
+
+  <!-- Partie 9 : journal d'observation (observations notées et pointages du bras) -->
+  <div id="panneau-journal" class="verre" hidden>
+    <button type="button" id="journal-fermer" class="fermer-rond" aria-label="Fermer">×</button>
+    <p class="titre-panneau">Journal d'observation</p>
+    <p id="journal-filtre" class="note-panneau" hidden>
+      <span id="journal-filtre-nom"></span> ·
+      <button type="button" id="journal-tout" class="lien-panneau">tout voir</button>
+    </p>
+    <ul id="journal-liste" class="liste-evenements"></ul>
+    <p id="journal-etat" class="note-panneau"></p>
+    <a id="journal-export" class="lien-panneau" download>Exporter les observations (tableur)</a>
+  </div>
+
+  <!-- Partie 9 : noter une observation -->
+  <div id="panneau-observation" class="verre" hidden>
+    <button type="button" id="observation-fermer" class="fermer-rond" aria-label="Fermer">×</button>
+    <p class="titre-panneau">Noter une observation</p>
+    <p id="observation-nom"></p>
+    <label class="champ">Quand
+      <input type="datetime-local" id="observation-quand"></label>
+    <p class="note-panneau">Ciel</p>
+    <div class="groupe-filtres" role="radiogroup" aria-label="Ciel">
+      <button type="button" data-ciel="clair" aria-pressed="false">Clair</button>
+      <button type="button" data-ciel="voile" aria-pressed="false">Voilé</button>
+      <button type="button" data-ciel="nuageux" aria-pressed="false">Nuageux</button>
+    </div>
+    <p class="note-panneau">Vu</p>
+    <div class="groupe-filtres" role="radiogroup" aria-label="Instrument">
+      <button type="button" data-instrument="oeil" aria-pressed="true">À l'œil nu</button>
+      <button type="button" data-instrument="jumelles" aria-pressed="false">Jumelles</button>
+      <button type="button" data-instrument="telescope" aria-pressed="false">Télescope</button>
+      <button type="button" data-instrument="bras" aria-pressed="false">Avec le bras</button>
+    </div>
+    <label class="champ">Note
+      <textarea id="observation-note" rows="3" maxlength="2000" placeholder="Ce que tu as vu, la couleur, avec qui..."></textarea></label>
+    <button type="button" id="observation-enregistrer" class="large">Enregistrer</button>
+    <p id="observation-message" class="note-panneau" role="alert"></p>
+  </div>
+
+  <!-- Partie 8.5 (F22) : visite guidée, plusieurs cibles enchaînées avec des horaires -->
+  <div id="panneau-visite" class="verre" hidden>
+    <button type="button" id="visite-fermer" aria-label="Fermer">×</button>
+    <p class="titre-panneau">Visite guidée</p>
+    <div id="visite-en-cours" hidden>
+      <p class="note-panneau">En cours :</p>
+      <ol id="visite-etapes-en-cours" class="etapes"></ol>
+      <button type="button" id="visite-arreter" class="large arreter">Arrêter la visite</button>
+    </div>
+    <p id="visite-titre-brouillon" class="note-panneau">Prochaine visite :</p>
+    <ol id="visite-etapes" class="etapes"></ol>
+    <p id="visite-vide" class="note-panneau">Ajoute des astres avec « Ajouter à la visite » dans leur fiche, ou fais-toi
+      proposer une visite de ce soir.</p>
+    <button type="button" id="visite-proposer" class="lien-panneau">Proposer une visite de ce soir</button>
+    <div id="visite-depart">
+      <label><input type="radio" name="visite-debut" value="maintenant" checked> Maintenant</label>
+      <label><input type="radio" name="visite-debut" value="heure"> À
+        <input type="time" id="visite-heure" value="21:00"></label>
+    </div>
+    <p id="visite-resume" class="note-panneau"></p>
+    <button type="button" id="visite-lancer" class="large">Lancer la visite</button>
+    <button type="button" id="visite-vider" class="large secondaire">Vider la liste</button>
+    <p id="visite-note" class="note-panneau"></p>
   </div>
 
   <!-- Calques : ce qui apparaît sur la carte -->
@@ -178,6 +250,9 @@
     <p id="fiche-description"></p>
     <p id="fiche-sources" hidden></p>
     <button type="button" id="btn-pointer" class="large" disabled>Pointer</button>
+    <button type="button" id="btn-ajouter-visite" class="large secondaire" hidden>Ajouter à la visite</button>
+    <button type="button" id="btn-noter" class="large secondaire">Noter une observation</button>
+    <button type="button" id="btn-journal-astre" class="lien-panneau" hidden></button>
     <p id="fiche-note-appareil">Aucun appareil connecté.</p>
   </aside>
 

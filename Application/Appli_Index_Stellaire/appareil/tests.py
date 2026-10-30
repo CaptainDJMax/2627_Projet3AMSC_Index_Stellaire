@@ -134,8 +134,9 @@ class ApiAppareilTests(TestCase):
                 patch("appareil.services.altaz", wraps=altaz) as calcul:
             d = self.sync({}, **self.entete).json()
         commande = d["commande"]
-        self.assertEqual({"id", "mode", "objet", "cible", "trajectoire", "coordonnees"}, set(commande))  # 6.1, 8.4
+        self.assertEqual({"id", "mode", "objet", "cible", "trajectoire", "coordonnees", "etape"}, set(commande))  # 6.1, 8.4, 8.5
         self.assertIsNone(commande["coordonnees"])  # un objet de la base, pas un point du ciel
+        self.assertIsNone(commande["etape"])  # pas une visite guidée
         self.assertEqual(commande["trajectoire"], "/api/appareil/trajectoire/")
         self.assertEqual(commande["mode"], "pointer")
         self.assertEqual(commande["objet"], {"id": self.jupiter.id, "nom": "Jupiter"})
@@ -667,4 +668,99 @@ class CiblePersonnaliseeTests(TestCase):
     def test_ni_objet_ni_coordonnees_refuse_en_base(self):
         with self.assertRaises(IntegrityError), transaction.atomic():
             Commande.objects.create(appareil=self.appareil)
+
+
+@override_settings(CODE_PILOTAGE=CODE_TEST)
+class VisiteGuideeTests(TestCase):
+    """Partie 8.5 (F22) : enchaîner plusieurs cibles avec des horaires, même hors ligne."""
+
+    URL = "/api/pointage/visite/"
+
+    def setUp(self):
+        self.appareil = Appareil.objects.create()
+        self.entete = {"HTTP_AUTHORIZATION": f"Bearer {self.appareil.jeton}"}
+        self.client.post("/api/pointage/pilotage/", {"code": CODE_TEST}, content_type="application/json")
+        self.jupiter = ObjetCeleste.objects.create(nom="Jupiter", categorie="planete", identifiant_skyfield="jupiter barycenter")
+        self.saturne = ObjetCeleste.objects.create(nom="Saturne", categorie="planete", identifiant_skyfield="saturn barycenter")
+        self.debut = datetime(2026, 10, 12, 20, 0, tzinfo=timezone.utc)
+
+    def lancer(self, corps):
+        with patch("appareil.views.timezone.now", return_value=self.debut - timedelta(minutes=1)):
+            return self.client.post(self.URL, corps, content_type="application/json")
+
+    def visite(self):
+        return self.lancer({"debut": "2026-10-12T20:00:00Z", "etapes": [
+            {"objet_id": self.jupiter.id, "duree_min": 10},
+            {"ra": 88.7929, "dec": 7.4071, "nom": "Bételgeuse à la main", "duree_min": 5},
+            {"objet_id": self.saturne.id, "duree_min": 15},
+        ]})
+
+    def sync_a(self, quand):
+        with patch("appareil.views.maintenant", return_value=instant_depuis(quand)):
+            return self.client.post("/api/appareil/sync/", {}, content_type="application/json", **self.entete).json()["commande"]
+
+    def test_etat_de_la_visite(self):
+        d = self.visite().json()
+        prog = d["commande"]["programme"]
+        self.assertEqual(prog["debut"], "2026-10-12T20:00:00Z")
+        self.assertEqual([e["nom"] for e in prog["etapes"]], ["Jupiter", "Bételgeuse à la main", "Saturne"])
+        self.assertEqual([e["fin"] for e in prog["etapes"]], ["2026-10-12T20:10:00Z", "2026-10-12T20:15:00Z", None])
+        self.assertEqual(prog["etapes"][1]["coordonnees"], {"ra": 88.7929, "dec": 7.4071})
+
+    def test_la_cible_change_avec_l_heure(self):
+        self.visite()
+        avant = self.sync_a(self.debut - timedelta(minutes=30))  # pas encore commencée : 1re étape
+        e1 = self.sync_a(self.debut + timedelta(minutes=3))
+        e2 = self.sync_a(self.debut + timedelta(minutes=12))
+        e3 = self.sync_a(self.debut + timedelta(hours=5))  # finie : reste sur la dernière
+        self.assertEqual(avant["objet"]["nom"], "Jupiter")
+        self.assertEqual((e1["objet"], e1["etape"]), ({"id": self.jupiter.id, "nom": "Jupiter"},
+                                                      {"numero": 1, "total": 3, "fin": "2026-10-12T20:10:00Z"}))
+        self.assertEqual((e2["objet"]["id"], e2["coordonnees"], e2["etape"]["numero"]), (None, {"ra": 88.7929, "dec": 7.4071}, 2))
+        self.assertEqual((e3["objet"]["nom"], e3["etape"]), ("Saturne", {"numero": 3, "total": 3, "fin": None}))
+        el, az = altaz("hip:27989", 48.8566, 2.3522, 35, instant_depuis(self.debut + timedelta(minutes=12)))
+        self.assertAlmostEqual(e2["cible"]["azimut"], az, delta=0.02)
+        # Même commande du début à la fin : le robot ne retélécharge pas sa trajectoire
+        self.assertEqual(len({c["id"] for c in (avant, e1, e2, e3)}), 1)
+
+    def test_trajectoire_qui_enchaine_les_etapes(self):
+        """Le robot suit la visite seul, sans réseau : ses points changent de cible aux bonnes heures."""
+        self.visite()
+        with patch("appareil.views.maintenant", return_value=instant_depuis(self.debut)):
+            d = self.client.get("/api/appareil/trajectoire/?heures=1", **self.entete).json()
+        self.assertEqual(d["pas_s"], 60)
+        for minute, ident in [(5, "jupiter barycenter"), (12, "hip:27989"), (40, "saturn barycenter")]:
+            el, az = altaz(ident, 48.8566, 2.3522, 35, instant_depuis(self.debut + timedelta(minutes=minute)))
+            with self.subTest(minute=minute):
+                self.assertAlmostEqual(d["points"][minute][0], az, delta=0.05)
+                self.assertAlmostEqual(d["points"][minute][1], el, delta=0.05)
+
+    def test_refus(self):
+        iss = ObjetCeleste.objects.create(nom="ISS", categorie="satellite", identifiant_skyfield="sat:25544")
+        mauvais = [
+            {"etapes": []},
+            {"etapes": [{"objet_id": self.jupiter.id}]},  # sans durée
+            {"etapes": [{"objet_id": self.jupiter.id, "duree_min": 0}]},
+            {"etapes": [{"objet_id": self.jupiter.id, "duree_min": 241}]},
+            {"etapes": [{"objet_id": self.jupiter.id, "duree_min": 5}] * 21},
+            {"etapes": [{"objet_id": iss.id, "duree_min": 5}]},  # satellite : non
+            {"debut": "2026-10-20T20:00:00Z", "etapes": [{"objet_id": self.jupiter.id, "duree_min": 5}]},  # trop tard
+            {"debut": "2026-10-12T20:00:00", "etapes": [{"objet_id": self.jupiter.id, "duree_min": 5}]},  # sans fuseau
+        ]
+        for corps in mauvais:
+            with self.subTest(corps=str(corps)[:60]):
+                self.assertEqual(self.lancer(corps).status_code, 400)
+        self.assertEqual(self.lancer({"etapes": [{"objet_id": 9999, "duree_min": 5}]}).status_code, 404)
+
+    def test_debut_maintenant_par_defaut_et_code_exige(self):
+        d = self.lancer({"etapes": [{"objet_id": self.saturne.id, "duree_min": 20}]}).json()
+        self.assertEqual(d["commande"]["programme"]["etape"], 1)
+        self.client.post("/api/pointage/pilotage/fin/")
+        self.assertEqual(self.lancer({"etapes": [{"objet_id": self.saturne.id, "duree_min": 20}]}).status_code, 403)
+
+    def test_une_commande_simple_remplace_la_visite(self):
+        self.visite()
+        d = self.client.post("/api/pointage/commande/", {"objet_id": self.jupiter.id}, content_type="application/json").json()
+        self.assertIsNone(d["commande"]["programme"])
+        self.assertEqual(self.appareil.commandes.filter(active=True).count(), 1)
 
