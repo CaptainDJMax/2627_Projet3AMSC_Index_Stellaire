@@ -6014,3 +6014,81 @@ git push
 
 Tu peux supprimer `A_FAIRE_PARTIES_8_5_ET_9.md` : son contenu est consigné ci-dessus.
 
+## Partie 10 : contenu vérifié (16 fiches), Soleil et ciel profond
+
+✅ Encore construite sur notre dépôt (`5e0df73` + 8.5/9) : la 6.4 était bien conservée, vérifié
+avant d'installer (`secours`, `#btn-position`, glisser `+`).
+
+**16 fiches remplies** (`contenu/astres/`), chacune avec description, sources vérifiées (NASA/ESA/ESO)
+et, pour 14 d'entre elles, une image NASA du domaine public avec son crédit exact. Les 12 de
+départ (planètes, Lune, ISS, Sirius, Polaris, Véga — Bételgeuse et Aldébaran restent sans image).
+
+**Nouveaux astres** :
+- **Soleil** (catégorie `soleil`, `identifiant_skyfield: "sun"`) : avertissement de sécurité bien
+  visible dans sa fiche — jamais d'observation sans filtre homologué ISO 12312-2, jamais de
+  caméra ni de laser pointés dessus.
+- **Pléiades**, **galaxie d'Andromède**, **nébuleuse d'Orion** (catégorie `ciel_profond`) : des
+  points fixes du ciel (`identifiant_skyfield: "radec:RA,DEC"`), donc pointables et suivables par
+  le bras comme n'importe quel astre.
+
+**`ciel/models.py`** : deux catégories ajoutées à `ObjetCeleste.Categorie` (`SOLEIL`, `CIEL_PROFOND`),
+et l'aide du champ `identifiant_skyfield` précisée (`sun`, `sat:NUMERO_NORAD`, `radec:RA,DEC`).
+Migration `0007_categories_soleil_ciel_profond`.
+
+**Carte** : Soleil en gros disque jaune, ciel profond en anneau rose. Filtres renommés « Soleil,
+Lune et planètes » et « Étoiles et ciel profond ».
+
+**Correction** (`ciel/astro.py`) : un point du ciel (`radec:`) affichait une distance absurde
+(« 206 264 806 247 095 UA », calculée comme si c'était une étoile proche) ; `infos()` n'affiche
+plus aucune distance pour un point fixe du ciel (la distance, quand elle a un sens, reste dans
+la description texte).
+
+### `ciel/management/commands/telecharger_images.py` (nouveau) + `contenu/images_sources.json`
+
+Les images ne sont pas dans Git directement par leur source : la commande télécharge chaque image
+listée dans `images_sources.json` (`{url, page}` par fichier), la réduit à 1200 px, et la range
+dans `contenu/images/`. `importer_contenu` **refuse d'importer tant qu'une image annoncée
+manque** — `telecharger_images` doit donc toujours passer avant.
+
+### ⚠️ Une image cassée, trouvée et corrigée ici
+
+`telecharger_images` a échoué sur `lune.jpg` : 404 sur
+`https://assets.science.nasa.gov/.../pia14011/jpeg/PIA14011.jpg`. Vérifié : la page source
+(`https://science.nasa.gov/photojournal/nearside-spectacular/`) répond bien, et référence
+**elle-même** cette URL cassée — NASA a visiblement retiré le segment `/jpeg/` du chemin de ses
+assets à un moment. La bonne URL, trouvée et vérifiée (200, `image/jpeg`, 385 Ko) :
+```
+https://assets.science.nasa.gov/content/dam/science/psd/photojournal/pia/pia14/pia14011/PIA14011.jpg
+```
+Corrigée dans `contenu/images_sources.json` (même page, même crédit, juste l'URL de téléchargement).
+Après correction : 14/14 images téléchargées, `importer_contenu` a créé les 4 nouveaux astres et
+mis à jour les 12 existants (0 inchangé — chacun avait au moins le `image_credit`/`sources` à jour).
+
+### Testé
+
+```
+python manage.py migrate                 # ciel 0007
+python manage.py telecharger_images      # 13/14 puis 14/14 après la correction ci-dessus
+python manage.py importer_contenu        # 16 astres : 4 créés, 12 mis à jour
+python manage.py test                    # 161 tests OK
+```
+
+### Envoyé
+
+```
+git add ciel contenu
+git commit -m "Partie 10 : 16 fiches vérifiées, Soleil et ciel profond, images NASA"
+git push
+```
+(Déjà fait dans cette session, avec la correction de l'URL de la Lune dans le même commit.)
+
+### À savoir
+
+- **Pour Adrien** : `git pull`, `python manage.py migrate`, `python manage.py importer_contenu`
+  suffisent — les images arrivent par Git (dans `contenu/images/`), pas besoin de les retélécharger.
+- **Pour ajouter une fiche plus tard** : une description courte, au moins une source https vérifiée,
+  et pour une image le fichier dans `contenu/images/` + sa ligne dans `images_sources.json` + le
+  crédit et la licence recopiés de la page. `ciel/test_contenu.py` vérifie tout ça.
+
+Tu peux supprimer `A_FAIRE_PARTIE_10.md` : son contenu est consigné ci-dessus.
+
