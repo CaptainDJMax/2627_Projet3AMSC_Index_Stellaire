@@ -1,0 +1,9 @@
+# Index Stellaire : bibliothèques Python nécessaires (Partie 14).
+#     pip install -r requirements.txt
+Django>=5.2
+skyfield>=1.49
+numpy>=1.26
+pandas>=2.0        # lecture du catalogue Hipparcos par Skyfield
+Pillow>=10.0       # images des fiches (Partie 10)
+whitenoise>=6.8    # fichiers statiques en production (Partie 14)
+waitress>=3.0      # serveur de production, Windows et Linux (python manage.py servir)

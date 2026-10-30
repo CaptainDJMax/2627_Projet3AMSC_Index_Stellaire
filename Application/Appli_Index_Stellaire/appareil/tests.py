@@ -20,6 +20,20 @@ from . import services
 from .models import Appareil, Commande
 
 
+# Partie 14 : ces tests visent des planètes « maintenant », à la date du jour. Une planète proche
+# du Soleil (quelques semaines par an pour chacune) ferait échouer le pointage selon le jour où on lance les
+# tests : le contrôle du Soleil est coupé ici et testé à part, à dates fixes (test_securite.py).
+_sans_controle_soleil = patch("appareil.securite.separation_mini", return_value=180.0)
+
+
+def setUpModule():
+    _sans_controle_soleil.start()
+
+
+def tearDownModule():
+    _sans_controle_soleil.stop()
+
+
 class EcartAngulaireTests(SimpleTestCase):
     def test_cas_connus(self):
         self.assertAlmostEqual(services.ecart_angulaire((0, 0), (0, 0)), 0)

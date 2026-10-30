@@ -10,22 +10,33 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
+import sys
 from pathlib import Path
+
+from .config_locale import cle_secrete, hotes_autorises, lire_config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Partie 14 : réglages de la machine, hors de Git (voir config_locale.py).
+CONFIG_LOCALE = lire_config(BASE_DIR)
+EN_TEST = len(sys.argv) > 1 and sys.argv[1] == "test"
+# Les tests tournent toujours comme en développement (pas besoin de collectstatic).
+PRODUCTION = bool(CONFIG_LOCALE.get("production")) and not EN_TEST
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-9r=wl2y6u^0r(vsv0f%a#bpjar&tjhhld(62f%mv65wz)iiwn5'
+# Partie 14 : la clé n'est plus dans le code (l'ancienne est publique sur GitHub) :
+# cle_secrete.txt, créé au premier lancement, ou la variable INDEX_STELLAIRE_CLE.
+SECRET_KEY = cle_secrete(BASE_DIR)
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# Développement : DEBUG et tous les hôtes (téléphone sur le Wi-Fi de la maison).
+# Production (config_locale.json) : DEBUG coupé, seulement les hôtes connus.
+DEBUG = not PRODUCTION
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = hotes_autorises(CONFIG_LOCALE) if PRODUCTION else ["*"]
 
 
 # Application definition
@@ -43,6 +54,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    # Partie 14 : en production, WhiteNoise sert les fichiers statiques (voir STORAGES plus bas)
+    *(['whitenoise.middleware.WhiteNoiseMiddleware'] if PRODUCTION else []),
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -117,6 +130,61 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.1/howto/static-files/
 
 STATIC_URL = 'static/'
+
+# Partie 14 : en production, `collectstatic` copie les fichiers dans staticfiles/ avec leur
+# empreinte dans le nom (carte.3f2a9c.js) : un fichier modifié change de nom, le navigateur
+# ne peut plus garder l'ancien (fini le Ctrl+F5, indispensable avant la PWA, Partie 12).
+STATIC_ROOT = BASE_DIR / "staticfiles"
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {
+        "BACKEND": "index_stellaire.stockage.StockageStatique" if PRODUCTION
+        else "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
+# La carte lit un DOSSIER statique (données de d3-celestial) : il n'a pas d'empreinte,
+# il est servi sous son nom normal.
+WHITENOISE_MANIFEST_STRICT = False
+
+# --- Partie 14 : sécurité ----------------------------------------------------------------
+# Corps de requête limité (le plus gros envoi, une visite de 20 étapes, fait 2 Ko).
+DATA_UPLOAD_MAX_MEMORY_SIZE = 256 * 1024
+X_FRAME_OPTIONS = "DENY"  # la page ne peut pas être affichée dans le cadre d'un autre site
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = "same-origin"
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_HTTPONLY = False  # le JavaScript de la carte lit le cookie csrftoken (en-tête X-CSRFToken)
+# HTTPS (cookies « Secure », redirection, HSTS) : Partie 14.2, selon l'endroit où tourne le serveur.
+
+# --- Partie 14 : journal des erreurs -------------------------------------------------------
+# En production, les avertissements et les erreurs vont dans logs/index_stellaire.log
+# (5 fichiers de 1 Mo au plus, les plus anciens sont effacés).
+DOSSIER_LOGS = BASE_DIR / "logs"
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {"simple": {"format": "{asctime} {levelname} {name} : {message}", "style": "{"}},
+    "handlers": {
+        "console": {"class": "logging.StreamHandler", "formatter": "simple"},
+    },
+    "root": {"handlers": ["console"], "level": "WARNING"},
+}
+if PRODUCTION:
+    DOSSIER_LOGS.mkdir(exist_ok=True)
+    LOGGING["handlers"]["fichier"] = {
+        "class": "logging.handlers.RotatingFileHandler",
+        "filename": str(DOSSIER_LOGS / "index_stellaire.log"),
+        "maxBytes": 1_000_000,
+        "backupCount": 5,
+        "encoding": "utf-8",
+        "formatter": "simple",
+    }
+    LOGGING["root"]["handlers"].append("fichier")
+
+# --- Partie 14 : sauvegardes de la base (journal d'observation, commandes) -------------------
+DOSSIER_SAUVEGARDES = BASE_DIR / "sauvegardes"
 
 
 # Email

@@ -13,7 +13,7 @@ from ciel.astro import instant_depuis, maintenant
 from ciel.lieu import lieu_partage
 from ciel.models import ObjetCeleste
 
-from . import pilotage, services
+from . import pilotage, securite, services
 from .models import Appareil
 
 logger = logging.getLogger(__name__)
@@ -23,6 +23,15 @@ INTERVALLE_MS = 1000  # cadence de synchronisation demandée à l'appareil
 
 def _erreur(message, statut):
     return JsonResponse({"erreur": message}, status=statut)
+
+
+def _refus_soleil(erreur):
+    """Partie 14 : cible trop près du Soleil. 422 avec le champ ajouté `soleil` (écart en degrés)."""
+    return JsonResponse(
+        {"erreur": str(erreur), "soleil": {"separation_deg": round(erreur.separation, 1),
+                                           "minimum_deg": securite.ANGLE_MINI_SOLEIL}},
+        status=422,
+    )
 
 
 # ===========================================================================
@@ -247,6 +256,12 @@ def definir_commande(request):
             nom = corps.get("nom", "")
             if ra is None or dec is None or not isinstance(nom, str) or len(nom) > 60:
                 raise ValueError("point")
+            try:  # Partie 14 : jamais vers le Soleil
+                securite.verifier(f"radec:{ra % 360},{dec}", nom.strip() or "Point du ciel",
+                                  services.lieu_observation(appareil, lieu_partage(request)), timezone.now(),
+                                  services.DUREE_TRAJECTOIRE_H * 3600)
+            except securite.TropPresDuSoleil as erreur:
+                return _refus_soleil(erreur)
             services.definir_point(appareil, ra, dec, nom.strip())
             return _reponse_etat(request, appareil)
         objet_id = corps["objet_id"]
@@ -261,6 +276,14 @@ def definir_commande(request):
     if objet is None:
         return _erreur("Objet introuvable ou sans identifiant Skyfield.", 404)
 
+    heures = services.DUREE_SATELLITE_H if services.est_satellite(objet) else services.DUREE_TRAJECTOIRE_H
+    try:  # Partie 14 : jamais vers le Soleil
+        securite.verifier(objet.identifiant_skyfield, objet.nom,
+                          services.lieu_observation(appareil, lieu_partage(request)), timezone.now(), heures * 3600)
+    except securite.TropPresDuSoleil as erreur:
+        return _refus_soleil(erreur)
+    except (KeyError, ValueError):
+        pass  # position non calculable (TLE absent...) : la trajectoire le signalera (422), comme avant
     services.definir_cible(appareil, objet)
     return _reponse_etat(request, appareil)
 
@@ -318,6 +341,17 @@ def definir_visite(request):
         return _erreur(
             'Corps JSON attendu : {"debut": ISO ou null, "etapes": [{"objet_id": n, "duree_min": 1..240}, ...]}.', 400
         )
+    try:  # Partie 14 : aucune étape vers le Soleil (chacune sur sa fenêtre de temps)
+        securite.verifier_visite(
+            [{"identifiant": e["objet"].identifiant_skyfield if e.get("objet") else f"radec:{e['ra'] % 360},{e['dec']}",
+              "nom": e["objet"].nom if e.get("objet") else (e["nom"] or "Point du ciel"),
+              "duree_s": e["duree_s"]} for e in etapes],
+            services.lieu_observation(appareil, lieu_partage(request)), debut,
+        )
+    except securite.TropPresDuSoleil as erreur:
+        return _refus_soleil(erreur)
+    except (KeyError, ValueError):
+        return _erreur("Une étape n'est pas calculable.", 422)
     services.definir_visite(appareil, etapes, debut)
     return _reponse_etat(request, appareil)
 

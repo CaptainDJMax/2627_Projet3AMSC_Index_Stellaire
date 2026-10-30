@@ -785,7 +785,8 @@
   function majBoutonsVisite() {
     const o = selection !== null ? objets.find(function (obj) { return obj.id === selection; }) : null;
     const categorie = fiche ? fiche.categorie : o && o.categorie;
-    elAjouterVisite.hidden = selection === null || categorie === "satellite"; // un satellite passe trop vite
+    // un satellite passe trop vite ; le Soleil ne se vise jamais (Partie 14)
+    elAjouterVisite.hidden = selection === null || categorie === "satellite" || categorie === "soleil";
     if (selection !== null) {
       elAjouterVisite.textContent = dansBrouillon({ objet_id: selection })
         ? "Retirer de la visite (" + brouillon.length + ")" : "Ajouter à la visite" + (brouillon.length ? " (" + brouillon.length + ")" : "");
@@ -2517,6 +2518,12 @@
     elPointer.textContent = surSelection ? "Arrêter le pointage" : c ? "Pointer celui-ci à la place" : "Pointer";
     elPointer.classList.toggle("arreter", surSelection);
     elPointer.disabled = !a || envoiEnCours; // sans appareil enregistré, rien à commander
+    // Partie 14 : jamais vers le Soleil (le serveur refuse aussi, et tout point trop proche de lui)
+    const choisi = objets.find(function (o) { return o.id === selection; });
+    if (choisi && choisi.categorie === "soleil" && !surSelection) {
+      elPointer.textContent = "Pointage interdit (Soleil)";
+      elPointer.disabled = true;
+    }
 
     const phrases = [];
     if (Date.now() < finMessageErreur) {

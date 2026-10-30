@@ -15,3 +15,10 @@ media/
 
 # Fichiers de référence téléchargés par Skyfield (éphémérides, catalogue)
 donnees_skyfield/
+
+# Partie 14 : réglages et données propres à la machine
+cle_secrete.txt
+config_locale.json
+staticfiles/
+logs/
+sauvegardes/
