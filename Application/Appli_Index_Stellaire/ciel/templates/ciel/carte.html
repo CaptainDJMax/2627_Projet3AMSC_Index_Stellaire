@@ -20,6 +20,7 @@
        data-url-commande="{% url 'appareil:commande' %}"
        data-url-arret="{% url 'appareil:arret' %}"
        data-url-visite="{% url 'appareil:visite' %}"
+       data-url-visite-apercu="{% url 'appareil:visite_apercu' %}"
        data-url-journal="{% url 'ciel:journal' %}"
        data-url-journal-noter="{% url 'ciel:journal_noter' %}"
        data-url-journal-export="{% url 'ciel:journal_export' %}"
@@ -106,7 +107,9 @@
     <p id="evenements-etat" class="note-panneau" hidden></p>
     <!-- Partie 8.3 : d'où viennent les événements (mention obligatoire pour COBS) -->
     <p id="evenements-sources" class="credits"></p>
-    <button type="button" id="btn-journal" class="lien-panneau">Journal d'observation</button>
+    <!-- 14.1 bis : la visite guidée se retrouve aussi ici (avant : seulement dans le panneau de l'appareil) -->
+    <button type="button" id="btn-visite" class="lien-panneau">Visite guidée</button>
+    <button type="button" id="btn-journal" class="lien-panneau">Historique du bras</button>
   </div>
 
   <!-- Partie 8.4 : un point quelconque du ciel, choisi par un appui long -->
@@ -127,14 +130,14 @@
   <!-- Partie 9 : journal d'observation (observations notées et pointages du bras) -->
   <div id="panneau-journal" class="verre" hidden>
     <button type="button" id="journal-fermer" class="fermer-rond" aria-label="Fermer">×</button>
-    <p class="titre-panneau">Journal d'observation</p>
+    <p class="titre-panneau">Historique du bras</p>
     <p id="journal-filtre" class="note-panneau" hidden>
       <span id="journal-filtre-nom"></span> ·
       <button type="button" id="journal-tout" class="lien-panneau">tout voir</button>
     </p>
     <ul id="journal-liste" class="liste-evenements"></ul>
     <p id="journal-etat" class="note-panneau"></p>
-    <a id="journal-export" class="lien-panneau" download>Exporter les observations (tableur)</a>
+    <a id="journal-export" class="lien-panneau" download hidden>Exporter les observations (tableur)</a>
   </div>
 
   <!-- Partie 9 : noter une observation -->
@@ -174,8 +177,9 @@
     </div>
     <p id="visite-titre-brouillon" class="note-panneau">Prochaine visite :</p>
     <ol id="visite-etapes" class="etapes"></ol>
-    <p id="visite-vide" class="note-panneau">Ajoute des astres avec « Ajouter à la visite » dans leur fiche, ou fais-toi
-      proposer une visite de ce soir.</p>
+    <p id="visite-vide" class="note-panneau">Le bras pointe les astres de la liste l'un après l'autre, chacun pendant
+      sa durée. Ajoute des astres avec « Ajouter à la visite » dans leur fiche (ils se mettent à la fin de la liste),
+      ou fais-toi proposer une visite de ce soir.</p>
     <button type="button" id="visite-proposer" class="lien-panneau">Proposer une visite de ce soir</button>
     <div id="visite-depart">
       <label><input type="radio" name="visite-debut" value="maintenant" checked> Maintenant</label>
@@ -190,24 +194,28 @@
 
   <!-- Calques : ce qui apparaît sur la carte -->
   <div id="panneau-calques" class="verre" hidden>
-    <p class="titre-panneau">Calques</p>
-    <button type="button" data-calque="constellations" aria-pressed="true">Constellations</button>
-    <button type="button" data-calque="illustrations" aria-pressed="true">Illustrations</button>
-    <button type="button" data-calque="voieLactee" aria-pressed="true">Voie lactée</button>
-    <button type="button" data-calque="etiquettesEtoiles" aria-pressed="true">Noms des étoiles</button>
-    <button type="button" data-calque="cielProfond" aria-pressed="true">Ciel profond</button>
-    <!-- Partie 8.4 (F36) : quels astres de la base apparaître (la recherche suit ces filtres) -->
+    <!-- 14.1 bis : deux groupes sans doublon. « Affichage » = le décor de la carte ; « Astres » = les
+         objets de la base (la recherche suit ces filtres) -->
+    <p class="titre-panneau">Affichage</p>
+    <div class="groupe-filtres deux">
+      <button type="button" data-calque="constellations" aria-pressed="true">Constellations</button>
+      <button type="button" data-calque="illustrations" aria-pressed="true">Illustrations</button>
+      <button type="button" data-calque="voieLactee" aria-pressed="true">Voie lactée</button>
+      <button type="button" data-calque="etiquettesEtoiles" aria-pressed="true">Noms des étoiles</button>
+    </div>
     <p class="titre-panneau">Astres</p>
-    <div class="groupe-filtres">
-      <button type="button" data-filtre="planetes" aria-pressed="true">Soleil, Lune et planètes</button>
-      <button type="button" data-filtre="etoiles" aria-pressed="true">Étoiles et ciel profond</button>
+    <div class="groupe-filtres deux">
+      <button type="button" data-filtre="planetes" aria-pressed="true">Soleil, Lune, planètes</button>
+      <button type="button" data-filtre="etoiles" aria-pressed="true">Étoiles</button>
+      <button type="button" data-filtre="cielProfond" aria-pressed="true">Ciel profond</button>
       <button type="button" data-filtre="satellites" aria-pressed="true">Satellites</button>
     </div>
-    <p class="titre-panneau">Étoiles de fond jusqu'à la magnitude</p>
-    <div class="groupe-filtres" role="group" aria-label="Magnitude limite des étoiles">
-      <button type="button" data-magnitude="4" aria-pressed="false">4 · ville</button>
-      <button type="button" data-magnitude="5" aria-pressed="false">5 · banlieue</button>
-      <button type="button" data-magnitude="6" aria-pressed="true">6 · ciel noir</button>
+    <!-- Magnitude limite (4, 5 ou 6) : combien d'étoiles faibles sont dessinées en fond -->
+    <p class="titre-panneau">Étoiles du fond</p>
+    <div class="groupe-filtres" role="group" aria-label="Quantité d'étoiles du fond">
+      <button type="button" data-magnitude="4" aria-pressed="false">Brillantes</button>
+      <button type="button" data-magnitude="5" aria-pressed="false">Normal</button>
+      <button type="button" data-magnitude="6" aria-pressed="true">Toutes</button>
     </div>
     <!-- Mention obligatoire (Licence Art Libre) -->
     <p class="credits">Illustrations : Johan Meuris (Stellarium),
@@ -255,7 +263,7 @@
     <p id="fiche-sources" hidden></p>
     <button type="button" id="btn-pointer" class="large" disabled>Pointer</button>
     <button type="button" id="btn-ajouter-visite" class="large secondaire" hidden>Ajouter à la visite</button>
-    <button type="button" id="btn-noter" class="large secondaire">Noter une observation</button>
+    <button type="button" id="btn-noter" class="large secondaire" hidden>Noter une observation</button>
     <button type="button" id="btn-journal-astre" class="lien-panneau" hidden></button>
     <p id="fiche-note-appareil">Aucun appareil connecté.</p>
   </aside>

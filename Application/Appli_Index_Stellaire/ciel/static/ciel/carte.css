@@ -721,6 +721,26 @@ body {
   text-align: center;
 }
 
+/* 14.1 bis : deux boutons par ligne (affichage, astres) */
+#panneau-calques .groupe-filtres.deux button {
+  flex: 1 1 calc(50% - 3px);
+}
+
+/* 14.1 bis : visite guidée, horaire de chaque étape et alerte sous l'horizon */
+#visite-etapes li {
+  flex-wrap: wrap;
+}
+.etapes .apercu {
+  flex-basis: 100%;
+  padding-left: 24px;
+  font-size: 12px;
+  opacity: 0.75;
+}
+.etapes .apercu.alerte {
+  color: #ffb36b;
+  opacity: 1;
+}
+
 /* --- Partie 8.5 : visite guidée ---------------------------------------------------- */
 #panneau-visite {
   position: fixed;

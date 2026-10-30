@@ -167,16 +167,16 @@
   const elCodeValider = document.getElementById("code-valider");
   const elCodeMessage = document.getElementById("code-message");
 
-  const calques = { constellations: true, illustrations: true, voieLactee: true, etiquettesEtoiles: true, cielProfond: true };
+  const calques = { constellations: true, illustrations: true, voieLactee: true, etiquettesEtoiles: true };
 
   // Partie 8.4 (F36) : filtres des astres de la base et magnitude limite des étoiles de fond.
   // Gardés dans ce navigateur (localStorage) ; la page marche aussi sans (navigation privée).
   const CLE_FILTRES = "index-stellaire-filtres";
-  const filtres = { planetes: true, etoiles: true, satellites: true, magnitude: 6 };
+  const filtres = { planetes: true, etoiles: true, cielProfond: true, satellites: true, magnitude: 6 }; // 14.1 bis : cielProfond
   try {
     const garde = JSON.parse(localStorage.getItem(CLE_FILTRES) || "null");
     if (garde && typeof garde === "object") {
-      ["planetes", "etoiles", "satellites"].forEach(function (k) {
+      ["planetes", "etoiles", "cielProfond", "satellites"].forEach(function (k) {
         if (typeof garde[k] === "boolean") filtres[k] = garde[k];
       });
       if ([4, 5, 6].indexOf(garde.magnitude) !== -1) filtres.magnitude = garde.magnitude;
@@ -190,7 +190,7 @@
   // Un astre de la base passe-t-il les filtres ? (carte, toucher et recherche)
   const FILTRE_DE_CATEGORIE = {
     planete: "planetes", lune: "planetes", soleil: "planetes", // Partie 10 : Soleil
-    etoile: "etoiles", amas: "etoiles", ciel_profond: "etoiles", // Partie 10 : ciel profond
+    etoile: "etoiles", amas: "cielProfond", ciel_profond: "cielProfond", // 14.1 bis : filtre à part
     satellite: "satellites",
   };
   function objetAffiche(o) {
@@ -518,6 +518,10 @@
 
   // --- Partie 9 : journal d'observation ---------------------------------------------------------
   // Lire est libre ; noter ou effacer demande le code de pilotage (le carnet du propriétaire).
+  // 14.1 bis : pour l'instant, le panneau est « l'historique du bras » (pointages seulement) :
+  // « Noter une observation » et l'export sont cachés. Le serveur garde tout (API et tests
+  // inchangés) : passer NOTES_JOURNAL à true les fait revenir.
+  const NOTES_JOURNAL = false;
   const elJournal = {
     liste: document.getElementById("journal-liste"),
     etat: document.getElementById("journal-etat"),
@@ -541,6 +545,7 @@
   let observationEnCours = null; // {objet_id, nom} : ce qu'on note
   let comptesJournal = {}; // objet_id -> nombre d'observations (pour le lien de la fiche)
   elJournal.exporter.href = carte.dataset.urlJournalExport;
+  elJournal.exporter.hidden = !NOTES_JOURNAL;
 
   function chargerJournal() {
     elJournal.etat.textContent = "Chargement…";
@@ -587,7 +592,9 @@
       }
       elJournal.liste.appendChild(li);
     });
-    elJournal.etat.textContent = lignes.length ? "" : "Rien dans le journal pour l'instant : note une observation depuis la fiche d'un astre.";
+    elJournal.etat.textContent = lignes.length ? "" : NOTES_JOURNAL
+      ? "Rien dans le journal pour l'instant : note une observation depuis la fiche d'un astre."
+      : "Rien pour l'instant : chaque pointage du bras apparaîtra ici (60 derniers jours).";
   }
 
   function boutonEffacer(o) {
@@ -620,7 +627,7 @@
 
   // Dans la fiche : « Noter une observation » et « Journal de cet astre (n) »
   function majJournalFiche() {
-    elJournal.noter.hidden = selection === null;
+    elJournal.noter.hidden = !NOTES_JOURNAL || selection === null;
     if (selection === null) return;
     const id = selection;
     if (comptesJournal[id] === undefined) {
@@ -628,14 +635,14 @@
       fetch(carte.dataset.urlJournal + "?objet=" + id + "&limite=500")
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (d) {
-          comptesJournal[id] = d ? d.observations.length : 0;
+          comptesJournal[id] = d ? d.observations.length + d.pointages.length : 0; // 14.1 bis : pointages compris
           if (selection === id) majJournalFiche();
         })
         .catch(function () { comptesJournal[id] = 0; });
     }
     const n = comptesJournal[id];
     elJournal.astre.hidden = !n;
-    if (n) elJournal.astre.textContent = n + " observation" + (n > 1 ? "s" : "") + " de cet astre dans le journal";
+    if (n) elJournal.astre.textContent = "Historique de cet astre (" + n + ")";
   }
 
   elJournal.noter.addEventListener("click", function () {
@@ -819,6 +826,45 @@
     return d;
   }
 
+  // 14.1 bis : aperçu de la visite préparée (horaire de chaque étape, hauteur de l'astre à ce
+  // moment-là), calculé par le serveur pour le lieu du bras. Redemandé quand la liste, les durées
+  // ou l'heure de départ changent (et chaque minute pour un départ « maintenant »).
+  let apercu = null; // {cle, etapes[]}
+  let apercuDemande = null;
+
+  function etapesPourServeur() {
+    return brouillon.map(function (e) {
+      return e.objet_id !== null && e.objet_id !== undefined
+        ? { objet_id: e.objet_id, duree_min: e.duree_min }
+        : { ra: e.ra, dec: e.dec, nom: e.nom, duree_min: e.duree_min };
+    });
+  }
+
+  function cleApercu(debut) {
+    return debut.toISOString().slice(0, 16) + "|" + brouillon.map(function (e) { return cleEtape(e) + ":" + e.duree_min; }).join(";");
+  }
+
+  function demanderApercu(debut, cle) {
+    if (!brouillon.length || (apercu && apercu.cle === cle) || apercuDemande === cle) return;
+    apercuDemande = cle;
+    posterJson(carte.dataset.urlVisiteApercu, { debut: debut.toISOString(), etapes: etapesPourServeur() })
+      .then(function (r) {
+        if (r.statut !== 200 || apercuDemande !== cle) return;
+        apercu = { cle: cle, etapes: r.donnees.etapes };
+        afficherVisite();
+      })
+      .catch(function () { /* sans aperçu, la liste reste utilisable */ })
+      .finally(function () { if (apercuDemande === cle) apercuDemande = null; });
+  }
+
+  function texteApercu(a) {
+    let texte = fmtHeure.format(new Date(a.debut)) + " → " + fmtHeure.format(new Date(a.fin));
+    if (a.hauteur_min === null) return texte;
+    if (!a.sous_horizon) return texte + " · au moins " + Math.round(a.hauteur_min) + "° de hauteur";
+    if (a.hauteur_debut < 0 && a.hauteur_fin < 0) return texte + " · ⚠ sous l'horizon";
+    return texte + (a.hauteur_debut < 0 ? " · ⚠ se lève pendant l'étape" : " · ⚠ se couche pendant l'étape");
+  }
+
   function boutonPetit(texte, titre, action) {
     const b = document.createElement("button");
     b.type = "button";
@@ -850,6 +896,10 @@
     }
     elVisite.titreBrouillon.textContent = prog ? "Prochaine visite (remplacera celle en cours) :" : "Prochaine visite :";
     // Le brouillon : durée réglable, monter, descendre, retirer. Toujours textContent.
+    const debutPrevu = debutVisite() || new Date();
+    const cle = cleApercu(debutPrevu);
+    const apercuValide = apercu && apercu.cle === cle ? apercu.etapes : null;
+    demanderApercu(debutPrevu, cle);
     elVisite.etapes.replaceChildren();
     brouillon.forEach(function (e, i) {
       const li = document.createElement("li");
@@ -880,6 +930,13 @@
         boutonPetit("×", "Retirer", function () {
           brouillon.splice(i, 1); garderBrouillon(); majBoutonsVisite(); afficherVisite();
         }));
+      // 14.1 bis : quand l'étape aura lieu, et si l'astre sera levé
+      const info = document.createElement("span");
+      info.className = "apercu";
+      const a = apercuValide && apercuValide[i];
+      info.textContent = a ? texteApercu(a) : "calcul de l'horaire…";
+      if (a && a.sous_horizon) info.classList.add("alerte");
+      li.appendChild(info);
       elVisite.etapes.appendChild(li);
     });
     const vide = brouillon.length === 0;
@@ -900,6 +957,9 @@
     if (Date.now() < finMessageErreur) phrases.push(messageErreur);
     else if (!a) phrases.push("Aucun appareil enregistré.");
     if (!vide && a && p && !p.autorise) phrases.push("Le code de pilotage sera demandé.");
+    if (apercuValide && apercuValide.some(function (a) { return a.sous_horizon; })) {
+      phrases.push("⚠ Une étape vise un astre sous l'horizon : le bras pointera vers le sol. Change l'heure de départ ou l'ordre.");
+    }
     if (!vide) phrases.push("Le bras enchaîne les étapes même si le réseau tombe.");
     elVisite.note.textContent = phrases.join(" ");
   }
@@ -907,14 +967,7 @@
   elVisite.lancer.addEventListener("click", function () {
     if (!brouillon.length || envoiEnCours) return;
     const debut = debutVisite();
-    envoyer(carte.dataset.urlVisite, {
-      debut: debut ? debut.toISOString() : null,
-      etapes: brouillon.map(function (e) {
-        return e.objet_id !== null && e.objet_id !== undefined
-          ? { objet_id: e.objet_id, duree_min: e.duree_min }
-          : { ra: e.ra, dec: e.dec, nom: e.nom, duree_min: e.duree_min };
-      }),
-    });
+    envoyer(carte.dataset.urlVisite, { debut: debut ? debut.toISOString() : null, etapes: etapesPourServeur() });
   });
   elVisite.arreter.addEventListener("click", function () {
     if (!envoiEnCours) envoyer(carte.dataset.urlArret, null);
@@ -928,6 +981,7 @@
   elVisite.depart.addEventListener("change", afficherVisite);
   document.getElementById("visite-fermer").addEventListener("click", function () { ouvrir(null); });
   document.getElementById("app-visite").addEventListener("click", function () { ouvrirVisite(); });
+  document.getElementById("btn-visite").addEventListener("click", function () { ouvrirVisite(); }); // 14.1 bis
 
   function ouvrirVisite() {
     if (selection !== null) selectionner(null);
@@ -1534,7 +1588,6 @@
       else dessinerLune(ctx, p, pt, rayon, a);
       return rayon;
     }
-    if (!calques.cielProfond) return 0;
     let u, v, teinte;
     if (a.type === "amas") {
       u = vecteurEcran(p, pt, 0, a.diametre / 2);
