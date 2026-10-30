@@ -6092,3 +6092,92 @@ git push
 
 Tu peux supprimer `A_FAIRE_PARTIE_10.md` : son contenu est consigné ci-dessus.
 
+## Partie 10 bis : Soleil, Lune (phase), amas et ciel profond à leur vraie taille
+
+✅ Construite sur notre dépôt (`b408722`) : la 6.4 et le glisser vertical étaient bien conservés,
+vérifié avant d'installer (`secours`, `#btn-position`, `fixerDirection(vue.azimut - ...`).
+
+Jusqu'ici le Soleil, la Lune, les Pléiades, Andromède et la nébuleuse d'Orion étaient dessinés comme
+de simples ronds, comme une étoile. Cette partie leur donne une forme à leur vraie taille angulaire
+dans le ciel, sans jamais cacher les étoiles qu'ils contiennent.
+
+### `ciel/apparence.py` (nouveau)
+
+Calcule, pour un astre donné, un dictionnaire de forme :
+- **Soleil** : `{"type": "soleil", "diametre": …}` — diamètre apparent recalculé à chaque instant
+  à partir du rayon solaire réel et de la distance Terre-Soleil (`_diametre`, trigonométrie simple :
+  `2 * asin(rayon / distance)`).
+- **Lune** : `{"type": "lune", "diametre": …, "eclairement": 0..1, "angle_soleil": …}`.
+  `eclairement` vient de `skyfield.almanac.fraction_illuminated` (fraction du disque éclairée).
+  `angle_soleil` est l'angle de position du Soleil vu depuis la Lune (0° = nord, 90° = est) :
+  c'est de ce côté-là que le bord éclairé doit être tourné sur la carte.
+  ```python
+  def angle_de_position(ra1, dec1, ra2, dec2):
+      """Angle (degrés, 0 = nord, 90 = est) de la direction du point 2 vu depuis le point 1."""
+      d_ra = math.radians(ra2 - ra1)
+      y = math.sin(d_ra) * math.cos(math.radians(dec2))
+      x = (math.cos(math.radians(dec1)) * math.sin(math.radians(dec2))
+           - math.sin(math.radians(dec1)) * math.cos(math.radians(dec2)) * math.cos(d_ra))
+      return (math.degrees(math.atan2(y, x)) + 360) % 360
+  ```
+- **Amas et ciel profond** : taille fixe, dans une table `FORMES` indexée par le **nom** de l'astre
+  (Andromède : ellipse 3,2° × 1°, inclinée à 38° ; Orion : ellipse ~1° ; Pléiades : amas 1,8°).
+  Un objet sans ligne dans `FORMES` prend la valeur par défaut de sa catégorie (`PAR_DEFAUT`,
+  0,5°) — Adrien peut ajouter une ligne dans la table pour un nouvel objet sans toucher au reste.
+
+`ciel/views.py` appelle `apparence(objet, lieu, instant, ra, dec)` dans `liste_objets` et met le
+résultat dans `donnees["apparence"]`, seulement quand il n'est pas `None` (donc seulement pour
+Soleil/Lune/amas/ciel profond — les autres astres n'ont pas ce champ, comme avant).
+
+### Carte (`carte.js`)
+
+Les formes sont dessinées en **lumière additive** (`globalCompositeOperation = "lighter"`), très
+transparentes (8 à 22 % d'opacité selon le type), pour qu'on voie toujours les étoiles au travers.
+Un contour fin en pointillés marque toujours le bord de l'objet, même quand le voile est presque
+invisible. Plus on zoome, plus les voiles s'effacent (l'opacité baisse avec le diamètre à l'écran) :
+c'est voulu, pour laisser place aux vraies étoiles qu'on voit alors individuellement.
+
+En dessous de 7 px à l'écran, l'objet revient à son symbole habituel (rond + nom) : inutile de
+dessiner une ellipse de 2 px. Le toucher/clic sur la carte teste maintenant la forme réelle de
+l'objet (ellipse ou disque), pas seulement un petit disque de sélection autour du centre.
+
+Nouvelle case dans les calques : **« Ciel profond »**, qui masque seulement les voiles (les
+symboles et les noms restent). Le Soleil et la Lune ne sont pas concernés par cette case — ils
+restent toujours dessinés.
+
+### Contrat API (`ciel/tests.py`)
+
+Le test de contrat accepte maintenant le champ `apparence` en plus, uniquement pour les catégories
+étendues :
+```python
+CATEGORIES_ETENDUES = {"soleil", "lune", "amas", "ciel_profond"}
+...
+attendues = CLES_LISTE | ({"apparence"} if o["categorie"] in CATEGORIES_ETENDUES else set())
+```
+
+### Testé
+
+```
+python manage.py check                   # OK
+python manage.py makemigrations --check  # aucun changement (pas de migration dans cette partie)
+python manage.py test                    # 165 tests OK
+```
+
+### Envoyé
+
+```
+git add ciel
+git commit -m "Partie 10 bis : Soleil, Lune (phase), amas et ciel profond a leur vraie taille"
+git push
+```
+(Déjà fait dans cette session.)
+
+### À savoir
+
+- **Pour Adrien** : `git pull` suffit, pas de migration ni de réimport de contenu dans cette partie.
+- Les tailles des objets de ciel profond sont dans `ciel/apparence.py` (table `FORMES`) : pour un
+  nouvel amas ou nébuleuse, ajouter une ligne `"Nom de l'astre": {...}` plutôt que de toucher à
+  `views.py` ou au modèle.
+
+Tu peux supprimer `A_FAIRE_PARTIE_10_BIS.md` : son contenu est consigné ci-dessus.
+
