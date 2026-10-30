@@ -6181,3 +6181,128 @@ git push
 
 Tu peux supprimer `A_FAIRE_PARTIE_10_BIS.md` : son contenu est consigné ci-dessus.
 
+## Partie 14.1 : durcissement avant la mise en production
+
+✅ Construite sur `b408722` : la 6.4 et le glisser vertical étaient bien conservés, vérifié avant
+d'installer. **Piège à l'extraction** : l'archive s'attend à être décompressée à la racine du
+dépôt (là où il y a déjà `.gitignore` et `Application/`) ; décompressée *dans*
+`Application/Appli_Index_Stellaire/`, elle recrée tout le chemin en double
+(`Application/Appli_Index_Stellaire/Application/Appli_Index_Stellaire/...`) et dépose le
+`.gitignore` au mauvais endroit. Repéré via `find`/`git status`, corrigé en déplaçant chaque
+fichier vers son vrai emplacement puis en supprimant le dossier `Application/` imbriqué devenu vide.
+**À savoir pour la prochaine archive** : toujours vérifier `git status` juste après décompression,
+avant de lancer quoi que ce soit.
+
+Cette partie ferme les trous visibles avant d'ouvrir l'appli au reste de la maison (et, plus tard,
+à Internet).
+
+### 1. Clé secrète hors du code (`index_stellaire/config_locale.py`)
+
+Avant, `SECRET_KEY` était écrite en clair dans `settings.py`, donc publique sur GitHub (n'importe
+qui pouvait forger des sessions). Maintenant elle est créée au hasard au premier lancement et
+écrite dans `cle_secrete.txt` (ignoré par Git, relu aux lancements suivants). Conséquence directe :
+les navigateurs déjà autorisés perdent leur session et devront retaper le code de pilotage une
+fois — normal, pas un bug.
+
+### 2. Développement vs production (même fichier)
+
+```python
+# index_stellaire/config_locale.py (simplifié)
+def charger():
+    chemin = BASE_DIR / "config_locale.json"
+    if not chemin.exists():
+        return {"production": False, "hotes": []}
+    return json.loads(chemin.read_text())
+```
+Sans `config_locale.json` → développement, comme avant (`DEBUG=True`, `runserver`, tout le monde
+accepté). Avec `config_locale.json` (`{"production": true, "hotes": [...]}`, ignoré par Git) →
+`DEBUG=False`, `ALLOWED_HOSTS` limité à `hotes` + l'IP locale de la machine (trouvée toute seule,
+`ip_locale()`) + `localhost`, erreur 400 pour une adresse inconnue, erreurs journalisées dans
+`logs/index_stellaire.log` au lieu de s'afficher.
+
+### 3. Fichiers statiques « empreintés » (WhiteNoise)
+
+Chaque fichier JS/CSS collecté (`collectstatic`) est renommé avec une empreinte de son contenu
+(`carte.1a456394ffbb.css`) ; `{% static %}` dans les templates résout le bon nom. Un fichier modifié
+change de nom, donc le navigateur ne peut jamais servir une ancienne version depuis son cache — plus
+besoin de Ctrl+F5 après une mise à jour. Vérifié : `staticfiles/ciel/` contient bien `carte.<hash>.js`
+et `carte.<hash>.css` (+ leurs `.gz`) après `collectstatic`.
+
+### 4. `python manage.py servir` (nouveau, remplace `runserver` en usage réel)
+
+Rassemble les statiques puis lance **Waitress** (serveur de production, pur Python, marche pareil
+sous Windows et sous Linux/Raspberry Pi) sur `0.0.0.0:8000`, et affiche l'adresse à ouvrir sur le
+téléphone (IP locale détectée automatiquement). Testé : serveur lancé, `curl` en 200 à la fois sur
+`127.0.0.1:8000` et sur l'IP Wi-Fi de la machine (`172.16.1.194` ce jour-là — **cette adresse change
+avec le réseau**, revérifie-la avec `ipconfig` si l'appli ne répond plus depuis le téléphone).
+
+### 5. Jamais vers le Soleil (`appareil/securite.py`, nouveau)
+
+Avant d'accepter une commande (astre, point du ciel, ou chaque étape d'une visite), le serveur
+calcule l'écart minimal entre la cible et le Soleil pendant toute la durée où le bras la suivra
+(48 h pour un astre/point fixe, 6 h pour un satellite), et seulement aux instants où le Soleil est
+levé ou presque (sinon la Lune en nouvelle lune ou l'ISS seraient refusées sans raison, puisque
+« vers le Soleil » ne veut rien dire quand il est sous l'horizon). Si l'écart tombe sous 10°,
+refus en **422** avec un champ ajouté :
+```json
+{"erreur": "...", "soleil": {"separation_deg": 4.2, "minimum_deg": 10.0}}
+```
+Dans la fiche du Soleil, le bouton de pointage devient « Pointage interdit (Soleil) ».
+**Important, à répercuter à l'équipe robot** : le serveur n'est qu'une première barrière, le
+firmware STM32 doit faire le même contrôle lui-même (il calcule la position de l'ISS en autonome,
+donc hors de portée du contrôle serveur à ce moment-là).
+
+### 6. Sécurité des requêtes (`settings.py`)
+
+Corps de requête limité à 256 Ko (`DATA_UPLOAD_MAX_MEMORY_SIZE`), `X_FRAME_OPTIONS = "DENY"`
+(page interdite dans un `<iframe>`), `X_CONTENT_TYPE_OPTIONS = "nosniff"`, `SECURE_REFERRER_POLICY`,
+cookies `SameSite=Lax`. `python manage.py check --deploy` ne signale plus que les 4 avertissements
+HTTPS attendus (W004, W008, W012, W016 — normal tant qu'on reste en HTTP, Partie 14.2 les traitera).
+
+⚠️ Une **erreur** en plus est apparue au `check --deploy`, non mentionnée dans l'A_FAIRE :
+`mail.E001` (backend d'e-mail `console`, pas fait pour la production). Vérifié au `git diff` :
+ce réglage (`MAILERS`) existe depuis le `settings.py` d'origine, **pas touché par la Partie 14** —
+l'appli n'envoie aucun e-mail, donc sans conséquence réelle ; à signaler quand même pour mémoire.
+
+### 7. Sauvegarde de la base (`ciel/management/commands/sauvegarder_base.py`, nouveau)
+
+`python manage.py sauvegarder_base` copie `db.sqlite3` dans `sauvegardes/` avec la date dans le nom,
+et garde seulement les 10 copies les plus récentes. Le journal d'observation (notes, Partie 9)
+n'existe que dans cette base : penser à copier ce dossier ailleurs de temps en temps (clé USB,
+cloud...), ce n'est pas automatique. Testé : une sauvegarde créée avec succès.
+
+### Testé
+
+```
+pip install -r requirements.txt
+python manage.py test                    # 180 tests OK
+python manage.py check --deploy          # 4 avertissements HTTPS (attendus) + 1 erreur mail (sans rapport, voir plus haut)
+python manage.py servir                  # testé en localhost et sur l'IP Wi-Fi, 200 des deux côtés
+python manage.py sauvegarder_base        # 1 sauvegarde créée dans sauvegardes/
+```
+`cle_secrete.txt`, `config_locale.json`, `staticfiles/`, `logs/` et `sauvegardes/` créés par ces
+essais : confirmé absents de `git status` (bien ignorés).
+
+### Envoyé
+
+```
+git add .gitignore Application/Appli_Index_Stellaire
+git commit -m "Partie 14.1 : cle hors du code, mode production (Waitress, WhiteNoise), refus du Soleil, sauvegardes"
+git push
+```
+(Déjà fait dans cette session.)
+
+### À savoir
+
+- **Pour Adrien** : `git pull`, `pip install -r requirements.txt`. Rien d'autre à faire pour rester
+  en développement (`runserver` comme avant). Pour passer en production sur sa propre machine :
+  copier `config_locale.exemple.json` en `config_locale.json` et y mettre sa propre IP (`ipconfig`,
+  ligne IPv4 du Wi-Fi) — ce fichier est propre à chaque machine, jamais dans Git.
+- **Pour revenir en développement** après un essai en production : supprimer ou renommer
+  `config_locale.json`.
+- **Toujours en HTTP pour l'instant** : Wi-Fi de la maison seulement, jamais exposé sur Internet
+  tel quel. La Partie 14.2 (HTTPS) dépend de la machine qui fera serveur à demeure (PC Windows,
+  Raspberry Pi, ou serveur distant) — réponse à donner avant de la recevoir.
+
+Tu peux supprimer `A_FAIRE_PARTIE_14.md` : son contenu est consigné ci-dessus.
+
