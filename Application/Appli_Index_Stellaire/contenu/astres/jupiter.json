@@ -2,11 +2,13 @@
   "nom": "Jupiter",
   "categorie": "planete",
   "identifiant_skyfield": "jupiter barycenter",
-  "description": "",
-  "sources": [],
-  "image": "",
-  "image_source": "",
-  "image_auteur": "",
-  "image_licence": "",
+  "description": "La plus grosse planète du Système solaire : son diamètre fait environ 11 fois celui de la Terre. C'est une géante gazeuse, faite surtout d'hydrogène et d'hélium comme le Soleil. Elle tourne sur elle-même en moins de 10 heures, le jour le plus court des planètes, et fait le tour du Soleil en 12 ans environ, à 5,2 fois la distance Terre-Soleil. Sa Grande Tache rouge est une tempête deux fois plus large que la Terre, observée depuis plus de 300 ans. Elle a plus de 90 lunes connues ; aux jumelles, on voit les quatre plus grosses (Io, Europe, Ganymède et Callisto) comme de petits points alignés près de la planète.",
+  "sources": [
+    "https://science.nasa.gov/jupiter/facts/"
+  ],
+  "image": "jupiter.jpg",
+  "image_source": "https://www.jpl.nasa.gov/images/pia04866-cassini-jupiter-portrait/",
+  "image_auteur": "NASA/JPL/Space Science Institute (sonde Cassini, décembre 2000)",
+  "image_licence": "Domaine public (NASA)",
   "constellations": []
 }

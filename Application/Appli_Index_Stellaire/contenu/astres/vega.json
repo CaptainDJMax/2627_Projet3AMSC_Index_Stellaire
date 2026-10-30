@@ -2,11 +2,13 @@
   "nom": "Véga",
   "categorie": "etoile",
   "identifiant_skyfield": "hip:91262",
-  "description": "",
-  "sources": [],
-  "image": "",
-  "image_source": "",
-  "image_auteur": "",
-  "image_licence": "",
+  "description": "L'étoile la plus brillante de la Lyre, à 25 années-lumière, et l'un des trois sommets du « triangle d'été » avec Deneb et Altaïr, haut dans le ciel les soirs d'été. Le télescope spatial Spitzer a vu autour d'elle un grand disque de poussière, qui s'étend au moins à 815 fois la distance Terre-Soleil. Cette poussière vient probablement de collisions entre de jeunes corps célestes, peut-être aussi gros que Pluton : un système planétaire en train de se former (c'est ce que montre l'image, en infrarouge).",
+  "sources": [
+    "https://science.nasa.gov/photojournal/tiny-particles-so-far-away/"
+  ],
+  "image": "vega.jpg",
+  "image_source": "https://science.nasa.gov/photojournal/tiny-particles-so-far-away/",
+  "image_auteur": "NASA/JPL-Caltech/University of Arizona (télescope spatial Spitzer)",
+  "image_licence": "Domaine public (NASA)",
   "constellations": []
 }

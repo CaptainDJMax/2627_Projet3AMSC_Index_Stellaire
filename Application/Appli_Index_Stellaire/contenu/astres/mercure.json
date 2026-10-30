@@ -2,11 +2,13 @@
   "nom": "Mercure",
   "categorie": "planete",
   "identifiant_skyfield": "mercury",
-  "description": "",
-  "sources": [],
-  "image": "",
-  "image_source": "",
-  "image_auteur": "",
-  "image_licence": "",
+  "description": "La plus petite planète et la plus proche du Soleil (58 millions de km en moyenne). Elle fait le tour du Soleil en 88 jours, mais il s'écoule 176 jours terrestres entre deux levers de Soleil. Sans atmosphère pour garder la chaleur, elle passe de 430 °C le jour à -180 °C la nuit. Elle n'a pas de lune. Toujours proche du Soleil dans le ciel, on ne la voit que basse sur l'horizon, peu après le coucher ou peu avant le lever du Soleil, surtout autour de ses plus grandes élongations (voir les événements ✦).",
+  "sources": [
+    "https://science.nasa.gov/mercury/facts/"
+  ],
+  "image": "mercure.jpg",
+  "image_source": "https://science.nasa.gov/photojournal/mercury-globe-0n-90e/",
+  "image_auteur": "NASA/Johns Hopkins University Applied Physics Laboratory/Carnegie Institution of Washington (sonde MESSENGER)",
+  "image_licence": "Domaine public (NASA)",
   "constellations": []
 }

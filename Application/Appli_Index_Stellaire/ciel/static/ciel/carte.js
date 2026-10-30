@@ -188,7 +188,11 @@
   }
 
   // Un astre de la base passe-t-il les filtres ? (carte, toucher et recherche)
-  const FILTRE_DE_CATEGORIE = { planete: "planetes", lune: "planetes", etoile: "etoiles", amas: "etoiles", satellite: "satellites" };
+  const FILTRE_DE_CATEGORIE = {
+    planete: "planetes", lune: "planetes", soleil: "planetes", // Partie 10 : Soleil
+    etoile: "etoiles", amas: "etoiles", ciel_profond: "etoiles", // Partie 10 : ciel profond
+    satellite: "satellites",
+  };
   function objetAffiche(o) {
     const f = FILTRE_DE_CATEGORIE[o.categorie];
     return !f || filtres[f];
@@ -1206,6 +1210,9 @@
     etoile: { forme: "anneau", rayon: 8, couleur: "#7fb0ff", texte: "#a9c8ff", nom: false },
     amas: { forme: "anneau", rayon: 8, couleur: "#b79cff", texte: "#cdbcff", nom: true },
     satellite: { forme: "disque", rayon: 4, couleur: "#ff5a5a", texte: "#ff9a9a", nom: true },
+    // Partie 10
+    soleil: { forme: "disque", rayon: 10, couleur: "#ffcc33", texte: "#ffe08a", nom: true },
+    ciel_profond: { forme: "anneau", rayon: 9, couleur: "#ff9fd6", texte: "#ffc4e6", nom: true },
   };
 
   // Partie 6.3 : position d'un objet à l'instant affiché. Un satellite arrive avec son trajet
@@ -1525,6 +1532,7 @@
 
   const NOMS_CATEGORIES = {
     etoile: "Étoile", planete: "Planète", lune: "Lune", amas: "Amas", satellite: "Satellite",
+    soleil: "Notre étoile", ciel_profond: "Ciel profond",
   };
   const POINTS_CARDINAUX = [
     "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO",
@@ -1551,6 +1559,7 @@
     listePassages: document.getElementById("fiche-liste-passages"),
     aucunPassage: document.getElementById("fiche-aucun-passage"),
     description: document.getElementById("fiche-description"),
+    alerte: document.getElementById("fiche-alerte"),
     credit: document.getElementById("fiche-credit"),
     sources: document.getElementById("fiche-sources"),
     magnitude: document.getElementById("fiche-magnitude"),
@@ -1781,6 +1790,8 @@
 
     // Texte et image : toujours via textContent / src, jamais innerHTML
     // (le contenu vient de l'admin, on ne le traite jamais comme du HTML)
+    // Partie 10 : avertissement de sécurité dans la fiche du Soleil
+    el.alerte.hidden = !(fiche && fiche.categorie === "soleil");
     el.description.textContent = fiche
       ? fiche.description || "Description à venir."
       : "";

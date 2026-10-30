@@ -1,0 +1,15 @@
+{
+  "nom": "Nébuleuse d'Orion",
+  "categorie": "ciel_profond",
+  "identifiant_skyfield": "radec:83.8221,-5.3911",
+  "description": "Un immense nuage de gaz et de poussière où naissent des étoiles (M42), dans l'« épée » d'Orion, sous les trois étoiles du baudrier. Visible à l'œil nu comme une petite tache floue ; aux jumelles, on voit sa lueur, et au télescope les quelques étoiles massives qui l'éclairent et la sculptent. Elle fait partie du même complexe que sa voisine M43, à environ 1 600 années-lumière. Le meilleur moment pour l'observer : les soirées de janvier.",
+  "sources": [
+    "https://science.nasa.gov/mission/hubble/science/explore-the-night-sky/hubble-messier-catalog/messier-43/",
+    "https://science.nasa.gov/photojournal/infrared-spotlight-on-orions-sword/"
+  ],
+  "image": "orion_nebuleuse.jpg",
+  "image_source": "https://science.nasa.gov/photojournal/infrared-spotlight-on-orions-sword/",
+  "image_auteur": "NASA/JPL-Caltech/IRAS/H. McCallon (satellites IRAS et Spitzer)",
+  "image_licence": "Domaine public (NASA)",
+  "constellations": []
+}

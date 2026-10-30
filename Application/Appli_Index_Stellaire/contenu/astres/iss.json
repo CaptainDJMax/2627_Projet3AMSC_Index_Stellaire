@@ -2,11 +2,13 @@
   "nom": "ISS",
   "categorie": "satellite",
   "identifiant_skyfield": "sat:25544",
-  "description": "",
-  "sources": [],
-  "image": "",
-  "image_source": "",
-  "image_auteur": "",
-  "image_licence": "",
+  "description": "La Station spatiale internationale, habitée sans interruption depuis novembre 2000, en général par un équipage de sept personnes. Longue de 109 m, elle pèse environ 420 tonnes. Elle file à environ 8 km par seconde et fait le tour de la Terre en 90 minutes : 16 levers et couchers de Soleil par jour. On la voit à l'œil nu comme un point très brillant qui traverse le ciel en quelques minutes sans clignoter, quand elle est encore éclairée par le Soleil alors qu'il fait nuit chez nous : ses prochains passages sont dans cette fiche.",
+  "sources": [
+    "https://www.nasa.gov/international-space-station/space-station-facts-and-figures/"
+  ],
+  "image": "iss.jpg",
+  "image_source": "https://www.nasa.gov/image-article/station-pictured-from-spacex-crew-dragon-12/",
+  "image_auteur": "NASA (photo iss066e081130, prise depuis la capsule Crew Dragon Endeavour le 8 novembre 2021)",
+  "image_licence": "Domaine public (NASA)",
   "constellations": []
 }

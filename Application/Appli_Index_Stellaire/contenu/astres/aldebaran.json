@@ -2,13 +2,13 @@
   "nom": "Aldébaran",
   "categorie": "etoile",
   "identifiant_skyfield": "hip:21421",
-  "description": "",
-  "sources": [],
+  "description": "L'œil orangé du Taureau, une géante rouge à environ 65 années-lumière. Elle semble faire partie de l'amas des Hyades, en forme de V, mais ce n'est qu'un alignement par hasard : les Hyades sont plus de deux fois plus loin, à environ 150 années-lumière. Les Pléiades sont tout près dans le ciel, au nord-ouest d'Aldébaran.",
+  "sources": [
+    "https://science.nasa.gov/image-article/apod-2011-november-17-pleiades-to-hyades/"
+  ],
   "image": "",
   "image_source": "",
   "image_auteur": "",
   "image_licence": "",
-  "constellations": [
-    "Taureau"
-  ]
+  "constellations": []
 }

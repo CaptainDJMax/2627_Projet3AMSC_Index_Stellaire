@@ -1,0 +1,15 @@
+{
+  "nom": "Pléiades",
+  "categorie": "amas",
+  "identifiant_skyfield": "radec:56.85,24.1167",
+  "description": "Amas d'étoiles du Taureau surnommé les Sept Sœurs (M45 dans le catalogue de Messier). À l'œil nu, on en compte six ou sept, mais l'amas réunit plus d'un millier d'étoiles. Il est à environ 445 années-lumière, une distance encore discutée. Le meilleur moment pour l'observer : les soirées de décembre, et les jumelles sont idéales. L'image, en infrarouge (télescope WISE), montre le nuage de poussière qu'il traverse.",
+  "sources": [
+    "https://science.nasa.gov/mission/hubble/science/explore-the-night-sky/hubble-messier-catalog/messier-45",
+    "https://science.nasa.gov/photojournal/seven-sisters-get-wise"
+  ],
+  "image": "pleiades.jpg",
+  "image_source": "https://science.nasa.gov/photojournal/seven-sisters-get-wise",
+  "image_auteur": "NASA/JPL-Caltech/UCLA (télescope WISE)",
+  "image_licence": "Domaine public (NASA)",
+  "constellations": []
+}

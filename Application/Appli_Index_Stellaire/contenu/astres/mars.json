@@ -2,11 +2,14 @@
   "nom": "Mars",
   "categorie": "planete",
   "identifiant_skyfield": "mars barycenter",
-  "description": "",
-  "sources": [],
-  "image": "",
-  "image_source": "",
-  "image_auteur": "",
-  "image_licence": "",
+  "description": "La planète rouge doit sa couleur à la poussière riche en oxydes de fer (de la rouille) qui couvre son sol. Elle est environ deux fois plus petite que la Terre (6 794 km de diamètre). Un jour martien, le « sol », dure 24 h 37 min ; une année, 687 jours terrestres. Ses deux petites lunes, Phobos et Déimos, ne mesurent que 27 et 15 km de long. L'image montre Valles Marineris, un immense système de canyons.",
+  "sources": [
+    "https://m.esa.int/Our_Activities/Space_Science/Mars_Express/Facts_about_Mars",
+    "https://science.nasa.gov/photojournal/valles-marineris-hemisphere"
+  ],
+  "image": "mars.jpg",
+  "image_source": "https://science.nasa.gov/photojournal/valles-marineris-hemisphere",
+  "image_auteur": "NASA/JPL/USGS (mosaïque de 102 images des sondes Viking)",
+  "image_licence": "Domaine public (NASA)",
   "constellations": []
 }

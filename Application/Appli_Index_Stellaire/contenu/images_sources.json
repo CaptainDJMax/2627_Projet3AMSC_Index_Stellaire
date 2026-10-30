@@ -1,0 +1,61 @@
+{
+  "_explication": "Images à télécharger dans contenu/images/ avec : python manage.py telecharger_images. Chaque image est vérifiée sur sa page (crédit et licence recopiés dans la fiche de l'astre).",
+  "images": {
+    "jupiter.jpg": {
+      "url": "https://assets.science.nasa.gov/content/dam/science/psd/photojournal/pia/pia04/pia04866/PIA04866.jpg",
+      "page": "https://www.jpl.nasa.gov/images/pia04866-cassini-jupiter-portrait/"
+    },
+    "saturne.jpg": {
+      "url": "https://assets.science.nasa.gov/content/dam/science/psd/photojournal/pia/pia11/pia11667/PIA11667.jpg",
+      "page": "https://science.nasa.gov/photojournal/the-rite-of-spring/"
+    },
+    "mars.jpg": {
+      "url": "https://assets.science.nasa.gov/content/dam/science/psd/photojournal/pia/pia00/pia00003/PIA00003.jpg",
+      "page": "https://science.nasa.gov/photojournal/valles-marineris-hemisphere"
+    },
+    "venus.jpg": {
+      "url": "https://assets.science.nasa.gov/content/dam/science/psd/photojournal/pia/pia23/pia23791/PIA23791.jpg",
+      "page": "https://www.jpl.nasa.gov/images/pia23791-venus-from-mariner-10/"
+    },
+    "mercure.jpg": {
+      "url": "https://assets.science.nasa.gov/content/dam/science/psd/photojournal/pia/pia15/pia15161/PIA15161.jpg",
+      "page": "https://science.nasa.gov/photojournal/mercury-globe-0n-90e/"
+    },
+    "lune.jpg": {
+      "url": "https://assets.science.nasa.gov/content/dam/science/psd/photojournal/pia/pia14/pia14011/PIA14011.jpg",
+      "page": "https://science.nasa.gov/photojournal/nearside-spectacular/"
+    },
+    "soleil.jpg": {
+      "url": "https://assets.science.nasa.gov/content/dam/science/psd/photojournal/pia/pia26/pia26681/PIA26681.jpg",
+      "page": "https://science.nasa.gov/photojournal/image-of-sun-from-nasas-solar-dynamics-observatory/"
+    },
+    "iss.jpg": {
+      "url": "https://www.nasa.gov/wp-content/uploads/2023/03/iss066e081130.jpg",
+      "page": "https://www.nasa.gov/image-article/station-pictured-from-spacex-crew-dragon-12/"
+    },
+    "sirius.jpg": {
+      "url": "https://assets.science.nasa.gov/content/dam/science/missions/hubble/releases/2005/12/STScI-01EVT7ZJ6D77V1MAV8F65NSFE7.tif/jcr:content/renditions/733x800.jpg",
+      "page": "https://science.nasa.gov/asset/hubble/the-dog-star-sirius-and-its-tiny-companion/"
+    },
+    "polaris.jpg": {
+      "url": "https://assets.science.nasa.gov/dynamicimage/assets/science/missions/hubble/releases/2006/01/STScI-01EVT7SM7ZDZC81VZR32DR8XCM.jpg",
+      "page": "https://science.nasa.gov/asset/hubble/hubble-images-polariss-companion/"
+    },
+    "vega.jpg": {
+      "url": "https://assets.science.nasa.gov/content/dam/science/psd/photojournal/pia/pia07/pia07218/PIA07218.jpg",
+      "page": "https://science.nasa.gov/photojournal/tiny-particles-so-far-away/"
+    },
+    "pleiades.jpg": {
+      "url": "https://assets.science.nasa.gov/content/dam/science/psd/photojournal/pia/pia13/pia13121/PIA13121.jpg",
+      "page": "https://science.nasa.gov/photojournal/seven-sisters-get-wise"
+    },
+    "andromede.jpg": {
+      "url": "https://assets.science.nasa.gov/content/dam/science/psd/photojournal/pia/pia12/pia12832/PIA12832.jpg",
+      "page": "https://science.nasa.gov/photojournal/our-neighbor-andromeda/"
+    },
+    "orion_nebuleuse.jpg": {
+      "url": "https://assets.science.nasa.gov/content/dam/science/psd/photojournal/pia/pia08/pia08656/PIA08656.jpg",
+      "page": "https://science.nasa.gov/photojournal/infrared-spotlight-on-orions-sword/"
+    }
+  }
+}

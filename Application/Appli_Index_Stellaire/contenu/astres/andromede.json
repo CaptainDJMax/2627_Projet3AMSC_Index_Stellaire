@@ -1,0 +1,15 @@
+{
+  "nom": "Galaxie d'Andromède",
+  "categorie": "ciel_profond",
+  "identifiant_skyfield": "radec:10.6846,41.2692",
+  "description": "La grande galaxie spirale voisine de la nôtre (M31), à 2,5 millions d'années-lumière : la lumière qu'on voit est partie il y a 2,5 millions d'années. Sous un ciel noir, on la voit à l'œil nu comme une tache floue allongée, dans Andromède ; sur les photos, elle paraît environ six fois plus large que la pleine Lune. Le meilleur moment pour l'observer : les soirées de novembre. L'image infrarouge (télescope WISE) montre en bleu les étoiles anciennes, en jaune et rouge la poussière chauffée par les jeunes étoiles.",
+  "sources": [
+    "https://science.nasa.gov/mission/hubble/science/explore-the-night-sky/hubble-messier-catalog/messier-31/",
+    "https://science.nasa.gov/photojournal/our-neighbor-andromeda/"
+  ],
+  "image": "andromede.jpg",
+  "image_source": "https://science.nasa.gov/photojournal/our-neighbor-andromeda/",
+  "image_auteur": "NASA/JPL-Caltech/UCLA (télescope WISE)",
+  "image_licence": "Domaine public (NASA)",
+  "constellations": []
+}

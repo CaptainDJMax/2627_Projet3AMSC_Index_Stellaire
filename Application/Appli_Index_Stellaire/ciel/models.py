@@ -12,6 +12,9 @@ class ObjetCeleste(models.Model):
         LUNE = "lune", "Lune"
         AMAS = "amas", "Amas"
         SATELLITE = "satellite", "Satellite"
+        # Partie 10
+        SOLEIL = "soleil", "Soleil"
+        CIEL_PROFOND = "ciel_profond", "Ciel profond"
 
     nom = models.CharField(max_length=100)
     categorie = models.CharField(max_length=20, choices=Categorie.choices)
@@ -20,7 +23,9 @@ class ObjetCeleste(models.Model):
         blank=True,
         default="",
         help_text="Étoile : hip:NUMERO (ex. hip:21421). "
-        "Planète : nom de l'éphéméride (ex. jupiter barycenter).",
+        "Planète : nom de l'éphéméride (ex. jupiter barycenter). Soleil : sun. "
+        "Satellite : sat:NUMERO_NORAD (ex. sat:25544). Amas, galaxie, nébuleuse : "
+        "radec:ASCENSION_DROITE,DECLINAISON en degrés J2000 (ex. radec:10.6846,41.2692).",
     )
     description = models.TextField(blank=True)
     image = models.ImageField(upload_to="objets_celestes/", blank=True, null=True)

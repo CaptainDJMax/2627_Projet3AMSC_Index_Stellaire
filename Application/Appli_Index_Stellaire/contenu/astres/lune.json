@@ -2,11 +2,13 @@
   "nom": "Lune",
   "categorie": "lune",
   "identifiant_skyfield": "moon",
-  "description": "",
-  "sources": [],
-  "image": "",
-  "image_source": "",
-  "image_auteur": "",
-  "image_licence": "",
+  "description": "Le seul satellite naturel de la Terre, à une distance qui varie de 356 000 à 407 000 km. Son diamètre, 3 476 km, fait un peu plus du quart de celui de la Terre. Elle tourne sur elle-même en 27,3 jours, le temps qu'elle met à faire le tour de la Terre : c'est pour cela qu'elle nous montre toujours la même face. Ses phases dépendent de la part de sa moitié éclairée par le Soleil que l'on voit depuis la Terre. Aux jumelles, les cratères ressortent le mieux près de la limite entre l'ombre et la lumière, pas à la pleine Lune.",
+  "sources": [
+    "https://starchild.gsfc.nasa.gov/docs/StarChild/solar_system_level2/moon_facts.html"
+  ],
+  "image": "lune.jpg",
+  "image_source": "https://science.nasa.gov/photojournal/nearside-spectacular/",
+  "image_auteur": "NASA/GSFC/Arizona State University (Lunar Reconnaissance Orbiter, décembre 2010)",
+  "image_licence": "Domaine public (NASA)",
   "constellations": []
 }

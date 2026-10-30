@@ -2,11 +2,13 @@
   "nom": "Polaris",
   "categorie": "etoile",
   "identifiant_skyfield": "hip:11767",
-  "description": "",
-  "sources": [],
-  "image": "",
-  "image_source": "",
-  "image_auteur": "",
-  "image_licence": "",
+  "description": "L'étoile Polaire, au bout de la queue de la Petite Ourse. Elle est presque au pôle Nord céleste : elle semble immobile pendant que tout le ciel tourne autour d'elle, et indique le nord. Contrairement à une idée reçue, elle n'est que moyennement brillante. C'est pourtant une supergéante plus de 2 000 fois plus lumineuse que le Soleil, à environ 430 années-lumière, et en fait un système de trois étoiles. C'est aussi la Céphéide la plus proche : une étoile dont l'éclat varie régulièrement, du type qui sert à mesurer la distance des galaxies.",
+  "sources": [
+    "https://science.nasa.gov/missions/hubble/theres-more-to-the-north-star-than-meets-the-eye/"
+  ],
+  "image": "polaris.jpg",
+  "image_source": "https://science.nasa.gov/asset/hubble/hubble-images-polariss-companion/",
+  "image_auteur": "NASA, ESA, N. Evans (Harvard-Smithsonian CfA) et H. Bond (STScI)",
+  "image_licence": "Domaine public (NASA)",
   "constellations": []
 }

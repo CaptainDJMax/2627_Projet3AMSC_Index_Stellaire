@@ -301,6 +301,8 @@ def infos(identifiant, latitude, longitude, altitude_m=0, instant=None):
             resultat["magnitude"] = round(float(etoile["magnitude"]), 2)
         if np.isfinite(etoile["parallax_mas"]) and etoile["parallax_mas"] > 0:
             resultat["distance_al"] = round(1000.0 / float(etoile["parallax_mas"]) * PARSEC_AL, 1)
+    elif identifiant.startswith("radec:"):
+        pass  # point du ciel, amas ou galaxie (Partie 10) : pas de distance calculable, elle est dans la fiche
     else:
         resultat["distance_km"] = round(float(position.distance().km))
         if identifiant == "moon":

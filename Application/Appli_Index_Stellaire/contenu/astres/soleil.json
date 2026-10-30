@@ -1,0 +1,15 @@
+{
+  "nom": "Soleil",
+  "categorie": "soleil",
+  "identifiant_skyfield": "sun",
+  "description": "Notre étoile, une naine jaune d'environ 4,5 milliards d'années, à peu près à la moitié de sa vie. Elle est environ 100 fois plus large que la Terre, et sa lumière met 8 minutes et 20 secondes à nous parvenir. ATTENTION : ne jamais regarder le Soleil directement, ni avec des jumelles, un télescope ou un appareil photo sans filtre solaire spécial fixé devant l'optique : la lésion des yeux est immédiate et peut être définitive. Pour une éclipse, il faut des lunettes conformes à la norme ISO 12312-2 ; des lunettes de soleil ne suffisent pas.",
+  "sources": [
+    "https://spaceplace.nasa.gov/all-about-the-sun",
+    "https://science.nasa.gov/eclipses/future-eclipses/eclipse-2024/safety/"
+  ],
+  "image": "soleil.jpg",
+  "image_source": "https://science.nasa.gov/photojournal/image-of-sun-from-nasas-solar-dynamics-observatory/",
+  "image_auteur": "NASA/GSFC/Solar Dynamics Observatory (10 septembre 2025)",
+  "image_licence": "Domaine public (NASA)",
+  "constellations": []
+}

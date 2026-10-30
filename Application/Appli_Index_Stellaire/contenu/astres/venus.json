@@ -2,11 +2,14 @@
   "nom": "Vénus",
   "categorie": "planete",
   "identifiant_skyfield": "venus",
-  "description": "",
-  "sources": [],
-  "image": "",
-  "image_source": "",
-  "image_auteur": "",
-  "image_licence": "",
+  "description": "Presque de la même taille que la Terre, mais un enfer : 465 °C au sol et une pression près de 100 fois celle de la Terre, sous une atmosphère de gaz carbonique et une couche de nuages soufrés qui cache entièrement la surface. Elle tourne sur elle-même dans le sens inverse des autres planètes. Ses nuages renvoient beaucoup de lumière : c'est la planète la plus brillante vue de la Terre, « l'étoile du Berger », visible le soir ou le matin, jamais en pleine nuit. L'image, prise par Mariner 10 en 1974, est en couleurs renforcées.",
+  "sources": [
+    "https://science.gsfc.nasa.gov/690/Venus.html",
+    "https://www.jpl.nasa.gov/images/pia23791-venus-from-mariner-10/"
+  ],
+  "image": "venus.jpg",
+  "image_source": "https://www.jpl.nasa.gov/images/pia23791-venus-from-mariner-10/",
+  "image_auteur": "NASA/JPL-Caltech (sonde Mariner 10, février 1974)",
+  "image_licence": "Domaine public (NASA)",
   "constellations": []
 }

@@ -2,11 +2,13 @@
   "nom": "Saturne",
   "categorie": "planete",
   "identifiant_skyfield": "saturn barycenter",
-  "description": "",
-  "sources": [],
-  "image": "",
-  "image_source": "",
-  "image_auteur": "",
-  "image_licence": "",
+  "description": "La planète aux anneaux. Ses anneaux sont faits de milliards de morceaux de glace et de roche, du grain de poussière au bloc gros comme une maison ; ils s'étendent jusqu'à 282 000 km de la planète, mais les anneaux principaux n'ont qu'une dizaine de mètres d'épaisseur. Saturne est la seule planète moins dense que l'eau. Un jour y dure environ 10 h 40 et une année près de 29,5 ans terrestres ; elle est à 9,5 fois la distance Terre-Soleil, si loin que la lumière du Soleil met 80 minutes à l'atteindre. Plus de 270 lunes confirmées. Un petit télescope suffit pour voir les anneaux.",
+  "sources": [
+    "https://science.nasa.gov/saturn/facts/"
+  ],
+  "image": "saturne.jpg",
+  "image_source": "https://science.nasa.gov/photojournal/the-rite-of-spring/",
+  "image_auteur": "NASA/JPL/Space Science Institute (sonde Cassini, équinoxe de 2009)",
+  "image_licence": "Domaine public (NASA)",
   "constellations": []
 }

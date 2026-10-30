@@ -2,11 +2,13 @@
   "nom": "Sirius",
   "categorie": "etoile",
   "identifiant_skyfield": "hip:32349",
-  "description": "",
-  "sources": [],
-  "image": "",
-  "image_source": "",
-  "image_auteur": "",
-  "image_licence": "",
+  "description": "L'étoile la plus brillante du ciel nocturne, dans la constellation du Grand Chien. À 8,6 années-lumière, c'est le cinquième système d'étoiles le plus proche connu. Elle a une compagne, Sirius B : une naine blanche, le cœur restant d'une étoile semblable au Soleil, pas plus grande que la Terre (12 000 km) mais presque aussi massive que le Soleil (98 %). Les deux étoiles tournent l'une autour de l'autre en 50 ans environ ; 10 000 fois moins lumineuse, Sirius B est noyée dans l'éclat de Sirius A (le petit point en bas à gauche sur l'image du télescope Hubble).",
+  "sources": [
+    "https://science.nasa.gov/asset/hubble/the-dog-star-sirius-and-its-tiny-companion/"
+  ],
+  "image": "sirius.jpg",
+  "image_source": "https://science.nasa.gov/asset/hubble/the-dog-star-sirius-and-its-tiny-companion/",
+  "image_auteur": "NASA, H.E. Bond et E. Nelan (STScI), M. Barstow et M. Burleigh (Université de Leicester), J.B. Holberg (Université d'Arizona)",
+  "image_licence": "Domaine public (NASA)",
   "constellations": []
 }

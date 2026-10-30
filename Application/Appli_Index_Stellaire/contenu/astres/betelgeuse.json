@@ -2,8 +2,10 @@
   "nom": "Bételgeuse",
   "categorie": "etoile",
   "identifiant_skyfield": "hip:27989",
-  "description": "",
-  "sources": [],
+  "description": "Supergéante rouge à l'épaule d'Orion, reconnaissable à sa couleur orangée. Fin 2019 et début 2020, son éclat a nettement baissé : c'est la « Grande baisse d'éclat ». Le Very Large Telescope de l'ESO a montré qu'un nuage de poussière la masquait en partie : peu avant, l'étoile avait éjecté une bulle de gaz qui s'est condensée en poussière en refroidissant. Elle avait retrouvé son éclat en avril 2020. Ce n'était pas le signe d'une explosion proche : Bételgeuse finira en supernova, mais rien ne permet de dire quand.",
+  "sources": [
+    "https://elt.eso.org/public/news/eso2109"
+  ],
   "image": "",
   "image_source": "",
   "image_auteur": "",
