@@ -1680,10 +1680,29 @@
     const etendu = o.apparence ? dessinerApparence(ctx, o, p, pt) : 0;
     o.rayonEcran = etendu; // pour toucher l'objet n'importe où dans sa forme
     const rayon = Math.max(style.rayon, etendu);
+    // Catalogue automatique (plus de 1 000 astres) : sans fouillis. Ses étoiles sont déjà dessinées par
+    // la bibliothèque : rien de plus (elles se touchent et se cherchent quand même). Son ciel profond :
+    // un petit repère discret à partir du zoom ×1,5 tant que sa forme est trop petite pour être dessinée,
+    // son nom à partir du zoom ×2 (vue d'ensemble : seulement les grands, Pléiades, M24, M44...).
+    // Les étoiles à fiche (Sirius, Polaris...) sont elles aussi déjà des points de la bibliothèque :
+    // même traitement, pour ne pas surcharger la carte d'un anneau en plus à côté de centaines d'autres.
+    const marque = o.id === selection || vise;
+    // (les planètes du catalogue, elles, sont dessinées comme les autres)
+    const discret = o.catalogue && !marque && !etendu && o.categorie !== "planete";
+    if (o.categorie === "etoile" && !marque) return;
+    if (discret && vue.zoom < 1.5) return;
 
     ctx.save();
     ctx.lineWidth = 1.5;
-    if (!etendu) {
+    if (discret) {
+      ctx.globalAlpha = 0.55;
+      ctx.beginPath();
+      ctx.arc(pt[0], pt[1], 4, 0, 2 * Math.PI);
+      ctx.strokeStyle = style.couleur;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    } else if (!etendu) {
       ctx.beginPath();
       ctx.arc(pt[0], pt[1], style.rayon, 0, 2 * Math.PI);
       if (style.forme === "disque") {
@@ -1709,7 +1728,7 @@
       ctx.strokeStyle = COULEUR_BRAS;
       ctx.stroke();
     }
-    if (style.nom) {
+    if ((style.nom && !(discret && vue.zoom < 2)) || (o.catalogue && marque)) {
       ctx.font = "600 14px Helvetica, Arial, sans-serif";
       ctx.textAlign = "left";
       ctx.textBaseline = "bottom";
@@ -1985,7 +2004,9 @@
     const dansConstellation = fiche && fiche.constellation_iau && nomsConstellations[fiche.constellation_iau];
     const constellations = fiche && fiche.constellations.length ? " · " + fiche.constellations.join(", ")
       : dansConstellation ? " · " + dansConstellation : "";
-    el.sousTitre.textContent = categorie + constellations;
+    // Catalogue automatique : autre désignation (« α Orionis », « M31, NGC 224 »)
+    const designation = fiche && fiche.designation ? " · " + fiche.designation : "";
+    el.sousTitre.textContent = categorie + designation + constellations;
 
     const pos = positionActuelle();
     if (pos) {
@@ -2174,6 +2195,12 @@
         if (el.sources.childNodes.length > 1) el.sources.append(", ");
         el.sources.append(lien);
       });
+    }
+    // Catalogue automatique : « Texte : Wikipédia en français, CC BY-SA 4.0 · Données : … » (obligatoire)
+    if (fiche && fiche.description_credit) {
+      el.sources.hidden = false;
+      if (el.sources.childNodes.length) el.sources.append(" · ");
+      el.sources.append(fiche.description_credit);
     }
   }
 

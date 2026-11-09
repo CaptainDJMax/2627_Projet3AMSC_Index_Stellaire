@@ -41,7 +41,8 @@ class Command(BaseCommand):
         fichiers_existants = self._fichiers_par_nom(dossier)
 
         ecrits = 0
-        for objet in ObjetCeleste.objects.order_by("nom"):
+        # Le catalogue automatique n'est pas exporté : il se télécharge sur chaque machine
+        for objet in ObjetCeleste.objects.filter(origine=ObjetCeleste.Origine.CONTENU).order_by("nom"):
             chemin = fichiers_existants.get(objet.nom) or dossier / "astres" / f"{slugify(objet.nom) or objet.pk}.json"
             image = self._exporter_image(objet, chemin.stem, dossier)
             donnees = {

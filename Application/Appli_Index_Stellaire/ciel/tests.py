@@ -25,6 +25,7 @@ CLES_DETAIL = {
     "passages",  # Partie 6.3 : prochains passages d'un satellite (None pour les autres astres)
     # Partie 8.1 : fiche complétée
     "magnitude", "ra", "dec", "constellation_iau", "distance_km", "distance_al", "eclairement", "ce_soir",
+    "description_credit", "designation",  # catalogue automatique
 }
 
 
@@ -59,6 +60,7 @@ class ApiCielTests(TestCase):
         self.assertEqual({o["nom"] for o in donnees["objets"]}, {"Jupiter", "Lune"})
         for o in donnees["objets"]:
             attendues = CLES_LISTE | ({"apparence"} if o["categorie"] in CATEGORIES_ETENDUES else set())
+            # catalogue automatique : champ ajouté « catalogue » (true), seulement pour ses astres
             self.assertEqual(attendues, set(o))
             self.assertTrue(0 <= o["ra"] < 360)
             self.assertTrue(-90 <= o["dec"] <= 90)

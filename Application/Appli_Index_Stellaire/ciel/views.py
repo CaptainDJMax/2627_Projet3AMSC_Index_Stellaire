@@ -4,13 +4,14 @@ import math
 from datetime import datetime, timezone
 
 from django.conf import settings
+from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_POST
 
 from .astro import (
-    altaz, est_satellite, infos, instant_depuis, levers_couchers, maintenant, passages, radec,
+    altaz, est_satellite, infos, instant_depuis, levers_couchers, maintenant, passages, positions_fixes, radec,
     trace_satellite, trajectoire,
 )
 from . import evenements as calcul_evenements
@@ -18,6 +19,9 @@ from .apparence import apparence
 from . import sources_externes
 from .lieu import definir_partage, lieu_courant, lieu_partage, retirer_partage
 from .models import ObjetCeleste
+
+# Planètes visibles à l'œil nu (événements : rapprochements, oppositions, élongations, « ce soir »)
+PLANETES_A_L_OEIL_NU = ("mercury", "venus", "mars barycenter", "jupiter barycenter", "saturn barycenter")
 
 logger = logging.getLogger(__name__)
 
@@ -55,16 +59,25 @@ def liste_objets(request):
             {"erreur": "Paramètre 'instant' invalide (ISO 8601, 1950-2049)."}, status=400
         )
     objets = []
+    base = list(ObjetCeleste.objects.exclude(identifiant_skyfield=""))
+    # Catalogue automatique : les étoiles et les points fixes sont calculés tous ensemble (rapide)
+    fixes = positions_fixes(
+        [o.identifiant_skyfield for o in base if o.identifiant_skyfield.startswith(("hip:", "radec:"))],
+        lieu["latitude"], lieu["longitude"], lieu["altitude_m"], instant,
+    )
 
-    for objet in ObjetCeleste.objects.exclude(identifiant_skyfield=""):
+    for objet in base:
         ident = objet.identifiant_skyfield
         try:
-            elevation, azimut = altaz(
-                ident, lieu["latitude"], lieu["longitude"], lieu["altitude_m"], instant
-            )
-            ra, dec = radec(
-                ident, lieu["latitude"], lieu["longitude"], lieu["altitude_m"], instant
-            )
+            if ident.startswith(("hip:", "radec:")):
+                elevation, azimut, ra, dec = fixes[ident]  # KeyError : identifiant invalide
+            else:
+                elevation, azimut = altaz(
+                    ident, lieu["latitude"], lieu["longitude"], lieu["altitude_m"], instant
+                )
+                ra, dec = radec(
+                    ident, lieu["latitude"], lieu["longitude"], lieu["altitude_m"], instant
+                )
             # Partie 6.3 : un satellite bouge vite ; son trajet sur 12 min permet au navigateur
             # de le faire avancer entre deux chargements
             trace = trace_satellite(
@@ -94,6 +107,8 @@ def liste_objets(request):
             donnees["trace"] = trace  # satellites seulement
         if forme is not None:
             donnees["apparence"] = forme  # Soleil, Lune, amas, ciel profond seulement
+        if objet.origine == ObjetCeleste.Origine.CATALOGUE:
+            donnees["catalogue"] = True  # catalogue automatique : la carte le dessine plus discrètement
         objets.append(donnees)
 
     return JsonResponse(
@@ -156,6 +171,9 @@ def detail_objet(request, objet_id):
                 "licence": objet.image_licence,
             } if objet.image else None,
             "sources": [s.strip() for s in objet.sources.splitlines() if s.strip()],
+            # Catalogue automatique : crédit du texte (Wikipédia, CC BY-SA) et des données, autre désignation
+            "description_credit": objet.description_credit,
+            "designation": objet.designation,
             "constellations": [c.nom for c in objet.constellations.all()],
             "instant": instant.utc_iso(),
             "lieu": lieu,
@@ -169,6 +187,8 @@ def detail_objet(request, objet_id):
             "passages": prochains,  # Partie 6.3
             # Partie 8.1
             **plus,  # magnitude, ra, dec, constellation_iau, distance_km, distance_al, eclairement
+            # Ciel profond du catalogue : Skyfield ne calcule pas sa magnitude, on prend celle d'OpenNGC
+            "magnitude": plus["magnitude"] if plus["magnitude"] is not None else objet.magnitude,
             "ce_soir": {
                 "debut_nuit": soir["debut_nuit"],
                 "fin_nuit": soir["fin_nuit"],
@@ -240,7 +260,11 @@ def evenements(request):
     lat, lon, alt = lieu["latitude"], lieu["longitude"], lieu["altitude_m"]
     objets = [
         (o.id, o.nom, o.identifiant_skyfield, o.categorie)
-        for o in ObjetCeleste.objects.exclude(identifiant_skyfield="").order_by("nom")
+        # Catalogue automatique exclu (900 étoiles rendraient le calcul des occultations bien trop long),
+        # sauf les planètes visibles à l'œil nu (Mercure à Saturne) quand elles n'ont pas de fiche écrite
+        for o in ObjetCeleste.objects.exclude(identifiant_skyfield="")
+        .filter(Q(origine=ObjetCeleste.Origine.CONTENU) | Q(categorie="planete", identifiant_skyfield__in=PLANETES_A_L_OEIL_NU))
+        .order_by("nom")
     ]
     # « Ce soir » : la Lune et les planètes (les étoiles sont toujours là, elles n'en sont pas)
     soir = [o[:3] for o in objets if o[3] in ("planete", "lune")]

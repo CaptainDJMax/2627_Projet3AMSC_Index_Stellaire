@@ -168,8 +168,9 @@ LOGGING = {
     "formatters": {"simple": {"format": "{asctime} {levelname} {name} : {message}", "style": "{"}},
     "handlers": {
         "console": {"class": "logging.StreamHandler", "formatter": "simple"},
+        "rien": {"class": "logging.NullHandler"},
     },
-    "root": {"handlers": ["console"], "level": "WARNING"},
+    "root": {"handlers": ["rien"] if EN_TEST else ["console"], "level": "WARNING"},  # tests : pas de bruit
 }
 if PRODUCTION:
     DOSSIER_LOGS.mkdir(exist_ok=True)

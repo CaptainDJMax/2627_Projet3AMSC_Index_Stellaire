@@ -68,5 +68,8 @@ def apparence(objet, lieu, instant, ra=None, dec=None):
             "eclairement": round(float(almanac.fraction_illuminated(astro._ephemerides(), "moon", instant)), 3),
             "angle_soleil": round(angle_de_position(ra, dec, ra_s, dec_s), 1),
         }
+    # Catalogue automatique : forme tirée d'OpenNGC (taille et orientation réelles)
+    if isinstance(getattr(objet, "forme", None), dict) and objet.categorie in PAR_DEFAUT:
+        return dict(objet.forme)
     forme = FORMES.get(objet.nom) or PAR_DEFAUT.get(objet.categorie)
     return dict(forme) if forme else None

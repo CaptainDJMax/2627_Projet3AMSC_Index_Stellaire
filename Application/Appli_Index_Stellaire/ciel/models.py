@@ -35,6 +35,22 @@ class ObjetCeleste(models.Model):
     image_licence = models.CharField("licence de l'image", max_length=100, blank=True, default="")
     sources = models.TextField("sources de la description", blank=True, default="", help_text="Une adresse par ligne.")
 
+    # --- Catalogue automatique (étoiles jusqu'à la magnitude 4,5, Messier, Uranus et Neptune) ---------
+    class Origine(models.TextChoices):
+        CONTENU = "contenu", "Fiche écrite (contenu/)"
+        CATALOGUE = "catalogue", "Catalogue automatique"
+
+    origine = models.CharField(max_length=20, choices=Origine.choices, default=Origine.CONTENU)
+    # Clé stable dans le catalogue (« hip:27989 », « M31 », « planete:uranus ») : sert aux mises à jour
+    cle_catalogue = models.CharField(max_length=40, blank=True, default="", db_index=True)
+    designation = models.CharField("autre désignation", max_length=100, blank=True, default="",
+                                   help_text="Ex. « α Orionis », « M31, NGC 224 ».")
+    magnitude = models.FloatField(null=True, blank=True,
+                                  help_text="Magnitude du catalogue (utile pour le ciel profond, que Skyfield ne calcule pas).")
+    forme = models.JSONField(null=True, blank=True,
+                             help_text="Dessin sur la carte (voir ciel/apparence.py), pour le ciel profond.")
+    description_credit = models.CharField("crédit du texte et des données", max_length=300, blank=True, default="")
+
     def __str__(self):
         return self.nom
 

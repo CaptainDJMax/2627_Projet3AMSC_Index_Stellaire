@@ -37,6 +37,10 @@ class Command(BaseCommand):
         else:
             self.stdout.write("Rassemblement des fichiers statiques...")
             call_command("collectstatic", interactive=False, verbosity=0)
+        # Catalogue automatique : import immédiat la première fois, mise à jour mensuelle en arrière-plan
+        from ciel import catalogue
+
+        catalogue.lancer_si_besoin(journal=self.stdout.write)
         if not settings.CODE_PILOTAGE:
             self.stdout.write(self.style.WARNING("Aucun code de pilotage : le bras ne pourra pas être commandé."))
 

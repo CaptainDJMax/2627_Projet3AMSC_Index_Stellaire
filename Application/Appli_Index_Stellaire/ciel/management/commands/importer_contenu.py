@@ -130,12 +130,16 @@ class Command(BaseCommand):
 
     def _importer(self, donnees, dossier):
         nom = donnees["nom"].strip()
-        objet = ObjetCeleste.objects.filter(nom=nom).first()
+        # Une fiche écrite prend la place d'un astre du catalogue automatique du même nom
+        objet = (ObjetCeleste.objects.filter(nom=nom, origine=ObjetCeleste.Origine.CONTENU).first()
+                 or ObjetCeleste.objects.filter(nom=nom).first())
         cree = objet is None
         if cree:
             objet = ObjetCeleste(nom=nom)
         avant = None if cree else self._etat(objet)
 
+        objet.origine = ObjetCeleste.Origine.CONTENU
+        objet.cle_catalogue = ""
         objet.categorie = donnees["categorie"]
         objet.identifiant_skyfield = donnees.get("identifiant_skyfield", "").strip()
         objet.description = donnees.get("description", "").strip()
@@ -163,7 +167,7 @@ class Command(BaseCommand):
 
     def _etat(self, objet):
         return (
-            objet.categorie, objet.identifiant_skyfield, objet.description, objet.image.name or "",
+            objet.origine, objet.categorie, objet.identifiant_skyfield, objet.description, objet.image.name or "",
             objet.image_source, objet.image_auteur, objet.image_licence, objet.sources,
             tuple(sorted(c.nom for c in objet.constellations.all())),
         )

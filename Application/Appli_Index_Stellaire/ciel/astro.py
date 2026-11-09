@@ -113,6 +113,56 @@ def radec(identifiant, latitude, longitude, altitude_m=0, instant=None):
     return float(ra._degrees), float(dec.degrees)
 
 
+def positions_fixes(identifiants, latitude, longitude, altitude_m=0, instant=None):
+    """Calcul groupé pour les astres « fixes » (étoiles hip:, points radec:) : un seul calcul Skyfield
+    pour des centaines d'astres au lieu d'un par astre (catalogue automatique : plus de 1 000 astres,
+    la liste de la carte doit rester rapide sur un Raspberry Pi).
+    {identifiant: (élévation, azimut, ra, dec)} en degrés ; mêmes valeurs que altaz() et radec().
+    Les identifiants invalides ou inconnus sont absents du résultat."""
+    t = instant if instant is not None else _timescale().now()
+    observateur = (_ephemerides()["earth"] + wgs84.latlon(latitude, longitude, elevation_m=altitude_m)).at(t)
+    groupes = []  # (identifiants, Star vectoriel)
+    hip = [i for i in identifiants if i.startswith("hip:")]
+    if hip:
+        catalogue = _catalogue_hipparcos()
+        numeros, gardes = [], []
+        for i in hip:
+            try:
+                n = int(i[4:])
+            except ValueError:
+                continue
+            if n in catalogue.index:
+                numeros.append(n)
+                gardes.append(i)
+        if numeros:
+            lignes = catalogue.loc[numeros]
+            lignes = lignes[np.isfinite(lignes["ra_degrees"]) & np.isfinite(lignes["dec_degrees"])]
+            gardes = [f"hip:{n}" for n in lignes.index]
+            if gardes:
+                groupes.append((gardes, Star.from_dataframe(lignes)))
+    points = []
+    for i in identifiants:
+        if i.startswith("radec:"):
+            try:
+                ra, dec = (float(x) for x in i[6:].split(","))
+            except ValueError:
+                continue
+            if np.isfinite(ra) and -90 <= dec <= 90:
+                points.append((i, ra % 360, dec))
+    if points:
+        groupes.append(([p[0] for p in points], Star(ra_hours=np.array([p[1] for p in points]) / 15.0,
+                                                    dec_degrees=np.array([p[2] for p in points]))))
+    resultat = {}
+    for idents, etoiles in groupes:
+        position = observateur.observe(etoiles)
+        ra, dec, _ = position.radec()
+        hauteur, azimut, _ = position.apparent().altaz()
+        for k, ident in enumerate(idents):
+            resultat[ident] = (float(hauteur.degrees[k]), float(azimut.degrees[k]),
+                               float(ra._degrees[k]) % 360, float(dec.degrees[k]))
+    return resultat
+
+
 def maintenant():
     """Instant présent (objet temps Skyfield, en UTC)."""
     return _timescale().now()

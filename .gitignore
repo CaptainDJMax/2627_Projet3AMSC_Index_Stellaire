@@ -22,3 +22,6 @@ config_locale.json
 staticfiles/
 logs/
 sauvegardes/
+
+# Catalogue automatique : téléchargé sur chaque machine (résumés Wikipédia, état des mises à jour)
+donnees_catalogue/
