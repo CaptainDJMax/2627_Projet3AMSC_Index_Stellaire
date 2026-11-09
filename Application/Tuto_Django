@@ -6388,3 +6388,135 @@ git push
 
 Tu peux supprimer `A_FAIRE_PARTIE_14_1_BIS.md` : son contenu est consigné ci-dessus.
 
+## Partie 10 ter : catalogue automatique (plus de 1 000 astres)
+
+✅ Construite sur `10314a7` : la 6.4 et le glisser vertical étaient bien conservés. **Piège à
+l'extraction, encore une fois** : l'archive (et sa version corrigée envoyée ensuite) a de nouveau
+été décompressée dans `Application/Appli_Index_Stellaire/` au lieu de la racine du dépôt — même
+symptôme que la Partie 14.1 (`.gitignore` et un dossier `Application/` en double), corrigé de la
+même façon (fichiers déplacés au bon endroit, dossier en trop supprimé). Une **deuxième archive**
+a été reçue entre-temps (corrigeant les planètes manquantes, voir plus bas) et réinstallée
+par-dessus la première de la même manière.
+
+À côté des 16 fiches écrites à la main (`contenu/`), l'appli embarque maintenant une base de
+plus de 1 000 astres supplémentaires, **livrée avec le code** (fonctionne hors ligne dès
+l'installation), enrichie une fois par mois avec internet (résumé Wikipédia + image Wikimedia
+Commons, quand la licence le permet).
+
+| Astres | Nombre | Source |
+|---|---|---|
+| Étoiles jusqu'à la magnitude 4,5 | 919 | base HYG v4.1 (CC BY-SA 4.0) |
+| Objets de Messier | 110 | OpenNGC (CC BY-SA 4.0) : position, magnitude, **taille et orientation réelles** |
+| Planètes (Mercure à Neptune) et Pluton | 8 | calculées par Skyfield, présentes même sans `importer_contenu` |
+
+### `ciel/catalogue.py` (nouveau, ~420 lignes) : les deux étages
+
+1. **La base** (`ciel/donnees/catalogue_base.json`, générée par `generer_catalogue_base.py`,
+   livrée dans Git) : noms, positions, magnitudes, formes — aucun réseau nécessaire.
+2. **L'enrichissement** (`donnees_catalogue/`, hors Git, régénéré par machine) : résumé Wikipédia
+   en français (`resume_wikipedia`, filtré par mots-clés pour éviter les homonymes — « Castor »
+   est aussi un rongeur) et image Wikimedia Commons dont la licence est vérifiée
+   (`infos_image`/`licence_acceptee` : domaine public, CC0, CC BY, CC BY-SA ; jamais NC ni ND).
+
+**Priorité aux fiches écrites à la main** (`contenu/`) : `importer()` compare chaque astre du
+catalogue aux fiches existantes par identifiant, par nom normalisé, et par écart angulaire
+(< 0,1° pour un point du ciel) ; en cas de doublon, l'astre du catalogue est ignoré mais **jamais
+effacé** — juste retiré de la carte (`identifiant_skyfield` vidé), car l'historique des pointages
+peut encore y faire référence.
+
+`ciel/models.py` : nouveaux champs sur `ObjetCeleste` — `origine` (`contenu`/`catalogue`),
+`cle_catalogue`, `designation` (« α Orionis »), `magnitude`, `forme` (JSON, pour le ciel profond),
+`description_credit` (texte du crédit obligatoire, affiché sous la fiche). Migration
+`0008_catalogue_automatique`.
+
+### Performance : calcul groupé (`ciel/astro.py` : `positions_fixes`)
+
+Calculer la position de 900+ étoiles une par une aurait été trop lent (viser le Raspberry Pi).
+`positions_fixes` construit un seul objet Skyfield `Star` vectoriel pour toutes les étoiles
+`hip:` et tous les points `radec:` d'un coup, et fait **un seul appel** `observe()`/`altaz()` pour
+tous : la liste complète (1038 astres) passe de ~2 s à ~0,3 s. `ciel/views.py`
+(`liste_objets`) l'utilise à la place d'une boucle avec `altaz`/`radec` pour ces identifiants-là.
+
+### Carte, sans fouillis (`carte.js`)
+
+- Les étoiles du catalogue ne sont **pas redessinées** : la bibliothèque (d3-celestial) les
+  affiche déjà toutes comme des points. Seul leur nom/sélection ajoute quelque chose.
+- Le ciel profond du catalogue (amas, galaxies, nébuleuses OpenNGC) a un petit repère discret à
+  partir du zoom ×1,5 (tant que sa forme réelle est trop petite pour être dessinée), son nom à
+  partir du zoom ×2.
+- Les planètes du catalogue (celles sans fiche écrite) sont dessinées normalement, comme les
+  autres planètes — pas de traitement « discret » pour elles (exception ajoutée dans la seconde
+  archive, après la première version qui ne gérait que Uranus/Neptune).
+- Dans la fiche : la désignation s'affiche sous le nom, et le crédit obligatoire
+  (`description_credit`, « Texte : Wikipédia en français, CC BY-SA 4.0 · Données : … ») sous les
+  sources.
+
+### Un ajustement perso, par-dessus l'archive : les étoiles à fiche perdent aussi leur anneau
+
+Signalé en testant : les 5 étoiles à fiche écrite (Sirius, Polaris, Véga, Aldébaran, Bételgeuse)
+gardaient leur anneau bleu habituel (style `etoile`, Partie 3), hérité d'avant le catalogue.
+Comme elles sont elles aussi des étoiles `hip:` déjà dessinées nativement par la bibliothèque,
+cet anneau faisait doublon et surchargeait la vue au milieu des centaines d'étoiles du catalogue
+voisines, sans anneau. Généralisé à toutes les étoiles, pas seulement celles du catalogue :
+```javascript
+// avant : if (o.catalogue && o.categorie === "etoile" && !marque) return;
+if (o.categorie === "etoile" && !marque) return;
+```
+Elles restent cherchables et touchables (le test tactile utilise un rayon de détection fixe,
+indépendant du dessin), juste sans anneau au repos. Pas dans l'archive reçue ; à mentionner côté
+référence si ça doit être conservé au prochain remplacement complet de `carte.js`.
+
+### `python manage.py mettre_a_jour_catalogue` (nouvelle commande)
+
+```
+python manage.py mettre_a_jour_catalogue --hors-ligne   # import immédiat depuis la base livrée
+python manage.py mettre_a_jour_catalogue --limite 20    # essai avec internet (N astres)
+python manage.py mettre_a_jour_catalogue                # mise à jour complète
+```
+Reprend là où une mise à jour interrompue s'était arrêtée (un astre déjà enrichi depuis moins de
+30 jours n'est pas redemandé). `servir` l'appelle tout seul au démarrage (import immédiat si la
+base n'a jamais été chargée, mise à jour mensuelle en arrière-plan si elle a plus de 30 jours et
+qu'il y a internet) ; avec `runserver` (développement), c'est à la main.
+
+### Testé
+
+```
+python manage.py migrate                              # ciel 0008
+python manage.py importer_contenu                      # 16 astres, inchangés (priorité confirmée)
+python manage.py test                                  # 195 tests OK
+python manage.py mettre_a_jour_catalogue --hors-ligne  # 1037 astres (1 créé : Pluton, 13 ignorés)
+python manage.py mettre_a_jour_catalogue --limite 20   # essai réseau : 20 résumés, 7 images
+python manage.py mettre_a_jour_catalogue               # mise à jour complète
+```
+La mise à jour complète par internet a été **interrompue deux fois par une coupure réseau** de cet
+environnement (`getaddrinfo failed`), exactement le cas que le code est censé gérer : rien ne
+casse, elle reprend là où elle s'était arrêtée. Au final, **1024 des 1024 astres du catalogue ont
+leur texte (Wikipédia ou, à défaut, une description de secours avec le crédit des données), 67 ont
+une image.** Le reste (sans article Wikipédia pertinent, ou pas encore téléchargé) se complétera
+tout seul au prochain `servir`, ou avec un nouveau `mettre_a_jour_catalogue` quand le réseau sera
+stable.
+
+### Envoyé
+
+```
+git add .gitignore Application/Appli_Index_Stellaire
+git commit -m "Catalogue automatique : 919 etoiles, Messier, 8 planetes et Pluton, resumes Wikipedia mensuels"
+git push
+```
+(Déjà fait dans cette session.) Au moment de pousser, le dépôt avait reçu entre-temps un commit
+direct d'Adrien, **« ESP32 communication établie »** (`Application/ESP32/`, projet PlatformIO) :
+aucun fichier en commun, rebase sans conflit.
+
+### À savoir
+
+- **Pour Adrien** : `git pull`, `migrate`, `mettre_a_jour_catalogue`. Ses fiches restent
+  prioritaires ; il peut réécrire à la main la fiche de n'importe quel astre du catalogue (même
+  nom, ou identifiant `hip:`/`radec:` identique), et c'est sa fiche qui comptera.
+- `exporter_contenu` n'exporte jamais le catalogue, et les événements (✦) ne le prennent pas en
+  compte (900 étoiles rendraient le calcul des occultations bien trop long), sauf les planètes
+  visibles à l'œil nu quand elles n'ont pas de fiche écrite.
+- `donnees_catalogue/` et `media/objets_celestes/catalogue/` ne vont jamais dans Git : propres à
+  chaque machine, reconstruits tout seuls par `mettre_a_jour_catalogue`.
+
+Tu peux supprimer `A_FAIRE_CATALOGUE.md` : son contenu est consigné ci-dessus.
+
